@@ -3,7 +3,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Product, UserProfile } from '../types';
 import { getBuyingDecision } from '../services/geminiService';
 import { startCheckout } from '../services/stripeService';
-import { Check, X, AlertTriangle, ShieldCheck, Zap, AlertOctagon, TrendingUp, DollarSign, Clock, ArrowRight, Lock, Sparkles, Crown, Link, ExternalLink } from 'lucide-react';
+import { Check, X, AlertTriangle, ShieldCheck, Zap, AlertOctagon, TrendingUp, DollarSign, Clock, ArrowRight, Lock, Sparkles, Crown, Link, ExternalLink, CloudSun, Layers } from 'lucide-react';
 
 interface BuyingAssistantProps {
   product: Product;
@@ -196,6 +196,21 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
                                     }
                                 })}
                             </div>
+                        </div>
+                    )}
+
+                    {/* NEW: CLIMATE & CONTEXT TIPS (Visible if product.usageTips exists) */}
+                    {product.usageTips && (
+                        <div className="bg-gradient-to-br from-indigo-50 to-white p-5 rounded-[1.5rem] border border-indigo-100 shadow-sm relative overflow-hidden">
+                            <div className="absolute top-0 right-0 p-4 opacity-10">
+                                <CloudSun size={64} className="text-indigo-900" />
+                            </div>
+                            <h3 className="text-xs font-bold text-indigo-900 uppercase tracking-widest mb-3 flex items-center gap-2 relative z-10">
+                                <Layers size={14} className="text-indigo-600" /> Pro Tip: Malaysia Context
+                            </h3>
+                            <p className="text-xs text-indigo-800 font-medium leading-relaxed relative z-10">
+                                {product.usageTips}
+                            </p>
                         </div>
                     )}
 

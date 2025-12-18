@@ -88,6 +88,7 @@ export interface Product {
   type: 'CLEANSER' | 'TONER' | 'SERUM' | 'MOISTURIZER' | 'SPF' | 'TREATMENT' | 
         'FOUNDATION' | 'CONCEALER' | 'POWDER' | 'PRIMER' | 'SETTING_SPRAY' | 'BLUSH' | 'BRONZER' | 'UNKNOWN';
   sources?: string[]; // URLs from Google Search Grounding
+  usageTips?: string; // New: Personalized advice (Climate, Conflicts, Layering)
 }
 
 export interface ShelfConflict {

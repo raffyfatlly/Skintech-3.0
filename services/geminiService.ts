@@ -129,26 +129,29 @@ export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, 
     }, localMetrics);
 };
 
-export const analyzeProductFromSearch = async (productName: string, userMetrics: SkinMetrics, consistencyScore?: number, knownBrand?: string): Promise<Product> => {
+// Updated: Accepts routineActives for conflict checking
+export const analyzeProductFromSearch = async (productName: string, userMetrics: SkinMetrics, consistencyScore?: number, knownBrand?: string, routineActives: string[] = []): Promise<Product> => {
     return runWithRetry<Product>(async (ai) => {
         const prompt = `
-        CONTEXT: User is in MALAYSIA.
+        CONTEXT: User is in MALAYSIA (Tropical, Humid Climate).
         Product: "${productName}" ${knownBrand ? `by ${knownBrand}` : ''}
         
         User Skin Profile:
         - Type: ${userMetrics.oiliness < 40 ? "Dry" : userMetrics.oiliness > 70 ? "Oily" : "Combination"}
         - Concerns: Acne (${userMetrics.acneActive < 70 ? "Active" : "Clear"}), Sensitivity (${userMetrics.redness < 60 ? "High" : "Normal"}), Hydration (${userMetrics.hydration})
         
+        CURRENT SHELF ACTIVES: [${routineActives.join(', ')}]
+
         ACTIONS:
         1. USE GOOGLE SEARCH to find:
-           - The OFFICIAL full ingredient list (INCI) from sources like INCIDecoder, CosDNA, or Brand Site.
-           - The CURRENT PRICE in MALAYSIA (RM/MYR) from Watsons MY, Guardian MY, Sephora MY, or Official Shopee Mall.
-           - User reviews regarding sensitivity and acne triggers.
+           - The OFFICIAL INCI ingredient list.
+           - The CURRENT PRICE in MALAYSIA (RM/MYR) (Watsons MY, Guardian MY, Sephora MY, Shopee Mall).
+           - Reviews regarding humidity suitability (does it feel heavy/sticky?).
         
         2. ANALYZE:
-           - Cross-reference ingredients with the user's metrics.
-           - Identify SPECIFIC pros (benefits) and cons (risks/warnings).
-           - Score the product from 0-100 based on this specific user match.
+           - **Climate Fit**: Is this product texture suitable for hot/humid Malaysia?
+           - **Routine Conflicts**: Does this product conflict with existing actives (e.g. Mixing Retinol with shelf Vitamin C/AHA)?
+           - **Suitability**: Score 0-100 based on skin match.
 
         OUTPUT FORMAT:
         Return ONLY a raw JSON object.
@@ -164,11 +167,11 @@ export const analyzeProductFromSearch = async (productName: string, userMetrics:
             ],
             "benefits": [
                 { "ingredient": "Centella", "target": "redness", "description": "Calms active inflammation", "relevance": "HIGH" }
-            ]
+            ],
+            "usageTips": "Specific advice. E.g. 'Contains Retinol - do not use on the same night as your existing AHA serum. Since Malaysia is humid, use a thin layer only in the PM.'"
         }
         `;
 
-        // Use gemini-2.5-flash for Search Grounding
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,
@@ -193,15 +196,17 @@ export const analyzeProductFromSearch = async (productName: string, userMetrics:
             risks: data.risks || [],
             benefits: data.benefits || [],
             dateScanned: Date.now(),
-            sources: sources
+            sources: sources,
+            usageTips: data.usageTips
         };
     }, { ...getFallbackProduct(userMetrics, productName), suitabilityScore: consistencyScore || 75, brand: knownBrand || "Unknown Brand" }, 60000); 
 };
 
-export const analyzeProductImage = async (base64: string, userMetrics: SkinMetrics): Promise<Product> => {
+// Updated: Accepts routineActives for conflict checking
+export const analyzeProductImage = async (base64: string, userMetrics: SkinMetrics, routineActives: string[] = []): Promise<Product> => {
     return runWithRetry<Product>(async (ai) => {
         
-        // STEP 1: VISION RECOGNITION (LOOSE & DESCRIPTIVE)
+        // STEP 1: VISION RECOGNITION
         const visionPrompt = `
         Analyze this skincare product image. 
         Identify the BRAND and PRODUCT NAME clearly.
@@ -216,7 +221,7 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
         `;
 
         const visionResponse = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview', // High visual accuracy
+            model: 'gemini-3-flash-preview', 
             contents: {
                 parts: [
                     { inlineData: { mimeType: 'image/jpeg', data: base64.split(',')[1] } },
@@ -232,17 +237,18 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
             throw new Error("Could not identify product. Please try scanning closer.");
         }
 
-        // STEP 2: SEARCH & REFINEMENT
+        // STEP 2: SEARCH & REFINEMENT (Malaysian Context)
         const refinementPrompt = `
         PRODUCT: "${visionData.brand} ${visionData.name}"
-        CONTEXT: User in MALAYSIA.
-        
+        CONTEXT: User in MALAYSIA (Tropical Climate).
         USER METRICS: ${JSON.stringify(userMetrics)}
+        CURRENT ROUTINE ACTIVES: [${routineActives.join(', ')}]
 
         TASK:
-        1. SEARCH GOOGLE to confirm the exact product name and find its INCI ingredients list.
-        2. FIND CURRENT PRICE in MALAYSIA (RM).
-        3. ANALYZE suitability for the user.
+        1. SEARCH GOOGLE to confirm exact product & INCI ingredients.
+        2. FIND MALAYSIAN PRICE (RM).
+        3. ANALYZE suitability and ROUTINE CONFLICTS (e.g. Retinol vs Acid).
+        4. Provide CLIMATE-AWARE usage tips.
 
         OUTPUT JSON:
         {
@@ -253,11 +259,11 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
             "estimatedPrice": 0, // RM
             "suitabilityScore": 0,
             "risks": [{ "ingredient": "...", "riskLevel": "HIGH", "reason": "..." }],
-            "benefits": [{ "ingredient": "...", "target": "...", "description": "...", "relevance": "HIGH" }]
+            "benefits": [{ "ingredient": "...", "target": "...", "description": "...", "relevance": "HIGH" }],
+            "usageTips": "Advice on layering with current routine and handling Malaysian humidity."
         }
         `;
 
-        // Use 2.5-flash with Google Search for grounding
         const finalResponse = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: refinementPrompt,
@@ -282,7 +288,8 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
             risks: data.risks || [],
             benefits: data.benefits || [],
             dateScanned: Date.now(),
-            sources: sources
+            sources: sources,
+            usageTips: data.usageTips
         };
 
     }, getFallbackProduct(userMetrics, "Scanned Product"), 60000); 

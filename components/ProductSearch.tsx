@@ -12,11 +12,12 @@ interface SearchResult {
 
 interface ProductSearchProps {
     userProfile: UserProfile;
+    shelf: Product[]; // New Prop
     onProductFound: (product: Product) => void;
     onCancel: () => void;
 }
 
-const ProductSearch: React.FC<ProductSearchProps> = ({ userProfile, onProductFound, onCancel }) => {
+const ProductSearch: React.FC<ProductSearchProps> = ({ userProfile, shelf, onProductFound, onCancel }) => {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<SearchResult[]>([]);
     const [isSearching, setIsSearching] = useState(false);
@@ -31,9 +32,9 @@ const ProductSearch: React.FC<ProductSearchProps> = ({ userProfile, onProductFou
             const messages = [
                 "Searching global skincare database...",
                 "Extracting full ingredient list...",
-                "Matching with your unique skin profile...",
-                "Checking for potential irritants...",
-                "Calculating final compatibility score..."
+                "Checking conflicts with your shelf...",
+                "Analyzing humidity compatibility...",
+                "Calculating final match score..."
             ];
             let i = 0;
             setLoadingText(messages[0]);
@@ -80,8 +81,17 @@ const ProductSearch: React.FC<ProductSearchProps> = ({ userProfile, onProductFou
         setError(null);
         
         try {
-          // Pass score AND brand to ensure accuracy
-          const product = await analyzeProductFromSearch(item.name, userProfile.biometrics, item.score > 0 ? item.score : undefined, item.brand);
+          // Flatten existing shelf ingredients to pass for conflict check
+          const shelfIngredients = shelf.flatMap(p => p.ingredients).slice(0, 50); // limit to avoiding huge prompt
+          
+          // Pass score, brand, and shelf actives
+          const product = await analyzeProductFromSearch(
+              item.name, 
+              userProfile.biometrics, 
+              item.score > 0 ? item.score : undefined, 
+              item.brand,
+              shelfIngredients
+          );
           onProductFound(product);
         } catch (err) {
           console.error(err);

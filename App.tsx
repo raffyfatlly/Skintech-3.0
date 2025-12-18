@@ -359,7 +359,8 @@ const App: React.FC = () => {
           case AppView.PRODUCT_SCANNER:
               return userProfile ? (
                   <ProductScanner 
-                    userProfile={userProfile} 
+                    userProfile={userProfile}
+                    shelf={shelf}
                     onProductFound={handleProductFound}
                     onCancel={() => setCurrentView(AppView.SMART_SHELF)}
                   />
@@ -368,6 +369,7 @@ const App: React.FC = () => {
               return userProfile ? (
                   <ProductSearch
                     userProfile={userProfile}
+                    shelf={shelf}
                     onProductFound={handleProductFound}
                     onCancel={() => setCurrentView(AppView.SMART_SHELF)}
                   />

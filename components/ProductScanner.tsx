@@ -6,11 +6,12 @@ import { Product, UserProfile } from '../types';
 
 interface ProductScannerProps {
   userProfile: UserProfile;
+  shelf: Product[]; // New Prop
   onProductFound: (product: Product) => void;
   onCancel: () => void;
 }
 
-const ProductScanner: React.FC<ProductScannerProps> = ({ userProfile, onProductFound, onCancel }) => {
+const ProductScanner: React.FC<ProductScannerProps> = ({ userProfile, shelf, onProductFound, onCancel }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -35,9 +36,9 @@ const ProductScanner: React.FC<ProductScannerProps> = ({ userProfile, onProductF
         const messages = [
             "Scanning product identity...",
             "Consulting global database...",
-            "Resolving name variations...",
             "Checking ingredient safety...",
-            "Calculating match score..."
+            "Analyzing shelf conflicts...",
+            "Calculating climate match..."
         ];
         let i = 0;
         setLoadingText(messages[0]);
@@ -156,7 +157,10 @@ const ProductScanner: React.FC<ProductScannerProps> = ({ userProfile, onProductF
              setTorchOn(false);
         }
 
-        const product = await analyzeProductImage(base64, userProfile.biometrics);
+        // Flatten shelf ingredients
+        const shelfIngredients = shelf.flatMap(p => p.ingredients).slice(0, 50);
+
+        const product = await analyzeProductImage(base64, userProfile.biometrics, shelfIngredients);
         onProductFound(product);
       } catch (err) {
         console.error(err);
