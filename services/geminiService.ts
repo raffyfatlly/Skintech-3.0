@@ -91,7 +91,7 @@ export const searchProducts = async (query: string): Promise<{ name: string, bra
         `;
         
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3-flash-preview',
             contents: prompt,
             config: { responseMimeType: 'application/json' }
         });
@@ -172,7 +172,7 @@ export const analyzeProductFromSearch = async (productName: string, userMetrics:
         `;
 
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3-flash-preview',
             contents: prompt,
             config: {
                  responseMimeType: 'application/json'
@@ -241,7 +241,7 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
         `;
 
         const visionResponse = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3-flash-preview',
             contents: {
                 parts: [
                     { inlineData: { mimeType: 'image/jpeg', data: base64.split(',')[1] } },
@@ -300,7 +300,7 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
         `;
 
         const finalResponse = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-3-flash-preview',
             contents: refinementPrompt,
             config: { responseMimeType: 'application/json' }
         });
