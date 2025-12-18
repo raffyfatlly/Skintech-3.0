@@ -279,8 +279,11 @@ const App: React.FC = () => {
           setCurrentView(view);
       };
 
+      // Elevate z-index if guide is active to show button above backdrop
+      const navZIndex = activeGuide ? 'z-[60]' : 'z-30';
+
       return (
-          <div className="fixed bottom-6 left-6 right-6 h-20 bg-white/90 backdrop-blur-xl border border-zinc-200/50 rounded-[2rem] shadow-2xl flex items-center justify-around z-30 max-w-md mx-auto animate-in slide-in-from-bottom-24 duration-700">
+          <div className={`fixed bottom-6 left-6 right-6 h-20 bg-white/90 backdrop-blur-xl border border-zinc-200/50 rounded-[2rem] shadow-2xl flex items-center justify-around max-w-md mx-auto animate-in slide-in-from-bottom-24 duration-700 ${navZIndex}`}>
               <button onClick={() => handleNavClick(AppView.DASHBOARD)} className={navItemClass(AppView.DASHBOARD)}>
                   <Home size={22} strokeWidth={currentView === AppView.DASHBOARD ? 2.5 : 2} />
               </button>

@@ -104,12 +104,135 @@ export const searchProducts = async (query: string): Promise<{ name: string, bra
 
 export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, history?: SkinMetrics[]): Promise<SkinMetrics> => {
     return runWithRetry<SkinMetrics>(async (ai) => {
+        const rubric = `
+AI REFERENCE RUBRIC: SKIN HEALTH & INTEGRITY GRADING
+
+SCORING ARCHITECTURE
+ * Group 1: Crisis (Score 02–19) - Critical / Medical Emergency / Necrotic / Disfigured
+ * Group 2: Clinical (Score 20–39) - Severe / Pathological / Deeply Compromised
+ * Group 3: Reactive (Score 40–59) - Active Concern / Inflamed / Visibly Damaged
+ * Group 4: Imbalanced (Score 60–79) - Sub-Optimal / Dull / Minor Congestion
+ * Group 5: Resilient (Score 80–92) - Healthy / Clean / Balanced
+ * Group 6: Pristine (Score 93–98) - Flawless / Glass-like / Optimized
+
+CATEGORY 1: BLEMISHES
+1. ACNE (Lesion Count, Size & Coverage)
+ * Group 1 (Crisis): >50% face coverage. Confluent plaques of infected, weeping, or necrotic tissue. Large cysts >1cm in diameter merging together.
+ * Group 2 (Clinical): 10+ active inflammatory lesions. Presence of deep nodules or cysts (>5mm size). Significant swelling extending >2mm beyond the lesion border.
+ * Group 3 (Reactive): 5–10 active red papules/pustules. Inflammation is localized (spots are distinct, not merging). Lesions are generally <3mm in size.
+ * Group 4 (Imbalanced): Clusters of closed comedones (flesh-colored bumps). No active red inflammation, but texture is bumpy in zones >2cm wide (e.g., forehead or chin).
+ * Group 5 (Resilient): 0–1 active minor blemishes. Lesion is small (<1mm), surface-level, and barely red.
+ * Group 6 (Pristine): 0 lesions. Surface is completely flat and unbroken. 0% inflammation.
+
+2. SCARS (Depth, Width & Visibility)
+ * Group 1 (Crisis): Hypertrophic/Keloid: Raised scars extending >2mm above skin surface. Or severe atrophy causing facial deformity.
+ * Group 2 (Clinical): Deep Pitting: Ice-pick or Boxcar scars >1mm deep. Texture is visibly wavy/indented from a distance of 1 meter.
+ * Group 3 (Reactive): Pigmented marks (PIH/PIE): Dark red or brown flat spots remaining from acne. High contrast against skin tone. Covers >10% of cheek area.
+ * Group 4 (Imbalanced): Shallow indentation: Minor rolling scars (<0.5mm depth). Visible only with side-lighting (shadows cast by uneven texture).
+ * Group 5 (Resilient): Micro-textural variance: Variance only visible under 5x magnification. To the naked eye, skin looks smooth.
+ * Group 6 (Pristine): Uniform surface: No indentation or pigment variance. Light reflects in a straight, unbroken line across the area.
+
+3. PORES (Diameter & Visibility Distance)
+ * Group 1 (Crisis): Ruptured: Pores merged into pitted tracts. "Orange peel" texture visible from >2 meters away.
+ * Group 2 (Clinical): Distended: Pores appear oval/stretched. Diameter >0.5mm. Visible clearly on cheeks and forehead from 1 meter.
+ * Group 3 (Reactive): Enlarged: Circular pores visible on nose and inner cheeks from 50cm distance. "Strawberry" texture on nose.
+ * Group 4 (Imbalanced): Localized: Visible pores confined strictly to the T-zone. Cheek pores are tight. Visible from 30cm.
+ * Group 5 (Resilient): Tight: Pores appear as pinpoints (<0.1mm). Visible only on nose tip when looking in a magnifying mirror.
+ * Group 6 (Pristine): Invisible: "Blur" effect. Pores are undetectable to the naked eye at any distance.
+
+4. BLACKHEADS (Density & Plug Size)
+ * Group 1 (Crisis): Giant Comedones: Pores dilated >1mm by hard, dark, oxidized plugs. Signs of infection around the plug.
+ * Group 2 (Clinical): High Density: Clusters of >20 distinct black dots across T-zone and cheeks. Texture feels rough/spiky.
+ * Group 3 (Reactive): Moderate Density: 10–20 visible blackheads on nose/chin. Pores look dark and filled.
+ * Group 4 (Imbalanced): Sebaceous Filaments: Light grey/tan tops visible on nose only. Not true blackheads (no pore stretching).
+ * Group 5 (Resilient): Clear: Pores generally look empty. No dark oxidation spots visible.
+ * Group 6 (Pristine): Empty: Pores contain no visible debris. No color difference between pore and skin.
+
+
+CATEGORY 2: HEALTH
+5. HYDRATION (Desquamation Area & Turgor)
+ * Group 1 (Crisis): Fissuring: Cracks or bleeding in the skin. Peeling skin sheets >1cm wide. Raw, exposed dermis.
+ * Group 2 (Clinical): Scaling: Visible white flakes covering >30% of the face. "Alligator" pattern cracking.
+ * Group 3 (Reactive): Micro-flaking: Fine, powdery flakes visible on nose or brows. Skin does not reflect light (matte). Fine crepey lines visible.
+ * Group 4 (Imbalanced): Dullness: No flaking, but skin absorbs topicals instantly. Slight "drag" when touching.
+ * Group 5 (Resilient): Supple: Soft surface. Good turgor (recovers instantly from pinch).
+ * Group 6 (Pristine): Hydro-Plump: Skin looks "wet" or dewy. High water content reflects light broadly.
+
+6. OIL CONTROL (Surface Area & Shine Intensity)
+ * Group 1 (Crisis): Seborrhea: Visible crusting of yellow oil/skin mix. Or oil dripping/pooling in creases.
+ * Group 2 (Clinical): Slick: Heavy high-gloss shine covering 100% of the face (including cheeks). Oil transfer to fingers upon lightest touch.
+ * Group 3 (Reactive): Shiny T-Zone: Distinct glare on forehead/nose/chin. Cheeks are matte. Oil visible 2–3 hours after cleansing.
+ * Group 4 (Imbalanced): Satin: Mild sheen on nose tip only. Skin feels slightly tacky but looks mostly matte.
+ * Group 5 (Resilient): Velvet: Soft glow, not greasy. Sebum production matches skin needs.
+ * Group 6 (Pristine): Balanced: Optimized lipid layer. Skin has a natural luminosity but 0% surface grease accumulation.
+
+7. REDNESS (Intensity & Vascularity)
+ * Group 1 (Crisis): Deep Erythema: Purple or bright red inflammation covering >50% of face. Visible swelling/edema.
+ * Group 2 (Clinical): Couperose: Distinct network of broken capillaries (spider veins) visible. Or persistent red blotches >2cm in size.
+ * Group 3 (Reactive): Flushing: General pink undertone on cheeks/nose. Contrast between red areas and neck color is obvious.
+ * Group 4 (Imbalanced): Mild Pinkness: Redness confined to small areas (e.g., creases of nose, chin).
+ * Group 5 (Resilient): Calm: Even skin tone. No pink or red undertones visible.
+ * Group 6 (Pristine): Porcelain: Uniform color consistency edge-to-edge. 0% redness.
+
+8. TEXTURE (Roughness & Uniformity)
+ * Group 1 (Crisis): Scabbing/Crusting: Hard, rough scabs or oozing patches. Surface height varies by >1mm.
+ * Group 2 (Clinical): Cobblestone: Widespread tiny bumps (closed comedones) giving a sandpaper look. >50% of texture is uneven.
+ * Group 3 (Reactive): Grainy: Uneven surface. Light scatters rather than reflecting. Fingers feel distinct friction/drag.
+ * Group 4 (Imbalanced): Dry Patchy: Generally smooth, but isolated rough patches (e.g., on cheeks).
+ * Group 5 (Resilient): Silky: Finger glides easily. Minor texture only detecting by touch, not sight.
+ * Group 6 (Pristine): Frictionless: Surface is polished and glass-smooth. No drag.
+
+
+CATEGORY 3: VITALITY
+
+9. FINE LINES (Depth & Persistence)
+ * Group 1 (Crisis): Fissures: Deep cracks resembling dried earth. Skin looks brittle and inelastic.
+ * Group 2 (Clinical): Static Lines: Lines etched into skin (forehead/eyes) visible at rest (without moving face). Depth >0.5mm.
+ * Group 3 (Reactive): Lingering Dynamic: Lines appear deep during expression and take >3 seconds to fade after relaxing.
+ * Group 4 (Imbalanced): Shadowing: Faint linear shadows in expression areas. Visible only in harsh overhead lighting.
+ * Group 5 (Resilient): Micro-lines: Very faint lines visible only during extreme smiling/frowning. Disappear instantly.
+ * Group 6 (Pristine): High Tension: No lines visible even during micro-movements. Surface tension is high.
+
+10. WRINKLES (Structural Fold Depth)
+ * Group 1 (Crisis): Collapse: Deep folds/overlaps (e.g., hooded eyes, jowls) that alter face silhouette.
+ * Group 2 (Clinical): Furrows: Deep-set wrinkles (Nasolabial/Forehead) >1mm deep. Cannot be stretched flat with fingers.
+ * Group 3 (Reactive): Creases: Visible lines at corners of eyes/mouth that are clearly defined but <1mm deep.
+ * Group 4 (Imbalanced): Early Etching: "Shadows" forming where wrinkles will be. No permanent physical indentation yet.
+ * Group 5 (Resilient): Firm: No deep wrinkles. Skin structure is dense.
+ * Group 6 (Pristine): Youthful Density: Skin is thick and supportive. 0 visible folds.
+
+11. FIRMNESS (Elasticity & Droop)
+ * Group 1 (Crisis): Laxity: Skin hangs loosely. "Turkey neck" or excessive pooling. 0 elastic recoil.
+ * Group 2 (Clinical): Sagging: Jawline definition is lost. Jowls droop >5mm below the jawbone line.
+ * Group 3 (Reactive): Looseness: Skin can be pulled >1cm away from the face and returns slowly (poor snap test).
+ * Group 4 (Imbalanced): Softening: Jawline is slightly blurred, not razor-sharp. Cheeks have slightly dropped.
+ * Group 5 (Resilient): Taut: Strong resistance. Skin sits tight against the muscle/bone.
+ * Group 6 (Pristine): Lifted: Maximum tensile strength. Contours are sharp, defined, and high.
+
+12. SPOTS (Pigment Density & Contrast)
+ * Group 1 (Crisis): Irregular: Asymmetrical, multi-colored lesions (>6mm) or bleeding spots (Melanoma risk). Large melasma patches >5cm.
+ * Group 2 (Clinical): Dense Clustering: Multiple high-contrast brown spots (age spots). Covers >30% of cheek area.
+ * Group 3 (Reactive): Mottled: Uneven, patchy brown tone. "Cloudy" appearance. Distinct freckling from sun damage.
+ * Group 4 (Imbalanced): Faint: Slight shadows or very light freckling. Low contrast against skin tone.
+ * Group 5 (Resilient): Bright: Even complexion. 1-2 very faint spots allowed.
+ * Group 6 (Pristine): Luminous: Translucent quality. 0 visible melanin clusters.
+13. DARK CIRCLES (Infraorbital Shadow & Volume)
+ * Group 1 (Crisis): "Raccoon Eyes": Deep purple/black bruising surrounding the entire eye socket. Or severe edema (swelling) obscuring the eye shape.
+ * Group 2 (Clinical): Deep Hollows: Distinct "tear trough" deformity (sunken groove >2mm deep). Pigmentation is dark brown/blue and extends down onto the cheekbone.
+ * Group 3 (Reactive): Visible Semicircles: Clearly defined purple/blue crescent shapes under the eye. Shadow is visible from 1 meter.
+ * Group 4 (Imbalanced): Inner Corner Shadow: Darkening confined strictly to the inner corner of the eye (near nose). Not a full semicircle.
+ * Group 5 (Resilient): Minimal: Very faint shadow, likely due to thin skin rather than pigmentation. Easily covered with light concealer.
+ * Group 6 (Pristine): Bright: Under-eye area is the same brightness and color as the cheek. No hollowing or volume loss.
+        `;
+
         const prompt = `Analyze this face image for dermatological metrics. 
         Current computer-vision estimates (reference): ${JSON.stringify(localMetrics)}.
         
         TASK:
         1. Ignore provided metrics if they contradict visible skin condition.
-        2. Calibrate scoring (0-100, Higher = Better/Clearer).
+        2. Calibrate scoring (0-100, Higher = Better/Clearer) **STRICTLY BASED ON THE RUBRIC BELOW**.
+        
+        ${rubric}
         
         Return JSON fields: overallScore, acneActive, acneScars, poreSize, blackheads, wrinkleFine, wrinkleDeep, sagging, pigmentation, redness, texture, hydration, oiliness, darkCircles, skinAge, analysisSummary (string), observations (map of metric key to string).`;
         
