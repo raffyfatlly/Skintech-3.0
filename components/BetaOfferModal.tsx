@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { X, Sparkles, Check, Crown, ArrowRight, ShieldCheck, Zap, Ticket, KeyRound, Loader } from 'lucide-react';
+import { X, Sparkles, Check, Crown, ArrowRight, ShieldCheck, Zap, KeyRound, Loader } from 'lucide-react';
 import { claimAccessCode } from '../services/storageService';
 
 interface BetaOfferModalProps {
@@ -9,8 +9,8 @@ interface BetaOfferModalProps {
   onCodeSuccess: () => void;
 }
 
-// Provided List of 100 Unique Access Codes
-const VALID_CODES = new Set([
+// Full List of 100 Unique Access Codes (Canonical Format)
+const ACCESS_CODES = [
   "A7K2-M9XP", "L4W8-Q2ZR", "B9X3-Y6VM", "H2J5-T8NK", "R7C4-D1QS", "P3M9-F6GL", "X8W2-Z5VB", "K1N7-H4TJ", "Q6D9-S3RF", "V2B8-L5YM",
   "C4G7-P9XN", "M8J3-K2WQ", "T5R6-D1ZL", "F9H2-B4CS", "W3Q8-V7NP", "Z6L5-X9MK", "G2T4-J8RY", "S7P3-N1WD", "D5M9-H6BF", "Y8K2-C4VG",
   "R3X7-Q9ZL", "L6N2-W5TJ", "B8D4-P1SM", "H9G5-F3VK", "M2Q7-R8YC", "X5J9-Z4TN", "C1W6-L8KP", "K7B3-D2RF", "V4S9-H5XQ", "T8M2-N6GP",
@@ -21,7 +21,7 @@ const VALID_CODES = new Set([
   "P7D9-R6WG", "Q4L2-J5XN", "G8W5-V1TS", "Y6B3-S9FM", "D2K7-H4ZP", "J9R8-C5VQ", "N5T2-L3YB", "R8X6-M1GK", "H4Q9-D7WJ", "L7G5-P2ZN",
   "C3J2-F6VR", "X9S4-K8TY", "M6N8-B1DL", "V2H5-R9WQ", "F8M3-T4XG", "W1P7-L6ZJ", "Z5K9-C2VS", "Q3R4-D8NM", "G7B6-H1YK", "T2J5-S9WF",
   "D6W8-N3XQ", "Y9L2-V5RP", "P4C7-M1ZG", "K3G5-F8TJ", "R1T9-Q6VB", "H5N4-X2LS", "L8S3-J7WK", "B2M6-D9RY", "X7Q2-C5ZN"
-]);
+];
 
 const BetaOfferModal: React.FC<BetaOfferModalProps> = ({ onClose, onConfirm, onCodeSuccess }) => {
   const [showCodeInput, setShowCodeInput] = useState(false);
@@ -30,11 +30,23 @@ const BetaOfferModal: React.FC<BetaOfferModalProps> = ({ onClose, onConfirm, onC
   const [isChecking, setIsChecking] = useState(false);
 
   const handleRedeem = async () => {
-      const normalizedCode = code.trim().toUpperCase();
+      // Robust Normalization: Remove all spaces, dashes, and convert to uppercase
+      const cleanInput = code.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
       
-      // 1. Static Validation Check
-      if (!VALID_CODES.has(normalizedCode) && normalizedCode !== 'SKINOSVIP' && normalizedCode !== 'DEMO2025') {
-          setCodeError('Invalid code format.');
+      let canonicalCode: string | undefined;
+
+      // 1. Check against the strict list (Flexible Matching)
+      // We compare the stripped version of the input against the stripped version of valid codes
+      const matchedCode = ACCESS_CODES.find(c => c.replace(/[^a-zA-Z0-9]/g, '') === cleanInput);
+      
+      if (matchedCode) {
+          canonicalCode = matchedCode; // Use the formatted version (e.g. "A7K2-M9XP") for DB consistency
+      } else if (cleanInput === 'SKINOSVIP' || cleanInput === 'DEMO2025') {
+          canonicalCode = cleanInput;
+      }
+
+      if (!canonicalCode) {
+          setCodeError('Invalid code. Please check for typos.');
           return;
       }
 
@@ -42,8 +54,8 @@ const BetaOfferModal: React.FC<BetaOfferModalProps> = ({ onClose, onConfirm, onC
       setCodeError('');
 
       // 2. Backend Claim Check (Enforces Single User Use)
-      // This calls storageService.ts which creates a document in 'claimed_codes' collection
-      const result = await claimAccessCode(normalizedCode);
+      // We pass the canonical code to ensure the DB key is consistent regardless of how user typed it
+      const result = await claimAccessCode(canonicalCode);
       
       setIsChecking(false);
 
