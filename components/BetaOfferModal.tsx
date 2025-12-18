@@ -23,19 +23,6 @@ const RAW_ACCESS_CODES = [
   "D6W8-N3XQ", "Y9L2-V5RP", "P4C7-M1ZG", "K3G5-F8TJ", "R1T9-Q6VB", "H5N4-X2LS", "L8S3-J7WK", "B2M6-D9RY", "X7Q2-C5ZN"
 ];
 
-// Helper to normalize strings (remove non-alphanumeric, uppercase)
-const normalize = (s: string) => s.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-
-// Build a fast lookup map: { "A7K2M9XP": "A7K2-M9XP", ... }
-const CODE_MAP: Record<string, string> = RAW_ACCESS_CODES.reduce((acc, code) => {
-    acc[normalize(code)] = code;
-    return acc;
-}, {} as Record<string, string>);
-
-// Add special overrides
-CODE_MAP['SKINOSVIP'] = 'SKINOSVIP';
-CODE_MAP['DEMO2025'] = 'DEMO2025';
-
 const BetaOfferModal: React.FC<BetaOfferModalProps> = ({ onClose, onConfirm, onCodeSuccess }) => {
   const [showCodeInput, setShowCodeInput] = useState(false);
   const [code, setCode] = useState('');
@@ -43,11 +30,22 @@ const BetaOfferModal: React.FC<BetaOfferModalProps> = ({ onClose, onConfirm, onC
   const [isChecking, setIsChecking] = useState(false);
 
   const handleRedeem = async () => {
-      // 1. Normalize Input (Remove dashes, spaces, case sensitivity)
-      const cleanInput = normalize(code);
+      // 1. Clean Input: Remove non-alphanumeric, convert to uppercase
+      const cleanInput = code.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
       
-      // 2. Direct Lookup (O(1))
-      const canonicalCode = CODE_MAP[cleanInput];
+      console.log('Validating Code:', cleanInput); // Debugging
+
+      // 2. Find Match: Iterate through raw codes and compare cleaned versions
+      let canonicalCode = RAW_ACCESS_CODES.find(c => 
+          c.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() === cleanInput
+      );
+
+      // 3. Special Codes Fallback
+      if (!canonicalCode) {
+          if (cleanInput === 'SKINOSVIP' || cleanInput === 'DEMO2025') {
+              canonicalCode = cleanInput;
+          }
+      }
 
       if (!canonicalCode) {
           setCodeError('Invalid code format. Please check for typos.');
@@ -58,8 +56,6 @@ const BetaOfferModal: React.FC<BetaOfferModalProps> = ({ onClose, onConfirm, onC
       setCodeError('');
 
       try {
-          // 3. Backend Claim Check (Enforces Single User Use)
-          // We pass the canonical (formatted) code to ensure consistency in the DB
           const result = await claimAccessCode(canonicalCode);
           
           if (result.success) {
