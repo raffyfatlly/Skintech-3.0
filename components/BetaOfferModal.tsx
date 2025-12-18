@@ -9,9 +9,9 @@ interface BetaOfferModalProps {
   onCodeSuccess: () => void;
 }
 
-// Full List of 100 Unique Access Codes
+// Full List of Unique Access Codes
 const RAW_ACCESS_CODES = [
-  "A7K2-M9XP", "L4W8-Q2ZR", "B9X3-Y6VM", "H2J5-T8NK", "R7C4-D1QS", "P3M9-F6GL", "X8W2-Z5VB", "K1N7-H4TJ", "Q6D9-S3RF", "V2B8-L5YM",
+  "A7K2-M9XP", "AK72-M9XP", "L4W8-Q2ZR", "B9X3-Y6VM", "H2J5-T8NK", "R7C4-D1QS", "P3M9-F6GL", "X8W2-Z5VB", "K1N7-H4TJ", "Q6D9-S3RF", "V2B8-L5YM",
   "C4G7-P9XN", "M8J3-K2WQ", "T5R6-D1ZL", "F9H2-B4CS", "W3Q8-V7NP", "Z6L5-X9MK", "G2T4-J8RY", "S7P3-N1WD", "D5M9-H6BF", "Y8K2-C4VG",
   "R3X7-Q9ZL", "L6N2-W5TJ", "B8D4-P1SM", "H9G5-F3VK", "M2Q7-R8YC", "X5J9-Z4TN", "C1W6-L8KP", "K7B3-D2RF", "V4S9-H5XQ", "T8M2-N6GP",
   "F3Y7-J9WL", "P6R5-C2VB", "Z9K4-G1TS", "Q2L8-D5XM", "W7N3-B6RJ", "G4H9-S2FK", "D8T5-P1VQ", "Y3C6-X9ZL", "J5M2-R7WN", "N9S8-K4YF",
@@ -29,15 +29,28 @@ const BetaOfferModal: React.FC<BetaOfferModalProps> = ({ onClose, onConfirm, onC
   const [codeError, setCodeError] = useState('');
   const [isChecking, setIsChecking] = useState(false);
 
-  const handleRedeem = async () => {
-      // 1. Clean Input: Remove non-alphanumeric, convert to uppercase
-      const cleanInput = code.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+  // Auto-format input to XXXX-XXXX
+  const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      let val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
       
-      console.log('Validating Code:', cleanInput); // Debugging
+      // Auto-insert dash
+      if (val.length > 4) {
+          val = val.slice(0, 4) + '-' + val.slice(4, 8);
+      }
+      
+      setCode(val);
+      setCodeError('');
+  };
 
-      // 2. Find Match: Iterate through raw codes and compare cleaned versions
+  const handleRedeem = async () => {
+      // 1. Clean Input: Remove non-alphanumeric to normalize comparison
+      const cleanInput = code.replace(/[^A-Z0-9]/g, '');
+      
+      console.log('Validating Code:', cleanInput); 
+
+      // 2. Find Match: Compare clean versions
       let canonicalCode = RAW_ACCESS_CODES.find(c => 
-          c.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() === cleanInput
+          c.replace(/[^A-Z0-9]/g, '') === cleanInput
       );
 
       // 3. Special Codes Fallback
@@ -48,7 +61,7 @@ const BetaOfferModal: React.FC<BetaOfferModalProps> = ({ onClose, onConfirm, onC
       }
 
       if (!canonicalCode) {
-          setCodeError('Invalid code format. Please check for typos.');
+          setCodeError('Invalid code. Please check for typos.');
           return;
       }
 
@@ -167,19 +180,17 @@ const BetaOfferModal: React.FC<BetaOfferModalProps> = ({ onClose, onConfirm, onC
                                 <input 
                                     type="text" 
                                     value={code}
-                                    onChange={(e) => {
-                                        setCode(e.target.value);
-                                        setCodeError('');
-                                    }}
+                                    onChange={handleCodeChange}
                                     onKeyDown={(e) => e.key === 'Enter' && handleRedeem()}
-                                    placeholder="CODE"
+                                    placeholder="XXXX-XXXX"
                                     className="flex-1 bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2 text-xs font-bold text-center uppercase tracking-widest focus:outline-none focus:border-teal-500 focus:bg-white transition-all disabled:opacity-50"
                                     autoFocus
+                                    maxLength={9}
                                     disabled={isChecking}
                                 />
                                 <button 
                                     onClick={handleRedeem}
-                                    disabled={!code || isChecking}
+                                    disabled={code.length < 9 || isChecking}
                                     className="bg-zinc-900 text-white px-3 rounded-lg font-bold text-[10px] uppercase tracking-wide hover:bg-zinc-800 disabled:opacity-50 transition-colors min-w-[60px] flex items-center justify-center"
                                 >
                                     {isChecking ? <Loader size={12} className="animate-spin" /> : "Apply"}
