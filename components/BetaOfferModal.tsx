@@ -42,6 +42,7 @@ const BetaOfferModal: React.FC<BetaOfferModalProps> = ({ onClose, onConfirm, onC
       setCodeError('');
 
       // 2. Backend Claim Check (Enforces Single User Use)
+      // This calls storageService.ts which creates a document in 'claimed_codes' collection
       const result = await claimAccessCode(normalizedCode);
       
       setIsChecking(false);
@@ -57,7 +58,7 @@ const BetaOfferModal: React.FC<BetaOfferModalProps> = ({ onClose, onConfirm, onC
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 bg-zinc-900/80 backdrop-blur-md animate-in fade-in duration-300">
       <div className="w-full max-w-sm bg-white rounded-[2rem] relative shadow-2xl overflow-hidden animate-in zoom-in-95 max-h-[95vh] overflow-y-auto no-scrollbar">
         
-        {/* Decorative Header Background - UPDATED COLOR & HEIGHT */}
+        {/* Decorative Header Background */}
         <div 
             className="absolute top-0 left-0 right-0 h-28 pointer-events-none transition-colors" 
             style={{ backgroundColor: 'rgb(163, 206, 207)' }}
@@ -121,7 +122,7 @@ const BetaOfferModal: React.FC<BetaOfferModalProps> = ({ onClose, onConfirm, onC
                     ))}
                 </div>
 
-                {/* Primary Button - UPDATED TO TEAL */}
+                {/* Primary Button */}
                 <button 
                     onClick={onConfirm}
                     disabled={isChecking}
