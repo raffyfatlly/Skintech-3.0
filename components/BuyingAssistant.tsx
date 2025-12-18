@@ -238,7 +238,8 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
                                     { target: 'hydration', ingredient: 'Hyaluronic Acid', description: 'Deeply hydrates skin layers.' },
                                     { target: 'redness', ingredient: 'Centella Asiatica', description: 'Calms inflammation.' }
                                 ] as any[]).map((b, i) => {
-                                    const metricScore = user.biometrics[b.target as keyof typeof user.biometrics] || 0;
+                                    const val = user.biometrics[b.target as keyof typeof user.biometrics];
+                                    const metricScore = typeof val === 'number' ? val : 0;
                                     const isTargeted = metricScore < 60;
                                     
                                     return (

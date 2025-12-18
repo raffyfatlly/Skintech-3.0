@@ -675,7 +675,8 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                                             </h3>
                                             <div className="space-y-3">
                                                 {selectedProduct.benefits.slice(0, 3).map((b, i) => {
-                                                    const metricScore = userProfile.biometrics[b.target] || 0;
+                                                    const val = userProfile.biometrics[b.target];
+                                                    const metricScore = typeof val === 'number' ? val : 0;
                                                     const isTargeted = metricScore < 60;
                                                     
                                                     return (

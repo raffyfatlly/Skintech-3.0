@@ -9,8 +9,8 @@ interface BetaOfferModalProps {
   onCodeSuccess: () => void;
 }
 
-// Full List of 100 Unique Access Codes (Canonical Format)
-const ACCESS_CODES = [
+// Full List of 100 Unique Access Codes
+const RAW_ACCESS_CODES = [
   "A7K2-M9XP", "L4W8-Q2ZR", "B9X3-Y6VM", "H2J5-T8NK", "R7C4-D1QS", "P3M9-F6GL", "X8W2-Z5VB", "K1N7-H4TJ", "Q6D9-S3RF", "V2B8-L5YM",
   "C4G7-P9XN", "M8J3-K2WQ", "T5R6-D1ZL", "F9H2-B4CS", "W3Q8-V7NP", "Z6L5-X9MK", "G2T4-J8RY", "S7P3-N1WD", "D5M9-H6BF", "Y8K2-C4VG",
   "R3X7-Q9ZL", "L6N2-W5TJ", "B8D4-P1SM", "H9G5-F3VK", "M2Q7-R8YC", "X5J9-Z4TN", "C1W6-L8KP", "K7B3-D2RF", "V4S9-H5XQ", "T8M2-N6GP",
@@ -23,6 +23,19 @@ const ACCESS_CODES = [
   "D6W8-N3XQ", "Y9L2-V5RP", "P4C7-M1ZG", "K3G5-F8TJ", "R1T9-Q6VB", "H5N4-X2LS", "L8S3-J7WK", "B2M6-D9RY", "X7Q2-C5ZN"
 ];
 
+// Helper to normalize strings (remove non-alphanumeric, uppercase)
+const normalize = (s: string) => s.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+
+// Build a fast lookup map: { "A7K2M9XP": "A7K2-M9XP", ... }
+const CODE_MAP: Record<string, string> = RAW_ACCESS_CODES.reduce((acc, code) => {
+    acc[normalize(code)] = code;
+    return acc;
+}, {} as Record<string, string>);
+
+// Add special overrides
+CODE_MAP['SKINOSVIP'] = 'SKINOSVIP';
+CODE_MAP['DEMO2025'] = 'DEMO2025';
+
 const BetaOfferModal: React.FC<BetaOfferModalProps> = ({ onClose, onConfirm, onCodeSuccess }) => {
   const [showCodeInput, setShowCodeInput] = useState(false);
   const [code, setCode] = useState('');
@@ -30,39 +43,34 @@ const BetaOfferModal: React.FC<BetaOfferModalProps> = ({ onClose, onConfirm, onC
   const [isChecking, setIsChecking] = useState(false);
 
   const handleRedeem = async () => {
-      // Robust Normalization: Remove all spaces, dashes, and convert to uppercase
-      const cleanInput = code.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+      // 1. Normalize Input (Remove dashes, spaces, case sensitivity)
+      const cleanInput = normalize(code);
       
-      let canonicalCode: string | undefined;
-
-      // 1. Check against the strict list (Flexible Matching)
-      // We compare the stripped version of the input against the stripped version of valid codes
-      const matchedCode = ACCESS_CODES.find(c => c.replace(/[^a-zA-Z0-9]/g, '') === cleanInput);
-      
-      if (matchedCode) {
-          canonicalCode = matchedCode; // Use the formatted version (e.g. "A7K2-M9XP") for DB consistency
-      } else if (cleanInput === 'SKINOSVIP' || cleanInput === 'DEMO2025') {
-          canonicalCode = cleanInput;
-      }
+      // 2. Direct Lookup (O(1))
+      const canonicalCode = CODE_MAP[cleanInput];
 
       if (!canonicalCode) {
-          setCodeError('Invalid code. Please check for typos.');
+          setCodeError('Invalid code format. Please check for typos.');
           return;
       }
 
       setIsChecking(true);
       setCodeError('');
 
-      // 2. Backend Claim Check (Enforces Single User Use)
-      // We pass the canonical code to ensure the DB key is consistent regardless of how user typed it
-      const result = await claimAccessCode(canonicalCode);
-      
-      setIsChecking(false);
-
-      if (result.success) {
-          onCodeSuccess();
-      } else {
-          setCodeError(result.error || "Verification failed.");
+      try {
+          // 3. Backend Claim Check (Enforces Single User Use)
+          // We pass the canonical (formatted) code to ensure consistency in the DB
+          const result = await claimAccessCode(canonicalCode);
+          
+          if (result.success) {
+              onCodeSuccess();
+          } else {
+              setCodeError(result.error || "Verification failed.");
+          }
+      } catch (err) {
+          setCodeError("Connection error. Please try again.");
+      } finally {
+          setIsChecking(false);
       }
   };
 
