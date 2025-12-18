@@ -3,7 +3,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Product, UserProfile } from '../types';
 import { getBuyingDecision } from '../services/geminiService';
 import { startCheckout } from '../services/stripeService';
-import { Check, X, AlertTriangle, ShieldCheck, Zap, AlertOctagon, TrendingUp, DollarSign, Clock, ArrowRight, Lock, Sparkles, Crown } from 'lucide-react';
+import { Check, X, AlertTriangle, ShieldCheck, Zap, AlertOctagon, TrendingUp, DollarSign, Clock, ArrowRight, Lock, Sparkles, Crown, Link, ExternalLink } from 'lucide-react';
 
 interface BuyingAssistantProps {
   product: Product;
@@ -167,8 +167,38 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
                  )}
 
                  {/* MAIN CONTENT (Blurred if Locked) */}
-                 {/* UPDATE: Reduced blur to sm (4px), increased opacity to 100, removed grayscale so visuals pop */}
                  <div className={`space-y-4 transition-all duration-700 ${!isUnlocked ? 'filter blur-sm opacity-100 pointer-events-none select-none' : ''}`}>
+                    
+                    {/* SOURCES - NEW SECTION */}
+                    {product.sources && product.sources.length > 0 && (
+                        <div className="mb-4">
+                            <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                <Link size={12} /> Data Sources
+                            </h3>
+                            <div className="flex flex-wrap gap-2">
+                                {product.sources.slice(0, 3).map((src, i) => {
+                                    try {
+                                        const url = new URL(src);
+                                        const domain = url.hostname.replace('www.', '');
+                                        return (
+                                            <a 
+                                                key={i} 
+                                                href={src} 
+                                                target="_blank" 
+                                                rel="noreferrer"
+                                                className="bg-white px-3 py-1.5 rounded-full border border-zinc-200 text-[10px] font-bold text-zinc-500 flex items-center gap-1 hover:border-teal-300 hover:text-teal-700 transition-colors"
+                                            >
+                                                {domain} <ExternalLink size={8} />
+                                            </a>
+                                        );
+                                    } catch (e) {
+                                        return null;
+                                    }
+                                })}
+                            </div>
+                        </div>
+                    )}
+
                     {/* CRITICAL ALERTS - If none, we show a "Safe" card to blur so it looks populated */}
                     {(audit.warnings.length > 0 || !isUnlocked) ? (
                         <div className="bg-white p-5 rounded-[1.5rem] border border-zinc-100 shadow-sm">

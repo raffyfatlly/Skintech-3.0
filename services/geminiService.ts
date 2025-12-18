@@ -35,7 +35,18 @@ const parseJSONFromText = (text: string): any => {
     }
 };
 
-const runWithRetry = async <T>(fn: (ai: GoogleGenAI) => Promise<T>, fallback: T, timeoutMs: number = 30000): Promise<T> => {
+const extractSources = (response: any): string[] => {
+    try {
+        const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+        return chunks
+            .map((c: any) => c.web?.uri)
+            .filter((u: string) => u && typeof u === 'string');
+    } catch (e) {
+        return [];
+    }
+};
+
+const runWithRetry = async <T>(fn: (ai: GoogleGenAI) => Promise<T>, fallback: T, timeoutMs: number = 45000): Promise<T> => {
     try {
         const timeoutPromise = new Promise<T>((_, reject) => setTimeout(() => reject(new Error("Timeout")), timeoutMs));
         return await Promise.race([fn(ai), timeoutPromise]);
@@ -67,25 +78,15 @@ export const searchProducts = async (query: string): Promise<{ name: string, bra
         ACT AS A PRECISE SKINCARE PRODUCT SEARCH ENGINE.
         
         TASK:
-        1. **Brand Detection**: Analyze if the query contains a specific brand name (e.g., "Neutrogena", "CeraVe", "Ordinary", "La Roche").
-        
-        2. **STRICT FILTERING RULES**:
-           - **IF A BRAND IS IDENTIFIED**: 
-             - You must ONLY return products from that EXACT brand. 
-             - Do **NOT** include products from competitors.
-             - Return a list of 5-10 items covering the specific product intended AND its variations/lines (e.g., if user types "neutrogena acne cleanser", return "Neutrogena Deep Clean Acne Foaming Cleanser", "Neutrogena Oil-Free Acne Wash", "Neutrogena Stubborn Texture Daily Cleanser", etc.).
-             - Include full names with specific versions (e.g. "Deep Clean", "Hydro Boost", "2021 formulation" if relevant).
-           
-           - **IF NO BRAND IS IDENTIFIED**:
-             - Return 5-10 top-rated products from various reputable global brands that match the description.
-        
-        3. **Robustness**: Fix typos (e.g., "nutrogena" -> "Neutrogena"). Handle product name variations and aliases (e.g., "ANR" -> "Advanced Night Repair").
+        1. **Brand Detection**: Analyze if the query contains a specific brand name.
+        2. **STRICT FILTERING**:
+           - Return ONLY products from the requested brand if specified.
+           - Prioritize products available in MALAYSIA (Watsons, Guardian, Sephora MY).
         
         OUTPUT FORMAT:
         Strict JSON Array of objects.
         [
           {"brand": "Neutrogena", "name": "Neutrogena Deep Clean Acne Foaming Cleanser"},
-          {"brand": "Neutrogena", "name": "Neutrogena Oil-Free Acne Wash"},
           ...
         ]
         `;
@@ -104,19 +105,13 @@ export const searchProducts = async (query: string): Promise<{ name: string, bra
 export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, history?: SkinMetrics[]): Promise<SkinMetrics> => {
     return runWithRetry<SkinMetrics>(async (ai) => {
         const prompt = `Analyze this face image for dermatological metrics. 
-        The provided image may have lighting variances.
-        Current computer-vision estimates (for reference only): ${JSON.stringify(localMetrics)}.
+        Current computer-vision estimates (reference): ${JSON.stringify(localMetrics)}.
         
         TASK:
-        1. Ignore the provided metrics if they contradict visible skin condition.
-        2. Calibrate scoring to avoid extreme outliers:
-           - 90-100: Clinical perfection / Glass Skin.
-           - 75-89: Healthy, minor imperfections (Normal).
-           - 50-74: Visible issues needing routine adjustment.
-           - <50: Significant dermatological concerns.
-        3. Output robust, realistic scores.
-
-        Return JSON with fields: overallScore, acneActive, acneScars, poreSize, blackheads, wrinkleFine, wrinkleDeep, sagging, pigmentation, redness, texture, hydration, oiliness, darkCircles, skinAge, analysisSummary (string), observations (map of metric key to string observation).`;
+        1. Ignore provided metrics if they contradict visible skin condition.
+        2. Calibrate scoring (0-100, Higher = Better/Clearer).
+        
+        Return JSON fields: overallScore, acneActive, acneScars, poreSize, blackheads, wrinkleFine, wrinkleDeep, sagging, pigmentation, redness, texture, hydration, oiliness, darkCircles, skinAge, analysisSummary (string), observations (map of metric key to string).`;
         
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
@@ -137,57 +132,55 @@ export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, 
 export const analyzeProductFromSearch = async (productName: string, userMetrics: SkinMetrics, consistencyScore?: number, knownBrand?: string): Promise<Product> => {
     return runWithRetry<Product>(async (ai) => {
         const prompt = `
-        Product Name: "${productName}"
-        ${knownBrand ? `Brand: "${knownBrand}"` : ''}
-        User Metrics (Scale 0-100, HIGHER IS BETTER/HEALTHIER):
-        - Hydration: ${userMetrics.hydration} (High = Hydrated)
-        - Redness: ${userMetrics.redness} (High = Calm, Low = Sensitive)
-        - Acne Score: ${userMetrics.acneActive} (High = Clear Skin, Low = Severe Acne)
-        ${consistencyScore ? `- TARGET SCORE: ${consistencyScore} (The user was previously shown this score. Ensure analysis aligns close to this if ingredients support it.)` : ''}
+        CONTEXT: User is in MALAYSIA.
+        Product: "${productName}" ${knownBrand ? `by ${knownBrand}` : ''}
         
-        TASK:
-        1. RECALL: Use your internal product database to find the likely FULL INGREDIENTS LIST (INCI) for "${productName}" ${knownBrand ? `by ${knownBrand}` : ''}. 
-           - Provide the most common formulation for this specific product name.
-           - Estimate current price in MYR.
+        User Skin Profile:
+        - Type: ${userMetrics.oiliness < 40 ? "Dry" : userMetrics.oiliness > 70 ? "Oily" : "Combination"}
+        - Concerns: Acne (${userMetrics.acneActive < 70 ? "Active" : "Clear"}), Sensitivity (${userMetrics.redness < 60 ? "High" : "Normal"}), Hydration (${userMetrics.hydration})
         
-        2. SCORING STRATEGY (STRICT):
-           - **Base Score**: 75 (Average).
-           - **Perfect (95-99)**: Requires exact active matches AND zero risks.
-           - **Excellent (85-94)**: Strong actives, maybe 1 minor acceptable trade-off.
-           - **Good (75-84)**: Basic, safe, effective.
-           - Penalize heavily (-10) for known irritants if skin is sensitive.
-           - LIMIT: Max Score 99. Min Score 1.
+        ACTIONS:
+        1. USE GOOGLE SEARCH to find:
+           - The OFFICIAL full ingredient list (INCI) from sources like INCIDecoder, CosDNA, or Brand Site.
+           - The CURRENT PRICE in MALAYSIA (RM/MYR) from Watsons MY, Guardian MY, Sephora MY, or Official Shopee Mall.
+           - User reviews regarding sensitivity and acne triggers.
+        
+        2. ANALYZE:
+           - Cross-reference ingredients with the user's metrics.
+           - Identify SPECIFIC pros (benefits) and cons (risks/warnings).
+           - Score the product from 0-100 based on this specific user match.
 
-        3. OUTPUT: Strict JSON format.
+        OUTPUT FORMAT:
+        Return ONLY a raw JSON object.
         {
-            "name": "${productName}",
-            "brand": "${knownBrand || "Brand"}",
-            "type": "CLEANSER" | "TONER" | "SERUM" | "MOISTURIZER" | "SPF" | "TREATMENT" | "FOUNDATION" | "OTHER",
-            "ingredients": ["Water", "Glycerin", ...], 
-            "estimatedPrice": Number,
-            "suitabilityScore": Number,
-            "risks": [{ "ingredient": "Name", "riskLevel": "HIGH", "reason": "Why" }],
-            "benefits": [{ "ingredient": "Name", "target": "Target", "description": "Why", "relevance": "HIGH" }]
+            "name": "Official Product Name",
+            "brand": "Brand Name",
+            "type": "Category (CLEANSER, SERUM, etc)",
+            "ingredients": ["Water", "Glycerin", ...],
+            "estimatedPrice": 45.90, // Number in RM
+            "suitabilityScore": 85, // 0-100
+            "risks": [
+                { "ingredient": "Alcohol Denat", "riskLevel": "HIGH", "reason": "Drying for your skin type" }
+            ],
+            "benefits": [
+                { "ingredient": "Centella", "target": "redness", "description": "Calms active inflammation", "relevance": "HIGH" }
+            ]
         }
         `;
 
+        // Use gemini-2.5-flash for Search Grounding
         const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
+            model: 'gemini-2.5-flash',
             contents: prompt,
             config: {
-                 responseMimeType: 'application/json'
+                 tools: [{ googleSearch: {} }] // Enable Google Search
             }
         });
 
         const data = parseJSONFromText(response.text || "{}");
+        const sources = extractSources(response);
 
         if (!data || !data.name) throw new Error("Analysis failed");
-
-        if (consistencyScore && Math.abs((data.suitabilityScore || 50) - consistencyScore) > 20) {
-             data.suitabilityScore = Math.round((data.suitabilityScore + consistencyScore) / 2);
-        } else if (consistencyScore) {
-             data.suitabilityScore = consistencyScore;
-        }
 
         return {
             id: Date.now().toString(),
@@ -199,49 +192,31 @@ export const analyzeProductFromSearch = async (productName: string, userMetrics:
             suitabilityScore: data.suitabilityScore || 50,
             risks: data.risks || [],
             benefits: data.benefits || [],
-            dateScanned: Date.now()
+            dateScanned: Date.now(),
+            sources: sources
         };
-    }, { ...getFallbackProduct(userMetrics, productName), suitabilityScore: consistencyScore || 75, brand: knownBrand || "Unknown Brand" }, 45000); 
+    }, { ...getFallbackProduct(userMetrics, productName), suitabilityScore: consistencyScore || 75, brand: knownBrand || "Unknown Brand" }, 60000); 
 };
 
-/**
- * INTELLIGENT PRODUCT VISION PIPELINE (UPDATED V3)
- * 1. Vision: Loose identification of text, logos, packaging clues AND Visual Context.
- * 2. Authority Check: Gemini Cross-Reference with Variation Handling.
- */
 export const analyzeProductImage = async (base64: string, userMetrics: SkinMetrics): Promise<Product> => {
     return runWithRetry<Product>(async (ai) => {
         
         // STEP 1: VISION RECOGNITION (LOOSE & DESCRIPTIVE)
         const visionPrompt = `
         Analyze this skincare product image. 
-        
-        PHASE 1: VISUAL IDENTIFICATION
-        - Look at the LOGO, COLOR SCHEME, BOTTLE SHAPE, and VISIBLE TEXT.
-        - Even if text is blurry, infer the Brand (e.g. Blue/White/Cera = CeraVe, Minimalist/White/Dropper = The Ordinary).
-        - Describe the visual context (e.g. "White bottle with blue text", "Small dark dropper").
-        
-        PHASE 2: TEXT EXTRACTION (Best Effort)
-        - Extract any readable text fragments for the Product Name.
-        - Do not worry about perfection. "Hyalu... B5" is enough context.
-        
-        PHASE 3: INGREDIENTS
-        - Are full ingredients visible? (Back of bottle usually).
-        - If yes, extract them into 'detectedIngredients'.
-        - If no, leave empty.
+        Identify the BRAND and PRODUCT NAME clearly.
+        If ingredients are visible, list them.
         
         OUTPUT JSON:
         { 
             "brand": "string", 
-            "name": "string (Guessed Name or Text Fragments)", 
-            "visualContext": "string (e.g. Blue pump bottle)",
-            "hasReadableIngredients": boolean,
+            "name": "string", 
             "detectedIngredients": ["string"] 
         }
         `;
 
         const visionResponse = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
+            model: 'gemini-3-flash-preview', // High visual accuracy
             contents: {
                 parts: [
                     { inlineData: { mimeType: 'image/jpeg', data: base64.split(',')[1] } },
@@ -257,83 +232,69 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
             throw new Error("Could not identify product. Please try scanning closer.");
         }
 
-        console.log("Vision Output:", visionData);
-
-        // STEP 2: AUTHORITY CHECK & REFINEMENT
-        // We now have a "clue" (visionData). We ask Gemini to be the authority and standardize this.
-        
+        // STEP 2: SEARCH & REFINEMENT
         const refinementPrompt = `
-        CONTEXT:
-        Vision Output: "${visionData.brand} - ${visionData.name}"
-        Visual Context: "${visionData.visualContext}"
-        Detected Ingredients (OCR): ${JSON.stringify(visionData.detectedIngredients || [])}.
+        PRODUCT: "${visionData.brand} ${visionData.name}"
+        CONTEXT: User in MALAYSIA.
         
         USER METRICS: ${JSON.stringify(userMetrics)}
 
         TASK:
-        1. **IDENTIFICATION & NORMALIZATION (CRITICAL)**: 
-           - You are the Product Authority. The vision output might be partial (e.g. "Anua Soothing Toner") or contain typos.
-           - Identify the EXACT, CANONICAL product. 
-           - **HANDLE VARIATIONS**: Consider regional names, reformulations, and aliases (e.g. "Advanced Night Repair" vs "ANR", "CeraVe Foaming Cleanser" vs "CeraVe Foaming Facial Cleanser").
-           - If the name is ambiguous, use the 'Visual Context' (e.g. bottle color) to disambiguate.
-           
-        2. **INGREDIENT RETRIEVAL**: 
-           - IF the OCR ingredients above are comprehensive (>5 items) and look accurate, use them.
-           - IF OCR is empty, partial, or looks like noise, RETRIEVE the standard INCI list from your internal database for this exact product.
-           - **PRIORITIZE INTERNAL KNOWLEDGE** if the OCR looks messy or incomplete.
-        
-        3. **ANALYSIS**:
-           - Analyze suitability for the user's skin metrics.
+        1. SEARCH GOOGLE to confirm the exact product name and find its INCI ingredients list.
+        2. FIND CURRENT PRICE in MALAYSIA (RM).
+        3. ANALYZE suitability for the user.
 
         OUTPUT JSON:
         {
-            "name": "string (Correct Full Commercial Name)",
-            "brand": "string (Correct Brand)",
-            "type": "CLEANSER" | "TONER" | "SERUM" | "MOISTURIZER" | "SPF" | "TREATMENT" | "FOUNDATION" | "OTHER",
-            "ingredients": ["string"],
-            "ingredientsSource": "OCR" | "KNOWLEDGE_BASE", 
-            "estimatedPrice": Number,
-            "suitabilityScore": Number,
-            "risks": [{ "ingredient": "Name", "riskLevel": "HIGH", "reason": "Why" }],
-            "benefits": [{ "ingredient": "Name", "target": "Target", "description": "Why", "relevance": "HIGH" }]
+            "name": "Full Name",
+            "brand": "Brand",
+            "type": "CLEANSER | SERUM | ...",
+            "ingredients": ["..."],
+            "estimatedPrice": 0, // RM
+            "suitabilityScore": 0,
+            "risks": [{ "ingredient": "...", "riskLevel": "HIGH", "reason": "..." }],
+            "benefits": [{ "ingredient": "...", "target": "...", "description": "...", "relevance": "HIGH" }]
         }
         `;
 
+        // Use 2.5-flash with Google Search for grounding
         const finalResponse = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
+            model: 'gemini-2.5-flash',
             contents: refinementPrompt,
-            config: { responseMimeType: 'application/json' }
+            config: { 
+                tools: [{ googleSearch: {} }] 
+            }
         });
 
         const data = parseJSONFromText(finalResponse.text || "{}");
+        const sources = extractSources(finalResponse);
         
         if (!data.name) throw new Error("Analysis failed during refinement.");
 
         return {
             id: Date.now().toString(),
             name: data.name,
-            brand: data.brand || visionData.brand, // Fallback to vision brand if refinement misses it
+            brand: data.brand || visionData.brand, 
             type: data.type || "UNKNOWN",
             ingredients: data.ingredients || [],
             estimatedPrice: data.estimatedPrice || 0,
             suitabilityScore: data.suitabilityScore || 50,
             risks: data.risks || [],
             benefits: data.benefits || [],
-            dateScanned: Date.now()
+            dateScanned: Date.now(),
+            sources: sources
         };
 
     }, getFallbackProduct(userMetrics, "Scanned Product"), 60000); 
 };
 
 export const auditProduct = (product: Product, user: UserProfile) => {
-    // Basic audit logic
     const warnings = product.risks.map(r => ({ 
         severity: r.riskLevel === 'HIGH' ? 'CRITICAL' : 'CAUTION', 
         reason: r.reason 
     }));
     
     let adjustedScore = product.suitabilityScore;
-    // Penalty for sensitivity mismatch
     if (user.biometrics.redness < 50 && warnings.length > 0) adjustedScore -= 10;
     
     return {
@@ -407,7 +368,6 @@ export const getClinicalTreatmentSuggestions = (user: UserProfile) => {
     const suggestions = [];
     const b = user.biometrics;
 
-    // 1. High Priority (Low Scores) - Immediate Correction
     if (b.acneActive < 70) suggestions.push({ type: 'FACIAL', name: 'Deep Pore Cleanse', benefit: 'Clears active congestion', downtime: 'None' });
     if (b.acneScars < 70) suggestions.push({ type: 'LASER', name: 'Microneedling', benefit: 'Smooths texture & scars', downtime: '1-3 Days' });
     if (b.pigmentation < 70) suggestions.push({ type: 'PEEL', name: 'Brightening Peel', benefit: 'Fades dark spots', downtime: '2-4 Days' });
@@ -416,20 +376,17 @@ export const getClinicalTreatmentSuggestions = (user: UserProfile) => {
     if (b.hydration < 60) suggestions.push({ type: 'FACIAL', name: 'Hydra-Infusion', benefit: 'Deep moisture boost', downtime: 'None' });
     if (b.poreSize < 65) suggestions.push({ type: 'PEEL', name: 'Carbon Laser Peel', benefit: 'Refines pore size', downtime: 'None' });
 
-    // 2. Optimization (Medium Scores) - Improvement
     if (suggestions.length < 2) {
         if (b.texture < 85) suggestions.push({ type: 'PEEL', name: 'Enzyme Exfoliation', benefit: 'Smooths surface texture', downtime: 'None' });
         if (b.sagging < 85) suggestions.push({ type: 'FACIAL', name: 'Microcurrent', benefit: 'Lifts and tones', downtime: 'None' });
         if (b.darkCircles < 80) suggestions.push({ type: 'FACIAL', name: 'Lymphatic Massage', benefit: 'Reduces puffiness', downtime: 'None' });
     }
 
-    // 3. Maintenance (High Scores or Fillers) - Glow & Health
     if (suggestions.length < 2) {
         suggestions.push({ type: 'FACIAL', name: 'LED Light Therapy', benefit: 'Maintains healthy glow', downtime: 'None' });
         suggestions.push({ type: 'FACIAL', name: 'Oxygen Facial', benefit: 'Event-ready radiance', downtime: 'None' });
     }
 
-    // Deduplicate by name and return max 3
     const unique = suggestions.filter((v,i,a)=>a.findIndex(t=>(t.name===v.name))===i);
     return unique.slice(0, 3);
 };
@@ -465,7 +422,7 @@ export const getBuyingDecision = (product: Product, shelf: Product[], user: User
     return {
         verdict: { decision, title: decision, description: audit.analysisReason, color },
         audit,
-        shelfConflicts: [], // To be populated by analyzeProductContext logic if needed
+        shelfConflicts: [],
         comparison: { result: audit.adjustedScore > 70 ? 'BETTER' : 'NEUTRAL' }
     };
 };
@@ -475,32 +432,13 @@ export const generateRoutineRecommendations = async (user: UserProfile): Promise
         const prompt = `
         ACT AS AN EXPERT DERMATOLOGIST SPECIALIZING IN THE MALAYSIAN MARKET.
         User Profile: Age ${user.age}, Skin Type ${user.skinType}.
-        Metrics (0-100, higher is better): ${JSON.stringify(user.biometrics)}.
+        Metrics: ${JSON.stringify(user.biometrics)}.
         Goals: ${JSON.stringify(user.preferences?.goals || [])}.
-        Sensitivity: ${user.preferences?.sensitivity || 'MILD'}.
-
-        CONTEXT:
-        The user is located in Malaysia. Recommendations must be accessible via Watsons, Guardian, Sephora Malaysia, or Official Shopee Mall stores.
 
         TASK:
         Generate a comprehensive AM and PM skincare routine.
-        For EACH step (Cleanser, Serum, Moisturizer, SPF), provide exactly 3 specific real-world product recommendations corresponding to price tiers:
-
-        1. **BUDGET (Approx RM 20 - RM 60)**: High-value drugstore favorites.
-           - *Focus*: Aiken, Safi, Hada Labo, Simple, The Ordinary, Inkey List, Cetaphil.
-        
-        2. **VALUE (Approx RM 60 - RM 180)**: Trending "Cult Favorites" (Asian Beauty) & Derm brands.
-           - *Focus*: Skintific, Axis-Y, COSRX, Beauty of Joseon, La Roche-Posay, Paula's Choice, Eucerin, Torriden.
-        
-        3. **LUXURY (RM 180+)**: Premium & Sephora MY bestsellers.
-           - *Focus*: Tatcha, SK-II, Estee Lauder, Kiehl's, Drunk Elephant, Dermalogica, Sunday Riley.
-
-        IMPORTANT RULES:
-        - **LOCAL HYPE**: Include trending viral products in Malaysia (e.g., Skintific 5X Ceramide, Axis-Y Dark Spot Serum, COSRX Snail Mucin) if they suit the skin type.
-        - **CLIMATE FIT**: Account for Malaysia's hot, humid weather (e.g. prefer lightweight gels/water-creams over heavy butters unless skin is very dry).
-        - **SAFETY**: Products MUST be safe for the user's specific metrics.
-        - **PRICING**: Estimate prices in MALAYSIAN RINGGIT (RM).
-        - **WHY**: Provide a short "Why?" explaining the fit.
+        For EACH step, provide 3 specific recommendations available in MALAYSIA (Watsons, Guardian, Sephora MY).
+        Include Price in RM (Ringgit Malaysia).
 
         OUTPUT FORMAT (Strict JSON):
         {
@@ -512,25 +450,18 @@ export const generateRoutineRecommendations = async (user: UserProfile): Promise
                 { "name": "...", "brand": "...", "tier": "VALUE", "price": "RM XX", "reason": "...", "rating": 98 },
                 { "name": "...", "brand": "...", "tier": "LUXURY", "price": "RM XX", "reason": "...", "rating": 97 }
               ]
-            },
-            ... other steps (Serum, Moisturizer, SPF)
+            }
           ],
-          "pm": [
-            {
-               "step": "Cleanser", ...
-            },
-            {
-               "step": "Treatment", ... (Include Eye or Spot treatment if needed)
-            },
-            ... other steps (Serum, Moisturizer - No SPF)
-          ]
+          "pm": [ ... ]
         }
         `;
 
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,
-            config: { responseMimeType: 'application/json' }
+            config: { 
+                tools: [{ googleSearch: {} }] 
+            }
         });
 
         return parseJSONFromText(response.text || "{}");
