@@ -12,8 +12,8 @@ const renderVerdict = (text: string) => {
   const parts = text.split(/(\*\*.*?\*\*)/g);
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**')) {
-      // High contrast bolding for critical info
-      return <strong key={i} className="font-black text-teal-900">{part.slice(2, -2)}</strong>;
+      // Mint Teal Highlighting for critical info
+      return <strong key={i} className="font-black text-teal-500">{part.slice(2, -2)}</strong>;
     }
     return <span key={i}>{part}</span>;
   });
@@ -663,7 +663,7 @@ const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({ userProfile, sh
                         {verdictTagText}
                      </span>
                  </div>
-                 <p className="text-sm text-zinc-600 font-normal leading-relaxed">
+                 <p className="text-sm text-zinc-600 font-normal leading-relaxed border-l-4 border-teal-400 pl-4 ml-1 bg-zinc-50/50 py-2 rounded-r-xl">
                     {verdictBodyText}
                  </p>
              </div>

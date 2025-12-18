@@ -206,7 +206,7 @@ const App: React.FC = () => {
       // Trigger Guide Bubble after scan
       setTimeout(() => {
           setActiveGuide('SCAN');
-      }, 800);
+      }, 5000);
   };
 
   const handleProductFound = (product: Product) => {
