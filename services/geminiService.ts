@@ -4,6 +4,22 @@ import { SkinMetrics, Product, UserProfile, IngredientRisk, Benefit } from '../t
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
+// --- FEATURE-SPECIFIC MODEL CONFIGURATION ---
+// Separated to ensure changes to one feature don't break others.
+
+// 1. FACE ANALYSIS: Uses 2.5 Flash for speed + existing calibrated rubric.
+// DO NOT CHANGE without recalibrating the rubric.
+const MODEL_FACE_SCAN = 'gemini-2.5-flash';
+
+// 2. PRODUCT INTELLIGENCE: Uses 3.0 Flash for superior Search Grounding & JSON formatting.
+const MODEL_PRODUCT_SEARCH = 'gemini-3-flash-preview';
+
+// 3. VISION: Uses 2.5 Flash for reliable OCR/Text recognition in images.
+const MODEL_VISION = 'gemini-2.5-flash';
+
+// 4. ROUTINE ARCHITECT: Uses 3.0 Pro for complex reasoning and large JSON structures.
+const MODEL_ROUTINE = 'gemini-3-pro-preview';
+
 // Helpers
 const parseJSONFromText = (text: string): any => {
     try {
@@ -92,7 +108,7 @@ export const searchProducts = async (query: string): Promise<{ name: string, bra
         `;
         
         const response = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview',
+            model: MODEL_PRODUCT_SEARCH,
             contents: prompt,
             config: { responseMimeType: 'application/json' }
         });
@@ -237,7 +253,7 @@ CATEGORY 3: VITALITY
         Return JSON fields: overallScore, acneActive, acneScars, poreSize, blackheads, wrinkleFine, wrinkleDeep, sagging, pigmentation, redness, texture, hydration, oiliness, darkCircles, skinAge, analysisSummary (string), observations (map of metric key to string).`;
         
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: MODEL_FACE_SCAN, // MAINTAINED AS 2.5-FLASH
             contents: {
                 parts: [
                     { inlineData: { mimeType: 'image/jpeg', data: image.split(',')[1] } },
@@ -296,7 +312,7 @@ export const analyzeProductFromSearch = async (productName: string, userMetrics:
         `;
 
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: MODEL_PRODUCT_SEARCH, // UPGRADED TO 3-FLASH FOR SEARCH GROUNDING
             contents: prompt,
             config: {
                  tools: [{ googleSearch: {} }] // Enable Google Search
@@ -329,7 +345,7 @@ export const analyzeProductFromSearch = async (productName: string, userMetrics:
 export const analyzeProductImage = async (base64: string, userMetrics: SkinMetrics, routineActives: string[] = []): Promise<Product> => {
     return runWithRetry<Product>(async (ai) => {
         
-        // STEP 1: VISION RECOGNITION
+        // STEP 1: VISION RECOGNITION (Using 2.5 Flash for reliable OCR)
         const visionPrompt = `
         Analyze this skincare product image. 
         Identify the BRAND and PRODUCT NAME clearly.
@@ -344,7 +360,7 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
         `;
 
         const visionResponse = await ai.models.generateContent({
-            model: 'gemini-3-flash-preview', 
+            model: MODEL_VISION, // USE 2.5-FLASH FOR VISION (Proven reliability)
             contents: {
                 parts: [
                     { inlineData: { mimeType: 'image/jpeg', data: base64.split(',')[1] } },
@@ -360,7 +376,7 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
             throw new Error("Could not identify product. Please try scanning closer.");
         }
 
-        // STEP 2: SEARCH & REFINEMENT (Malaysian Context)
+        // STEP 2: SEARCH & REFINEMENT (Using 3 Flash for Search Grounding)
         const refinementPrompt = `
         PRODUCT: "${visionData.brand} ${visionData.name}"
         CONTEXT: User in MALAYSIA (Tropical Climate).
@@ -388,7 +404,7 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
         `;
 
         const finalResponse = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: MODEL_PRODUCT_SEARCH, // UPGRADED TO 3-FLASH FOR SEARCH GROUNDING
             contents: refinementPrompt,
             config: { 
                 tools: [{ googleSearch: {} }] 
@@ -523,7 +539,7 @@ export const getClinicalTreatmentSuggestions = (user: UserProfile) => {
 
 export const createDermatologistSession = (user: UserProfile, shelf: Product[]): Chat => {
     return ai.chats.create({
-        model: 'gemini-2.5-flash',
+        model: MODEL_FACE_SCAN, // Using 2.5 Flash for Chat (Fast, low cost)
         config: {
              systemInstruction: `You are a helpful dermatologist. User metrics: ${JSON.stringify(user.biometrics)}. Shelf: ${JSON.stringify(shelf.map(p => p.name))}.`
         }
@@ -587,7 +603,7 @@ export const generateRoutineRecommendations = async (user: UserProfile): Promise
         `;
 
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: MODEL_ROUTINE, // UPGRADED TO 3-PRO FOR BETTER JSON STRUCTURE & REASONING
             contents: prompt,
             config: { 
                 tools: [{ googleSearch: {} }] 
