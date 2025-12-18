@@ -85,17 +85,23 @@ const App: React.FC = () => {
       const data = await loadUserData();
       let currentUser = data.user;
 
+      // Handle Anonymous Payment Success here (Cloud Payment Success handled in onAuthStateChanged)
       if (isPaymentSuccess && currentUser) {
           currentUser = { ...currentUser, isPremium: true };
+          // NOTE: We do NOT clear the URL here, so onAuthStateChanged can also see it and update Cloud
           saveUserData(currentUser, data.shelf);
-          window.history.replaceState({}, document.title, window.location.pathname);
-          setNotification({
-             type: 'GENERIC',
-             title: 'Premium Unlocked!',
-             description: 'You now have unlimited access to all features.',
-             actionLabel: 'Great',
-             onAction: () => {}
-          });
+          
+          if (!auth?.currentUser) {
+             // Only notify here if likely anonymous/offline, otherwise let auth listener handle it
+             setNotification({
+                type: 'GENERIC',
+                title: 'Premium Unlocked!',
+                description: 'You now have unlimited access to all features.',
+                actionLabel: 'Great',
+                onAction: () => {}
+             });
+             window.history.replaceState({}, document.title, window.location.pathname);
+          }
       }
 
       if (currentUser) {
@@ -120,6 +126,28 @@ const App: React.FC = () => {
             try {
                 await syncLocalToCloud();
                 const data = await loadUserData();
+
+                // CRITICAL FIX: Handle Payment Success for Logged In Users Here
+                // This ensures we write isPremium=true to the CLOUD, not just local storage
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.get('payment') === 'success' && data.user) {
+                     console.log("Processing Premium Upgrade for Cloud Account...");
+                     data.user = { ...data.user, isPremium: true };
+                     // Force save to cloud
+                     await saveUserData(data.user, data.shelf);
+                     
+                     setNotification({
+                        type: 'GENERIC',
+                        title: 'Premium Unlocked!',
+                        description: 'Your account has been upgraded.',
+                        actionLabel: 'Awesome',
+                        onAction: () => {}
+                     });
+                     
+                     // Clear URL only after successful cloud sync
+                     window.history.replaceState({}, document.title, window.location.pathname);
+                }
+
                 if (data.user) {
                     setUserProfile(data.user);
                     setShelf(data.shelf);
