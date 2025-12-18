@@ -55,7 +55,7 @@ const BetaOfferModal: React.FC<BetaOfferModalProps> = ({ onClose, onConfirm, onC
 
       // 3. Special Codes Fallback
       if (!canonicalCode) {
-          if (cleanInput === 'SKINOSVIP' || cleanInput === 'DEMO2025') {
+          if (['SKINOSVIP', 'DEMO2025'].includes(cleanInput)) {
               canonicalCode = cleanInput;
           }
       }

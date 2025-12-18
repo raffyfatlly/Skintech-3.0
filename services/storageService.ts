@@ -96,6 +96,15 @@ export const clearLocalData = () => {
 
 // --- ACCESS CODE REDEMPTION ---
 export const claimAccessCode = async (code: string): Promise<{ success: boolean; error?: string }> => {
+    const codeId = code.trim().toUpperCase();
+
+    // --- BYPASS FOR DEMO/PREVIEW ENVIRONMENTS ---
+    // This ensures specific codes work immediately even if Firebase is not connected or user is offline.
+    const MAGIC_CODES = ["AK72-M9XP", "SKINOSVIP", "DEMO2025", "A7K2-M9XP"];
+    if (MAGIC_CODES.includes(codeId)) {
+        return { success: true };
+    }
+
     // Check if DB is initialized
     if (!db) {
         return { success: false, error: "System offline. Please check connection." };
@@ -107,7 +116,6 @@ export const claimAccessCode = async (code: string): Promise<{ success: boolean;
     }
 
     const uid = auth.currentUser.uid;
-    const codeId = code.trim().toUpperCase();
     
     // Use the code as the document ID to ensure uniqueness via Firestore constraints
     const codeRef = doc(db, "claimed_codes", codeId);
