@@ -14,6 +14,18 @@ interface BuyingAssistantProps {
   onUnlockPremium: () => void;
 }
 
+// Helper to render bold text from Markdown
+const renderFormattedText = (text: string) => {
+  if (!text) return null;
+  const parts = text.split(/(\*\*.*?\*\*)/g);
+  return parts.map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={i} className="font-black text-indigo-900">{part.slice(2, -2)}</strong>;
+    }
+    return <span key={i}>{part}</span>;
+  });
+};
+
 const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf, onAddToShelf, onDiscard, onUnlockPremium }) => {
   // If user is premium, unlocked by default
   const [isUnlocked, setIsUnlocked] = useState(!!user.isPremium);
@@ -209,7 +221,7 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
                                 <Layers size={14} className="text-indigo-600" /> Pro Tip: Malaysia Context
                             </h3>
                             <p className="text-xs text-indigo-800 font-medium leading-relaxed relative z-10">
-                                {product.usageTips}
+                                {renderFormattedText(product.usageTips)}
                             </p>
                         </div>
                     )}
