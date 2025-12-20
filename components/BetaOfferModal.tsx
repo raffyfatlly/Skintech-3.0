@@ -9,27 +9,13 @@ interface BetaOfferModalProps {
   onCodeSuccess: () => void;
 }
 
-// Full List of Unique Access Codes
-const RAW_ACCESS_CODES = [
-  "A7K2-M9XP", "AK72-M9XP", "L4W8-Q2ZR", "B9X3-Y6VM", "H2J5-T8NK", "R7C4-D1QS", "P3M9-F6GL", "X8W2-Z5VB", "K1N7-H4TJ", "Q6D9-S3RF", "V2B8-L5YM",
-  "C4G7-P9XN", "M8J3-K2WQ", "T5R6-D1ZL", "F9H2-B4CS", "W3Q8-V7NP", "Z6L5-X9MK", "G2T4-J8RY", "S7P3-N1WD", "D5M9-H6BF", "Y8K2-C4VG",
-  "R3X7-Q9ZL", "L6N2-W5TJ", "B8D4-P1SM", "H9G5-F3VK", "M2Q7-R8YC", "X5J9-Z4TN", "C1W6-L8KP", "K7B3-D2RF", "V4S9-H5XQ", "T8M2-N6GP",
-  "F3Y7-J9WL", "P6R5-C2VB", "Z9K4-G1TS", "Q2L8-D5XM", "W7N3-B6RJ", "G4H9-S2FK", "D8T5-P1VQ", "Y3C6-X9ZL", "J5M2-R7WN", "N9S8-K4YF",
-  "R2B6-L3TJ", "H7Q4-D9VP", "X3G5-F8MC", "L9W2-Z1NK", "C6J8-T5RS", "M4P7-Y2XB", "K8D3-Q6VG", "V5N9-H1ZL", "S2R4-B8WJ", "F7T6-C3KM",
-  "Q9X5-G2NP", "W4L8-D7YV", "Z1J3-M6RF", "P8H2-K5TS", "B6S7-N9WQ", "G3C5-R1XL", "D9M4-V2FB", "Y7K8-T3ZP", "R5W6-J9LG", "L2Q9-X4HN",
-  "H8G3-S7VK", "C5B2-D6MY", "M9T7-F1RJ", "X4P5-N8WS", "K6R2-L9ZC", "V3J8-G5TP", "F1S4-Q7XM", "T9N6-B2KV", "W5H3-C8YD", "Z2M7-K4RL",
-  "P7D9-R6WG", "Q4L2-J5XN", "G8W5-V1TS", "Y6B3-S9FM", "D2K7-H4ZP", "J9R8-C5VQ", "N5T2-L3YB", "R8X6-M1GK", "H4Q9-D7WJ", "L7G5-P2ZN",
-  "C3J2-F6VR", "X9S4-K8TY", "M6N8-B1DL", "V2H5-R9WQ", "F8M3-T4XG", "W1P7-L6ZJ", "Z5K9-C2VS", "Q3R4-D8NM", "G7B6-H1YK", "T2J5-S9WF",
-  "D6W8-N3XQ", "Y9L2-V5RP", "P4C7-M1ZG", "K3G5-F8TJ", "R1T9-Q6VB", "H5N4-X2LS", "L8S3-J7WK", "B2M6-D9RY", "X7Q2-C5ZN"
-];
-
 const BetaOfferModal: React.FC<BetaOfferModalProps> = ({ onClose, onConfirm, onCodeSuccess }) => {
   const [showCodeInput, setShowCodeInput] = useState(false);
   const [code, setCode] = useState('');
   const [codeError, setCodeError] = useState('');
   const [isChecking, setIsChecking] = useState(false);
 
-  // Auto-format input to XXXX-XXXX
+  // Auto-format input to XXXX-XXXX for better UX
   const handleCodeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       let val = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
       
@@ -43,25 +29,8 @@ const BetaOfferModal: React.FC<BetaOfferModalProps> = ({ onClose, onConfirm, onC
   };
 
   const handleRedeem = async () => {
-      // 1. Clean Input: Remove non-alphanumeric to normalize comparison
-      const cleanInput = code.replace(/[^A-Z0-9]/g, '');
-      
-      console.log('Validating Code:', cleanInput); 
-
-      // 2. Find Match: Compare clean versions
-      let canonicalCode = RAW_ACCESS_CODES.find(c => 
-          c.replace(/[^A-Z0-9]/g, '') === cleanInput
-      );
-
-      // 3. Special Codes Fallback
-      if (!canonicalCode) {
-          if (['SKINOSVIP', 'DEMO2025'].includes(cleanInput)) {
-              canonicalCode = cleanInput;
-          }
-      }
-
-      if (!canonicalCode) {
-          setCodeError('Invalid code. Please check for typos.');
+      if (code.length < 5) {
+          setCodeError("Code is too short.");
           return;
       }
 
@@ -69,7 +38,8 @@ const BetaOfferModal: React.FC<BetaOfferModalProps> = ({ onClose, onConfirm, onC
       setCodeError('');
 
       try {
-          const result = await claimAccessCode(canonicalCode);
+          // Delegate all validation to the service
+          const result = await claimAccessCode(code);
           
           if (result.success) {
               onCodeSuccess();

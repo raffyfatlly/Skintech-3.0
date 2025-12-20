@@ -35,12 +35,22 @@ const SaveProfileModal: React.FC<SaveProfileModalProps> = ({ onSave, onClose, on
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
 
+  const handleAuthSuccess = () => {
+    // Critical: Call onMockLogin (which acts as the success callback) to update 
+    // the parent state immediately (setting isAnonymous: false).
+    // This prevents the race condition where the UI still thinks user is anon.
+    setTimeout(() => {
+        if (onMockLogin) onMockLogin(); 
+        else onClose();
+    }, 500); 
+  };
+
   const handleGoogleSignIn = async () => {
     setLoading(true);
     setError(null);
     try {
         await signInWithGoogle();
-        setTimeout(() => onClose(), 500); 
+        handleAuthSuccess();
     } catch (e: any) {
         handleAuthError(e);
     }
@@ -64,7 +74,7 @@ const SaveProfileModal: React.FC<SaveProfileModalProps> = ({ onSave, onClose, on
               
               await registerWithEmail(displayName, email, password);
           }
-          setTimeout(() => onClose(), 500);
+          handleAuthSuccess();
       } catch (e: any) {
           handleAuthError(e);
       }

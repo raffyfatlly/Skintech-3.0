@@ -85,18 +85,18 @@ const App: React.FC = () => {
       const data = await loadUserData();
       let currentUser = data.user;
 
-      // Handle Anonymous Payment Success here (Cloud Payment Success handled in onAuthStateChanged)
+      // Handle Anonymous Payment Success here
       if (isPaymentSuccess && currentUser) {
+          console.log("Payment detected (Local Init)");
           currentUser = { ...currentUser, isPremium: true };
-          // NOTE: We do NOT clear the URL here, so onAuthStateChanged can also see it and update Cloud
+          // We don't clear URL here to allow auth state listener to also see it if needed
           saveUserData(currentUser, data.shelf);
           
           if (!auth?.currentUser) {
-             // Only notify here if likely anonymous/offline, otherwise let auth listener handle it
              setNotification({
                 type: 'GENERIC',
                 title: 'Premium Unlocked!',
-                description: 'You now have unlimited access to all features.',
+                description: 'You now have unlimited access.',
                 actionLabel: 'Great',
                 onAction: () => {}
              });
@@ -124,17 +124,23 @@ const App: React.FC = () => {
             if (isLoginFlow) setIsGlobalLoading(true);
 
             try {
+                // 1. Sync any local data (including anonymous payments) to cloud
                 await syncLocalToCloud();
+                
+                // 2. Load fresh data
                 const data = await loadUserData();
+                let currentUser = data.user;
 
-                // CRITICAL FIX: Handle Payment Success for Logged In Users Here
-                // This ensures we write isPremium=true to the CLOUD, not just local storage
+                // 3. CRITICAL: Handle Payment Success Check for Cloud Account
+                // If the user just returned from Stripe, ensure we mark them as premium
+                // even if the cloud data hasn't updated yet.
                 const urlParams = new URLSearchParams(window.location.search);
-                if (urlParams.get('payment') === 'success' && data.user) {
-                     console.log("Processing Premium Upgrade for Cloud Account...");
-                     data.user = { ...data.user, isPremium: true };
-                     // Force save to cloud
-                     await saveUserData(data.user, data.shelf);
+                if (urlParams.get('payment') === 'success' && currentUser) {
+                     console.log("Payment detected (Auth Listener)");
+                     currentUser = { ...currentUser, isPremium: true };
+                     
+                     // Force save to cloud immediately
+                     await saveUserData(currentUser, data.shelf);
                      
                      setNotification({
                         type: 'GENERIC',
@@ -144,15 +150,15 @@ const App: React.FC = () => {
                         onAction: () => {}
                      });
                      
-                     // Clear URL only after successful cloud sync
+                     // Clear URL to prevent re-triggering
                      window.history.replaceState({}, document.title, window.location.pathname);
                 }
 
-                if (data.user) {
-                    setUserProfile(data.user);
+                if (currentUser) {
+                    setUserProfile(currentUser);
                     setShelf(data.shelf);
                     if (isLoginFlow) {
-                        setCurrentView(data.user.hasScannedFace ? AppView.DASHBOARD : AppView.FACE_SCANNER);
+                        setCurrentView(currentUser.hasScannedFace ? AppView.DASHBOARD : AppView.FACE_SCANNER);
                     }
                 } else if (isLoginFlow) {
                     if (user.displayName) setPrefillName(user.displayName);
@@ -354,38 +360,52 @@ const App: React.FC = () => {
                     onRemoveProduct={handleRemoveProduct}
                     onUpdateProduct={handleUpdateProduct}
                     onScanNew={() => {
-                        if (userProfile.isAnonymous) openAuth('SCAN_PRODUCT');
-                        else setCurrentView(AppView.PRODUCT_SCANNER);
+                        setActiveGuide(null);
+                        setCurrentView(AppView.PRODUCT_SCANNER);
                     }}
                   />
               ) : null;
           case AppView.PRODUCT_SCANNER:
               return userProfile ? (
                   <ProductScanner 
-                    userProfile={userProfile}
-                    shelf={shelf}
-                    onProductFound={handleProductFound}
-                    onCancel={() => setCurrentView(AppView.SMART_SHELF)}
+                     userProfile={userProfile}
+                     shelf={shelf}
+                     onProductFound={handleProductFound}
+                     onCancel={() => {
+                         if (userProfile.hasScannedFace) setCurrentView(AppView.SMART_SHELF);
+                         else setCurrentView(AppView.DASHBOARD);
+                     }}
                   />
               ) : null;
           case AppView.PRODUCT_SEARCH:
               return userProfile ? (
-                  <ProductSearch
-                    userProfile={userProfile}
-                    shelf={shelf}
-                    onProductFound={handleProductFound}
-                    onCancel={() => setCurrentView(AppView.SMART_SHELF)}
+                  <ProductSearch 
+                     userProfile={userProfile}
+                     shelf={shelf}
+                     onProductFound={handleProductFound}
+                     onCancel={() => setCurrentView(AppView.SMART_SHELF)}
                   />
               ) : null;
           case AppView.BUYING_ASSISTANT:
-              return (userProfile && analyzedProduct) ? (
+              return userProfile && analyzedProduct ? (
                   <BuyingAssistant 
-                    product={analyzedProduct}
-                    user={userProfile}
-                    shelf={shelf}
-                    onAddToShelf={handleAddToShelf}
-                    onDiscard={handleDiscardProduct}
-                    onUnlockPremium={handleUnlockPremium}
+                     product={analyzedProduct}
+                     user={userProfile}
+                     shelf={shelf}
+                     onAddToShelf={handleAddToShelf}
+                     onDiscard={handleDiscardProduct}
+                     onUnlockPremium={handleUnlockPremium}
+                  />
+              ) : null;
+          case AppView.PROFILE_SETUP:
+              return userProfile ? (
+                  <ProfileSetup 
+                     user={userProfile} 
+                     shelf={shelf}
+                     onComplete={handleProfileUpdate} 
+                     onBack={() => setCurrentView(AppView.DASHBOARD)}
+                     onReset={handleResetApp}
+                     onLoginRequired={(trigger) => openAuth(trigger as AuthTrigger)}
                   />
               ) : null;
           case AppView.ROUTINE_BUILDER:
@@ -396,101 +416,88 @@ const App: React.FC = () => {
                       onUnlockPremium={handleUnlockPremium}
                   />
               ) : null;
-          case AppView.PROFILE_SETUP:
-              return userProfile ? (
-                  <ProfileSetup 
-                    user={userProfile} 
-                    shelf={shelf}
-                    onComplete={handleProfileUpdate}
-                    onBack={() => setCurrentView(AppView.DASHBOARD)}
-                    onReset={handleResetApp}
-                    onLoginRequired={(reason) => openAuth(reason as AuthTrigger)}
-                  />
-              ) : null;
           default:
-              return null;
+              return <LandingPage onGetStarted={() => setCurrentView(AppView.ONBOARDING)} onLogin={() => openAuth('GENERIC')} />;
       }
   };
 
+  // --- MOCK LOGIN CALLBACK ---
+  // When user successfully auths in modal, update state immediately to prevent "Anonymous" flicker
+  const handleMockLogin = () => {
+      if (userProfile) {
+          setUserProfile({ ...userProfile, isAnonymous: false });
+      }
+      setShowSaveModal(false);
+      setNotification({
+          type: 'GENERIC',
+          title: 'Account Synced',
+          description: 'Your data is now saved to the cloud.',
+          actionLabel: 'OK',
+          onAction: () => {}
+      });
+  };
+
   return (
-    <div className="bg-zinc-50 min-h-screen font-sans text-zinc-900 selection:bg-teal-100 pb-safe-offset-bottom">
-        {renderView()}
-        {renderNavBar()}
+    <div className="bg-zinc-50 min-h-screen font-sans">
+      {/* GLOBAL LOADING OVERLAY */}
+      {isGlobalLoading && (
+          <div className="fixed inset-0 z-[60] bg-white flex items-center justify-center">
+              <div className="flex flex-col items-center">
+                  <Loader size={32} className="text-teal-500 animate-spin mb-4" />
+                  <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest animate-pulse">Syncing Profile...</p>
+              </div>
+          </div>
+      )}
 
-        {/* GUIDE OVERLAY */}
-        <GuideOverlay 
-            step={activeGuide} 
-            onDismiss={() => setActiveGuide(null)} 
-            onNext={() => setActiveGuide(null)} 
-        />
+      {renderView()}
+      
+      {renderNavBar()}
 
-        {userProfile && (
-            <AIAssistant 
-                isOpen={showAIAssistant} 
-                onClose={() => setShowAIAssistant(false)}
-                onOpen={() => setShowAIAssistant(true)}
-                user={userProfile}
-                shelf={shelf}
-                triggerQuery={aiQuery}
-            />
-        )}
+      {/* MODALS */}
+      {userProfile && (
+          <AIAssistant 
+             user={userProfile}
+             shelf={shelf}
+             isOpen={showAIAssistant}
+             onOpen={() => setShowAIAssistant(true)}
+             onClose={() => setShowAIAssistant(false)}
+             triggerQuery={aiQuery}
+          />
+      )}
 
-        {isGlobalLoading && (
-            <div className="fixed inset-0 z-[100] bg-zinc-900 flex flex-col items-center justify-center animate-in fade-in duration-300">
-                <div className="relative">
-                     <div className="w-20 h-20 bg-teal-500/20 rounded-full animate-ping absolute inset-0"></div>
-                     <div className="w-20 h-20 bg-gradient-to-tr from-teal-50 to-emerald-600 rounded-full relative z-10 flex items-center justify-center shadow-2xl border border-white/10">
-                         <ScanFace size={32} className="text-white animate-pulse" />
-                     </div>
-                </div>
-                <h2 className="text-white font-black text-xl mt-8 tracking-tight">Syncing Profile...</h2>
-                <p className="text-zinc-500 text-xs font-bold uppercase tracking-widest mt-2">Please wait</p>
-            </div>
-        )}
+      {showSaveModal && (
+          <SaveProfileModal 
+              onSave={() => {}} 
+              onClose={() => setShowSaveModal(false)}
+              onMockLogin={handleMockLogin}
+              mode={saveModalTrigger === 'GENERIC' ? 'LOGIN' : 'SAVE'}
+              trigger={saveModalTrigger}
+          />
+      )}
 
-        {showSaveModal && !isGlobalLoading && (
-            <SaveProfileModal 
-                mode={userProfile?.isAnonymous ? 'SAVE' : 'LOGIN'}
-                trigger={saveModalTrigger}
-                onClose={() => setShowSaveModal(false)}
-                onSave={() => {}}
-                onMockLogin={() => {
-                    setShowSaveModal(false);
-                    if (userProfile?.isAnonymous) {
-                         const updatedUser = { ...userProfile, isAnonymous: false };
-                         persistState(updatedUser, shelf);
-                    } else {
-                         setIsGlobalLoading(true);
-                         setTimeout(() => {
-                             setIsGlobalLoading(false);
-                             setCurrentView(AppView.ONBOARDING);
-                         }, 1500);
-                    }
-                }}
-            />
-        )}
+      {showPremiumModal && (
+          <BetaOfferModal 
+              onClose={() => setShowPremiumModal(false)}
+              onConfirm={() => startCheckout()}
+              onCodeSuccess={handleCodeUnlock}
+          />
+      )}
 
-        {showPremiumModal && (
-            <BetaOfferModal 
-                onClose={() => setShowPremiumModal(false)}
-                onConfirm={() => {
-                    setShowPremiumModal(false);
-                    startCheckout();
-                }}
-                onCodeSuccess={handleCodeUnlock}
-            />
-        )}
+      {notification && (
+          <SmartNotification 
+              {...notification}
+              onClose={() => setNotification(null)}
+          />
+      )}
 
-        {notification && (
-            <SmartNotification 
-                {...notification} 
-                onAction={() => {
-                    notification.onAction();
-                    setNotification(null);
-                }}
-                onClose={() => setNotification(null)}
-            />
-        )}
+      {/* Guide Overlay - Only show for Scan Step if active */}
+      {activeGuide && (
+          <GuideOverlay 
+              step={activeGuide} 
+              onDismiss={() => setActiveGuide(null)}
+              onNext={() => setActiveGuide(null)}
+          />
+      )}
     </div>
   );
 };
