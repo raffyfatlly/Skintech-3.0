@@ -123,24 +123,24 @@ export const clearLocalData = () => {
 
 // --- ACCESS CODE REDEMPTION ---
 export const claimAccessCode = async (code: string): Promise<{ success: boolean; error?: string }> => {
-    const codeId = code.trim().toUpperCase().replace(/[^A-Z0-9]/g, ''); // Normalize input (remove dashes/spaces)
+    // 1. Normalize Input (Remove dashes, uppercase)
+    // "A7K2-M9XP" -> "A7K2M9XP"
+    const codeId = code.trim().toUpperCase().replace(/[^A-Z0-9]/g, ''); 
 
-    // 1. CHECK MAGIC CODES (Bypass Everything)
-    // Check if the normalized input matches any normalized magic code
+    // 2. CHECK MAGIC CODES (Bypass DB)
     const isMagic = MAGIC_CODES.some(mc => mc.replace(/[^A-Z0-9]/g, '') === codeId);
     if (isMagic) {
         return { success: true };
     }
 
-    // 2. CHECK ALLOWLIST
-    // Ensure the code exists in our valid list before even checking the DB
+    // 3. CHECK ALLOWLIST
     const validCode = VALID_ACCESS_CODES.find(vc => vc.replace(/[^A-Z0-9]/g, '') === codeId);
     
     if (!validCode) {
         return { success: false, error: "Invalid Access Code." };
     }
 
-    // 3. CHECK DATABASE (For Unique Codes)
+    // 4. CHECK DATABASE
     if (!db) {
         return { success: false, error: "System offline. Unable to verify unique code." };
     }
@@ -150,15 +150,16 @@ export const claimAccessCode = async (code: string): Promise<{ success: boolean;
     }
 
     const uid = auth.currentUser.uid;
-    // Use the normalized valid code as the document ID
-    const codeRef = doc(db, "claimed_codes", validCode);
+    // Use the normalized codeId as the document key to prevent formatting issues
+    const docKey = codeId; 
+    const codeRef = doc(db, "claimed_codes", docKey);
 
     try {
         const codeSnap = await getDoc(codeRef);
         
         if (codeSnap.exists()) {
             const data = codeSnap.data();
-            // Allow if the current user owns it (Idempotency)
+            // Allow if the current user already owns it (Idempotency)
             if (data.claimedBy === uid) {
                 return { success: true };
             }
@@ -173,8 +174,14 @@ export const claimAccessCode = async (code: string): Promise<{ success: boolean;
         });
 
         return { success: true };
-    } catch (e) {
-        console.error("Code Claim Error", e);
-        return { success: false, error: "Verification failed. Please try again." };
+    } catch (e: any) {
+        console.error("Code Claim Error:", e);
+        
+        // Handle specific permission error which is common if Firestore rules are locked
+        if (e.code === 'permission-denied' || e.message?.includes('permission')) {
+            return { success: false, error: "Database permission denied. Contact support." };
+        }
+        
+        return { success: false, error: "Verification failed. Check your connection." };
     }
 };
