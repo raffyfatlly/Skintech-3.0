@@ -33,8 +33,10 @@ interface ProfileSetupProps {
 const MonthGroup: React.FC<{ 
     monthYear: string; 
     scans: SkinMetrics[]; 
-    onSelect: (s: SkinMetrics) => void 
-}> = ({ monthYear, scans, onSelect }) => {
+    onSelect: (s: SkinMetrics) => void;
+    onDelete: (s: SkinMetrics) => void;
+    canDelete: boolean;
+}> = ({ monthYear, scans, onSelect, onDelete, canDelete }) => {
     const [isOpen, setIsOpen] = useState(false);
 
     return (
@@ -60,26 +62,40 @@ const MonthGroup: React.FC<{
             {isOpen && (
                 <div className="space-y-2 pb-6 px-6 pt-1 animate-in slide-in-from-top-2 duration-300 bg-zinc-50/50 border-t border-zinc-50">
                     {scans.map((entry) => (
-                          <button 
-                              key={entry.timestamp} 
-                              onClick={() => onSelect(entry)}
-                              className="w-full bg-white border border-zinc-100 hover:border-teal-200 hover:shadow-md p-3 rounded-xl flex items-center justify-between shadow-sm transition-all duration-200 group/item text-left relative overflow-hidden"
-                          >
-                               <div className="flex items-center gap-3 relative z-10">
-                                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-black text-xs transition-colors border ${entry.overallScore > 80 ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : entry.overallScore < 60 ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
-                                      {entry.overallScore}
+                          <div key={entry.timestamp} className="relative group/item">
+                              <button 
+                                  onClick={() => onSelect(entry)}
+                                  className="w-full bg-white border border-zinc-100 hover:border-teal-200 hover:shadow-md p-3 pr-12 rounded-xl flex items-center justify-between shadow-sm transition-all duration-200 text-left relative overflow-hidden"
+                              >
+                                   <div className="flex items-center gap-3 relative z-10">
+                                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-black text-xs transition-colors border ${entry.overallScore > 80 ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : entry.overallScore < 60 ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
+                                          {entry.overallScore}
+                                      </div>
+                                      <div>
+                                          <span className="block text-xs font-bold text-zinc-900 mb-0.5">
+                                              {new Date(entry.timestamp).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                          </span>
+                                          <span className="text-[9px] font-bold text-zinc-400 group-hover/item:text-teal-600 transition-colors">
+                                              View Analysis
+                                          </span>
+                                      </div>
                                   </div>
-                                  <div>
-                                      <span className="block text-xs font-bold text-zinc-900 mb-0.5">
-                                          {new Date(entry.timestamp).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                      </span>
-                                      <span className="text-[9px] font-bold text-zinc-400 group-hover/item:text-teal-600 transition-colors">
-                                          View Analysis
-                                      </span>
-                                  </div>
-                              </div>
-                              <ChevronRight size={14} className="text-zinc-200 group-hover/item:text-teal-400 transition-colors" />
-                          </button>
+                              </button>
+                              
+                              {/* Delete Button */}
+                              {canDelete && (
+                                <button 
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onDelete(entry);
+                                    }}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 p-2 text-zinc-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+                                    title="Delete Scan"
+                                >
+                                    <Trash2 size={16} />
+                                </button>
+                              )}
+                          </div>
                     ))}
                 </div>
             )}
@@ -445,6 +461,9 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
   
   // Clear Data Confirmation
   const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  // Single Scan Delete State
+  const [scanToDelete, setScanToDelete] = useState<SkinMetrics | null>(null);
   
   const history = useMemo(() => user.scanHistory || [user.biometrics], [user.scanHistory, user.biometrics]);
 
@@ -511,6 +530,21 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
           });
           setIsEditingProfile(false);
       }
+  };
+
+  const handleDeleteScan = () => {
+      if (!scanToDelete) return;
+      
+      // Filter out the selected scan by timestamp
+      const newHistory = (user.scanHistory || []).filter(s => s.timestamp !== scanToDelete.timestamp);
+      
+      // Update User Profile with new history
+      onComplete({
+          ...user,
+          scanHistory: newHistory
+      });
+      
+      setScanToDelete(null);
   };
 
   const handleSignOut = async () => {
@@ -875,7 +909,9 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
                              key={monthYear} 
                              monthYear={monthYear} 
                              scans={scans} 
-                             onSelect={setSelectedScan} 
+                             onSelect={setSelectedScan}
+                             onDelete={setScanToDelete}
+                             canDelete={!user.isAnonymous}
                           />
                       ))}
                   </div>
@@ -917,6 +953,36 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
              onSave={handleGoalsSave} 
              onClose={() => setIsGoalModalOpen(false)} 
           />
+      )}
+
+      {/* DELETE SINGLE SCAN CONFIRMATION */}
+      {scanToDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-zinc-900/60 backdrop-blur-md animate-in fade-in">
+             <div className="w-full max-w-sm bg-white rounded-[2rem] p-6 shadow-2xl animate-in zoom-in-95 text-center">
+                 <div className="w-16 h-16 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-4 text-rose-500">
+                     <Trash2 size={32} />
+                 </div>
+                 <h3 className="text-xl font-black text-zinc-900 mb-2">Delete this scan?</h3>
+                 <p className="text-sm text-zinc-500 mb-6 leading-relaxed">
+                     This will remove the analysis record from {new Date(scanToDelete.timestamp).toLocaleDateString()}. This cannot be undone.
+                 </p>
+                 
+                 <div className="flex flex-col gap-3">
+                     <button 
+                        onClick={handleDeleteScan}
+                        className="w-full py-3 bg-rose-600 text-white font-bold rounded-xl hover:bg-rose-700 transition-colors shadow-lg shadow-rose-900/10"
+                     >
+                         Yes, Delete Scan
+                     </button>
+                     <button 
+                        onClick={() => setScanToDelete(null)}
+                        className="w-full py-3 bg-zinc-100 text-zinc-600 font-bold rounded-xl hover:bg-zinc-200 transition-colors"
+                     >
+                         Cancel
+                     </button>
+                 </div>
+             </div>
+        </div>
       )}
 
       {/* Clear Data Confirmation Modal */}

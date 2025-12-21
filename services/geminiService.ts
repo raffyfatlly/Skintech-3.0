@@ -9,7 +9,7 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 // 1. FACE ANALYSIS: Uses 2.5 Flash for speed + existing calibrated rubric.
 // DO NOT CHANGE without recalibrating the rubric.
-const MODEL_FACE_SCAN = 'gemini-2.5-flash';
+const MODEL_FACE_SCAN = 'gemini-3-flash-preview';
 
 // 2. PRODUCT INTELLIGENCE: Uses 3.0 Flash for superior Search Grounding & JSON formatting.
 const MODEL_PRODUCT_SEARCH = 'gemini-3-flash-preview';
