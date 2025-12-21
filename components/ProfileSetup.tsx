@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { UserProfile, UserPreferences, SkinMetrics, Product } from '../types';
-import { ArrowLeft, Check, Sparkles, Target, Zap, Activity, TrendingUp, LineChart, X, Trash2, Settings2, ChevronDown, ChevronRight, Minus, Trophy, LogOut, AlertCircle, Clock, Calendar, Edit2 } from 'lucide-react';
+import { ArrowLeft, Check, Sparkles, Target, Zap, Activity, TrendingUp, LineChart, X, Trash2, Settings2, ChevronDown, ChevronRight, Minus, Trophy, LogOut, AlertCircle, Clock, Calendar, Edit2, Loader, CheckCircle2 } from 'lucide-react';
 import { signOut, auth } from '../services/firebase';
 
 // Helper to parse markdown-style bolding from AI response
@@ -459,6 +459,11 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
   const [editName, setEditName] = useState(user.name);
   const [editAge, setEditAge] = useState(user.age.toString());
   
+  // Loading & Toast States
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [actionToast, setActionToast] = useState<{message: string, type: 'success'|'error'} | null>(null);
+  
   // Clear Data Confirmation
   const [showClearConfirm, setShowClearConfirm] = useState(false);
 
@@ -466,6 +471,11 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
   const [scanToDelete, setScanToDelete] = useState<SkinMetrics | null>(null);
   
   const history = useMemo(() => user.scanHistory || [user.biometrics], [user.scanHistory, user.biometrics]);
+
+  const showToast = (message: string, type: 'success'|'error' = 'success') => {
+      setActionToast({ message, type });
+      setTimeout(() => setActionToast(null), 3000);
+  };
 
   // --- HELPER: Goal Progress ---
   const getGoalProgress = (goal: string, currentMetrics: SkinMetrics, initialMetrics: SkinMetrics) => {
@@ -519,32 +529,52 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
   const handleGoalsSave = (newPrefs: UserPreferences) => {
       onComplete({ ...user, preferences: newPrefs });
       setIsGoalModalOpen(false);
+      showToast("Goals updated");
   };
   
-  const handleSaveProfile = () => {
+  const handleSaveProfile = async () => {
       if (editName && editAge) {
+          setIsSavingProfile(true);
+          // Artificial delay for UX perception
+          await new Promise(r => setTimeout(r, 500));
+          
           onComplete({
               ...user,
               name: editName,
               age: parseInt(editAge)
           });
+          
           setIsEditingProfile(false);
+          setIsSavingProfile(false);
+          showToast("Profile updated");
       }
   };
 
-  const handleDeleteScan = () => {
+  const handleDeleteScan = async () => {
       if (!scanToDelete) return;
+      setIsDeleting(true);
       
-      // Filter out the selected scan by timestamp
-      const newHistory = (user.scanHistory || []).filter(s => s.timestamp !== scanToDelete.timestamp);
-      
-      // Update User Profile with new history
-      onComplete({
-          ...user,
-          scanHistory: newHistory
-      });
-      
-      setScanToDelete(null);
+      try {
+          // Artificial delay to show processing state (UX)
+          await new Promise(r => setTimeout(r, 600));
+          
+          // Filter out the selected scan by timestamp
+          const newHistory = (user.scanHistory || []).filter(s => s.timestamp !== scanToDelete.timestamp);
+          
+          // Update User Profile with new history
+          // Note: App.tsx handles the DB sync automatically when this calls persistState
+          onComplete({
+              ...user,
+              scanHistory: newHistory
+          });
+          
+          setScanToDelete(null);
+          showToast("Scan deleted successfully");
+      } catch (e) {
+          showToast("Failed to delete scan", "error");
+      } finally {
+          setIsDeleting(false);
+      }
   };
 
   const handleSignOut = async () => {
@@ -725,7 +755,9 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
                                     
                                     <div className="flex-1 flex justify-end gap-2 ml-2">
                                          <button onClick={() => setIsEditingProfile(false)} className="p-1.5 bg-white/20 rounded-lg text-white hover:bg-white/30 border border-white/20"><X size={16}/></button>
-                                         <button onClick={handleSaveProfile} className="p-1.5 bg-white rounded-lg text-teal-600 hover:bg-teal-50 shadow-sm"><Check size={16}/></button>
+                                         <button onClick={handleSaveProfile} className="p-1.5 bg-white rounded-lg text-teal-600 hover:bg-teal-50 shadow-sm flex items-center justify-center min-w-[32px]">
+                                             {isSavingProfile ? <Loader size={16} className="animate-spin" /> : <Check size={16}/>}
+                                         </button>
                                     </div>
                                 </div>
                           </div>
@@ -901,7 +933,7 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
                   </button>
               </div>
 
-              {/* EXPANDABLE LIST AREA */}
+              {/* EXPANDED LIST AREA */}
               {isHistoryExpanded && (
                   <div className="border-t border-zinc-100 bg-zinc-50/30 animate-in slide-in-from-top-4 duration-300">
                       {Object.entries(groupedHistory).map(([monthYear, scans]) => (
@@ -934,6 +966,14 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
                </button>
           </div>
       </div>
+
+      {/* TOAST NOTIFICATION */}
+      {actionToast && (
+          <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[70] bg-zinc-900 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-2 animate-in slide-in-from-bottom-4 fade-in duration-300">
+              <CheckCircle2 size={16} className={actionToast.type === 'success' ? 'text-emerald-400' : 'text-rose-400'} />
+              <span className="text-xs font-bold uppercase tracking-widest">{actionToast.message}</span>
+          </div>
+      )}
 
       {/* MODALS */}
       {selectedScan && (
@@ -970,12 +1010,14 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
                  <div className="flex flex-col gap-3">
                      <button 
                         onClick={handleDeleteScan}
-                        className="w-full py-3 bg-rose-600 text-white font-bold rounded-xl hover:bg-rose-700 transition-colors shadow-lg shadow-rose-900/10"
+                        disabled={isDeleting}
+                        className="w-full py-3 bg-rose-600 text-white font-bold rounded-xl hover:bg-rose-700 transition-colors shadow-lg shadow-rose-900/10 flex items-center justify-center gap-2"
                      >
-                         Yes, Delete Scan
+                         {isDeleting ? <Loader size={18} className="animate-spin" /> : "Yes, Delete Scan"}
                      </button>
                      <button 
                         onClick={() => setScanToDelete(null)}
+                        disabled={isDeleting}
                         className="w-full py-3 bg-zinc-100 text-zinc-600 font-bold rounded-xl hover:bg-zinc-200 transition-colors"
                      >
                          Cancel

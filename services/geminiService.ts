@@ -119,6 +119,9 @@ export const searchProducts = async (query: string): Promise<{ name: string, bra
 
 export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, history?: SkinMetrics[]): Promise<SkinMetrics> => {
     return runWithRetry<SkinMetrics>(async (ai) => {
+        // Extract previous scan data if available
+        const previousScan = history && history.length > 0 ? history[history.length - 1] : null;
+
         const rubric = `
 AI REFERENCE RUBRIC: SKIN HEALTH & INTEGRITY GRADING
 
@@ -245,6 +248,12 @@ CATEGORY 3: VITALITY
         
         Current computer-vision estimates (reference): ${JSON.stringify(localMetrics)}.
         
+        ${previousScan ? `PREVIOUS SCAN CONTEXT (Timestamp: ${new Date(previousScan.timestamp).toLocaleDateString()}): 
+        - Overall Score: ${previousScan.overallScore}
+        - Previous Verdict: "${previousScan.analysisSummary}"
+        - Previous Specific Observations: ${JSON.stringify(previousScan.observations || {})}
+        ` : ''}
+        
         TASK:
         1. Ignore provided metrics if they contradict visible skin condition.
         2. Calibrate scoring (0-100, Higher = Better/Clearer) based on the rubric below.
@@ -257,6 +266,11 @@ CATEGORY 3: VITALITY
         If the image quality is sufficient, proceed immediately to the verdict without mentioning the photo conditions. 
         
         Leverage the provided biomarker scores to validate your visual analysis, pinpointing all significant imperfections with exact physical precision (distinguishing between "a single spot on the tip of the nose" versus "a cluster of redness across the upper left cheek"). 
+        
+        If PREVIOUS SCAN CONTEXT is provided, COMPARE the current specific imperfections to the previous ones.
+        - Explicitly mention progress on specific issues (e.g., "The acne on your right cheek we saw last week is much calmer now" or "The pigmentation on your forehead hasn't shifted yet").
+        - Validate their efforts if scores improved (e.g., "Your hydration focus is working").
+        - If new issues appear, address them kindly.
         
         Address every important issue found—not just the worst one—explaining the specific nature and depth of each imperfection using simple, positive 5th-grade language that makes the user feel truly understood and supported.
         
