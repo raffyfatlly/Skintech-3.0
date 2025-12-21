@@ -1,8 +1,8 @@
 
-import React, { useState } from 'react';
-import { UserProfile } from '../types';
+import React, { useState, useMemo } from 'react';
+import { UserProfile, SkinMetrics } from '../types';
 import { generateTargetedRecommendations } from '../services/geminiService';
-import { Sparkles, ArrowLeft, DollarSign, Star, Crown, Lock, Search, Droplet, Sun, Zap, ShieldCheck, Loader, Sliders, AlertCircle } from 'lucide-react';
+import { Sparkles, ArrowLeft, DollarSign, Star, Crown, Lock, Search, Droplet, Sun, Zap, ShieldCheck, Loader, Sliders, AlertCircle, Target } from 'lucide-react';
 
 interface RecommendedProduct {
     name: string;
@@ -28,8 +28,29 @@ const CATEGORIES = [
     { label: 'Mask', icon: Star },
 ];
 
+const GOALS = [
+    { label: 'Clear Acne', icon: Zap },
+    { label: 'Hydration Boost', icon: Droplet },
+    { label: 'Anti-Aging', icon: Star }, 
+    { label: 'Brightening', icon: Sun },
+    { label: 'Soothe Redness', icon: ShieldCheck },
+    { label: 'Oil Control', icon: Sliders },
+];
+
 const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onBack, onUnlockPremium }) => {
+    // Auto-select Goal Logic
+    const defaultGoal = useMemo(() => {
+        const b = user.biometrics;
+        if (b.acneActive < 65) return 'Clear Acne';
+        if (b.redness < 65) return 'Soothe Redness';
+        if (b.hydration < 50) return 'Hydration Boost';
+        if (b.wrinkleFine < 70) return 'Anti-Aging';
+        if (b.pigmentation < 70) return 'Brightening';
+        return 'Hydration Boost';
+    }, [user.biometrics]);
+
     // Input State
+    const [selectedGoal, setSelectedGoal] = useState(defaultGoal);
     const [selectedCategory, setSelectedCategory] = useState('Cleanser');
     const [maxPrice, setMaxPrice] = useState(100);
     const [allergies, setAllergies] = useState('');
@@ -49,7 +70,7 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
         setHasSearched(true);
         
         try {
-            const data = await generateTargetedRecommendations(user, selectedCategory, maxPrice, allergies);
+            const data = await generateTargetedRecommendations(user, selectedCategory, maxPrice, allergies, selectedGoal);
             setResults(data);
         } catch (e) {
             console.error(e);
@@ -107,9 +128,28 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                 {/* FILTER CARD */}
                 <div className="bg-white rounded-[2rem] p-6 shadow-xl shadow-zinc-200/50 border border-zinc-100">
                     
+                    {/* PRIMARY GOAL SELECTOR */}
+                    <div className="mb-6">
+                        <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block mb-3 pl-1 flex items-center gap-2">
+                            <Target size={12} className="text-teal-500" /> Target Goal
+                        </label>
+                        <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar -mx-2 px-2 snap-x">
+                            {GOALS.map(g => (
+                                <button
+                                    key={g.label}
+                                    onClick={() => setSelectedGoal(g.label)}
+                                    className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl border transition-all snap-start ${selectedGoal === g.label ? 'bg-teal-600 border-teal-600 text-white shadow-md' : 'bg-zinc-50 border-zinc-100 text-zinc-500 hover:bg-white hover:border-zinc-200'}`}
+                                >
+                                    <g.icon size={14} strokeWidth={selectedGoal === g.label ? 2.5 : 2} />
+                                    <span className="text-[10px] font-bold uppercase tracking-wide whitespace-nowrap">{g.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
                     {/* Categories */}
                     <div className="mb-6">
-                        <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block mb-3 pl-1">Target Category</label>
+                        <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block mb-3 pl-1">Product Category</label>
                         <div className="grid grid-cols-3 gap-2">
                             {CATEGORIES.map(cat => (
                                 <button

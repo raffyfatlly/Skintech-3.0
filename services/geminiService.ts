@@ -688,7 +688,8 @@ export const generateRoutineRecommendations = async (user: UserProfile): Promise
     }, null, 60000);
 }
 
-export const generateTargetedRecommendations = async (user: UserProfile, category: string, maxPrice: number, allergies: string): Promise<any> => {
+// Updated to accept 'goal'
+export const generateTargetedRecommendations = async (user: UserProfile, category: string, maxPrice: number, allergies: string, goal: string): Promise<any> => {
     return runWithRetry<any>(async (ai) => {
         const prompt = `
         ACT AS A PERSONAL SHOPPER FOR SKINCARE IN MALAYSIA.
@@ -700,11 +701,12 @@ export const generateTargetedRecommendations = async (user: UserProfile, categor
         
         SEARCH CRITERIA:
         - Category: ${category}
+        - Primary Goal: ${goal}
         - Max Price: RM ${maxPrice}
         - Allergies/Avoid: ${allergies || "None"}
         
         TASK:
-        Find exactly 3 products available in Malaysia (Watsons, Guardian, Sephora MY, Shopee Mall) that match the criteria.
+        Find exactly 3 products available in Malaysia (Watsons, Guardian, Sephora MY, Shopee Mall) that match the criteria AND specifically target the PRIMARY GOAL.
         STRICTLY filter out any product costing more than RM ${maxPrice}.
         
         OUTPUT JSON:
@@ -713,7 +715,7 @@ export const generateTargetedRecommendations = async (user: UserProfile, categor
             "name": "Product Name", 
             "brand": "Brand", 
             "price": "RM 45.00", 
-            "reason": "Why it fits skin type + budget", 
+            "reason": "Why it fits skin type + goal", 
             "rating": 95,
             "tier": "VALUE" 
           },
