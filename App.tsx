@@ -50,6 +50,9 @@ const App: React.FC = () => {
   const [saveModalTrigger, setSaveModalTrigger] = useState<AuthTrigger>('GENERIC');
   const [showPremiumModal, setShowPremiumModal] = useState(false);
 
+  // New: Pending Scan State (Holding area for anonymous users)
+  const [pendingScan, setPendingScan] = useState<{metrics: SkinMetrics, image: string} | null>(null);
+
   // New: Scanner Guide Bubble State
   const [activeGuide, setActiveGuide] = useState<'SCAN' | null>(null);
 
@@ -169,7 +172,7 @@ const App: React.FC = () => {
             } finally {
                 setTimeout(() => {
                     setIsGlobalLoading(false);
-                    setShowSaveModal(false); 
+                    // Don't close modal here, let handleMockLogin handle it to preserve flow
                 }, 500);
             }
         }
@@ -198,6 +201,14 @@ const App: React.FC = () => {
   const handleFaceScanComplete = (metrics: SkinMetrics, image: string) => {
       if (!userProfile) return;
 
+      // BLOCKER: If Anonymous, DO NOT show dashboard. Force Signup.
+      if (userProfile.isAnonymous) {
+          setPendingScan({ metrics, image });
+          openAuth('SAVE_RESULTS');
+          return;
+      }
+
+      // Normal Flow for Logged In Users
       const updatedUser: UserProfile = {
           ...userProfile,
           hasScannedFace: true,
@@ -451,7 +462,28 @@ const App: React.FC = () => {
   // When user successfully auths in modal, update state immediately to prevent "Anonymous" flicker
   const handleMockLogin = () => {
       if (userProfile) {
-          setUserProfile({ ...userProfile, isAnonymous: false });
+          let updatedUser = { ...userProfile, isAnonymous: false };
+          
+          // Apply Pending Scan if exists (Unlock Mechanism)
+          if (pendingScan) {
+              updatedUser = {
+                  ...updatedUser,
+                  hasScannedFace: true,
+                  biometrics: pendingScan.metrics,
+                  faceImage: pendingScan.image,
+                  scanHistory: [...(updatedUser.scanHistory || []), pendingScan.metrics]
+              };
+              setPendingScan(null); // Clear holding buffer
+              setCurrentView(AppView.DASHBOARD); // NOW transition to dashboard
+              
+              // Trigger Guide Bubble after scan
+              setTimeout(() => {
+                  setActiveGuide('SCAN');
+              }, 5000);
+          }
+
+          setUserProfile(updatedUser);
+          persistState(updatedUser, shelf);
       }
       setShowSaveModal(false);
       setNotification({

@@ -1,6 +1,6 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Sparkles, Image as ImageIcon, ScanFace, BrainCircuit, Target, Lightbulb, CheckCircle2, Focus, X, ArrowRight, UserX, ShieldAlert, Fingerprint } from 'lucide-react';
+import { Sparkles, Image as ImageIcon, ScanFace, BrainCircuit, Target, Lightbulb, CheckCircle2, Focus, X, ArrowRight, UserX, ShieldAlert, Fingerprint, Lock } from 'lucide-react';
 import { analyzeSkinFrame, drawBiometricOverlay, validateFrame, applyClinicalOverlays, applyMedicalProcessing, preprocessForAI } from '../services/visionService';
 import { analyzeFaceSkin, compareFaceIdentity } from '../services/geminiService';
 import { SkinMetrics } from '../types';
@@ -562,7 +562,8 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
                         onClick={() => onScanComplete(resultMetrics, capturedSnapshot)}
                         className="w-full h-16 bg-white text-teal-950 rounded-[2rem] font-black text-sm uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-[0_0_40px_rgba(255,255,255,0.2)] flex items-center justify-center gap-3 group"
                     >
-                        View Full Report 
+                        {/* CHANGED TEXT HERE */}
+                        Reveal Skin Result 
                         <div className="w-8 h-8 rounded-full bg-teal-950/10 flex items-center justify-center group-hover:translate-x-1 transition-transform">
                              <ArrowRight size={16} />
                         </div>

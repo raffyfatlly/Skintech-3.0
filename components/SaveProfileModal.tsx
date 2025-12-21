@@ -133,37 +133,37 @@ const SaveProfileModal: React.FC<SaveProfileModalProps> = ({ onSave, onClose, on
           case 'SCAN_PRODUCT':
               return {
                   title: "Unlock Smart Scanner",
-                  desc: "Create a free account to analyze ingredients and save matches to your shelf.",
+                  desc: <>Create a <strong className="text-zinc-800">free account</strong> to analyze ingredients and save matches to your shelf.</>,
                   icon: ScanBarcode
               };
           case 'RESCAN_FACE':
               return {
                   title: "Track Skin Health",
-                  desc: "Create a free account to save your baseline and measure how your metrics improve over time.",
+                  desc: <>Create a <strong className="text-zinc-800">free account</strong> to save your baseline and measure how your metrics improve over time.</>,
                   icon: Sparkles
               };
           case 'VIEW_PROGRESS':
               return {
                   title: "Unlock Trends",
-                  desc: "Create an account to visualize your skin health journey and see what's working.",
+                  desc: <>Create a <strong className="text-zinc-800">free account</strong> to visualize your skin health journey and see what's working.</>,
                   icon: LineChart
               };
           case 'SAVE_RESULTS':
               return {
                   title: "Save Your Results",
-                  desc: "Don't lose this analysis. Create an account to access it later.",
+                  desc: <>Don't lose this analysis. Create a <strong className="text-zinc-800">free account</strong> to access it later.</>,
                   icon: ShieldCheck
               };
           case 'UNLOCK_DEAL':
               return {
                   title: "Claim Beta Offer",
-                  desc: "Create an account to redeem the limited beta offer.",
+                  desc: <>Create a <strong className="text-zinc-800">free account</strong> to redeem the limited beta offer.</>,
                   icon: Crown
               };
           default:
               return {
                   title: "Save Your Skin DNA",
-                  desc: "Create a free account to unlock progress tracking and cloud sync.",
+                  desc: <>Create a <strong className="text-zinc-800">free account</strong> to unlock progress tracking and cloud sync.</>,
                   icon: Fingerprint
               };
       }
@@ -194,9 +194,9 @@ const SaveProfileModal: React.FC<SaveProfileModalProps> = ({ onSave, onClose, on
                 <h2 className="text-xl font-black text-zinc-900 tracking-tight mb-1">
                     {content.title}
                 </h2>
-                <p className="text-xs font-medium text-zinc-500 leading-relaxed max-w-[240px] mx-auto">
+                <div className="text-xs font-medium text-zinc-500 leading-relaxed max-w-[240px] mx-auto">
                     {content.desc}
-                </p>
+                </div>
             </div>
 
             {/* Benefits List (Only on Signup) - Updated Text */}
@@ -271,7 +271,7 @@ const SaveProfileModal: React.FC<SaveProfileModalProps> = ({ onSave, onClose, on
                 <button 
                     type="submit"
                     disabled={loading}
-                    className="w-full py-3 rounded-xl bg-teal-500 text-white font-bold text-xs uppercase tracking-widest hover:bg-teal-600 shadow-lg shadow-teal-500/20 active:scale-95 transition-all flex items-center justify-center gap-2 mt-4"
+                    className="w-full py-3 rounded-xl bg-teal-500 text-white font-black text-xs uppercase tracking-widest hover:bg-teal-600 shadow-lg shadow-teal-500/20 active:scale-95 transition-all flex items-center justify-center gap-2 mt-4"
                 >
                     {loading ? <Loader size={16} className="animate-spin text-white/50" /> : (
                         <>
@@ -294,9 +294,9 @@ const SaveProfileModal: React.FC<SaveProfileModalProps> = ({ onSave, onClose, on
                     className="text-[11px] text-zinc-500 hover:text-zinc-800 transition-colors font-medium group"
                 >
                     {isLoginView ? (
-                        <>New here? <span className="font-bold text-teal-600 underline decoration-teal-200 group-hover:decoration-teal-500 underline-offset-2 transition-all">Create Account</span></>
+                        <>New here? <span className="font-black text-teal-600 underline decoration-teal-200 group-hover:decoration-teal-500 underline-offset-2 transition-all">Create Account</span></>
                     ) : (
-                        <>Already a member? <span className="font-bold text-teal-600 underline decoration-teal-200 group-hover:decoration-teal-500 underline-offset-2 transition-all">Sign In</span></>
+                        <>Already a member? <span className="font-black text-teal-600 underline decoration-teal-200 group-hover:decoration-teal-500 underline-offset-2 transition-all">Sign In</span></>
                     )}
                 </button>
             </div>
