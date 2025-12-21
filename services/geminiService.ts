@@ -681,3 +681,50 @@ export const generateRoutineRecommendations = async (user: UserProfile): Promise
         return parseJSONFromText(response.text || "{}");
     }, null, 60000);
 }
+
+export const generateTargetedRecommendations = async (user: UserProfile, category: string, maxPrice: number, allergies: string): Promise<any> => {
+    return runWithRetry<any>(async (ai) => {
+        const prompt = `
+        ACT AS A PERSONAL SHOPPER FOR SKINCARE IN MALAYSIA.
+        
+        USER CONTEXT:
+        - Skin Type: ${user.skinType}
+        - Concerns: ${JSON.stringify(user.biometrics)}
+        - Location: Malaysia (Tropical/Humid)
+        
+        SEARCH CRITERIA:
+        - Category: ${category}
+        - Max Price: RM ${maxPrice}
+        - Allergies/Avoid: ${allergies || "None"}
+        
+        TASK:
+        Find exactly 3 products available in Malaysia (Watsons, Guardian, Sephora MY, Shopee Mall) that match the criteria.
+        STRICTLY filter out any product costing more than RM ${maxPrice}.
+        
+        OUTPUT JSON:
+        [
+          { 
+            "name": "Product Name", 
+            "brand": "Brand", 
+            "price": "RM 45.00", 
+            "reason": "Why it fits skin type + budget", 
+            "rating": 95,
+            "tier": "VALUE" 
+          },
+          ...
+        ]
+        `;
+
+        const response = await ai.models.generateContent({
+            model: MODEL_ROUTINE, 
+            contents: prompt,
+            config: { 
+                tools: [{ googleSearch: {} }],
+                responseMimeType: 'application/json'
+            }
+        });
+
+        const res = parseJSONFromText(response.text || "[]");
+        return Array.isArray(res) ? res : [];
+    }, [], 60000);
+};

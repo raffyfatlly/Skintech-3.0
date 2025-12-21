@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { SkinMetrics, Product, UserProfile } from '../types';
 import { auditProduct, getClinicalTreatmentSuggestions } from '../services/geminiService';
-import { RefreshCw, Sparkles, Sun, Moon, Ban, CheckCircle2, AlertTriangle, Target, BrainCircuit, Stethoscope, Plus, Microscope, X, FlaskConical, Search, ArrowRight, Pipette, Droplet, Layers, Fingerprint, Info, AlertOctagon, GitBranch, ArrowUpRight, Syringe, Zap, Activity, MessageCircle, ShieldAlert, TrendingUp, TrendingDown, Minus, ShoppingBag, ScanBarcode, ShieldCheck, ChevronDown, Lock, Crown, ListChecks, HelpCircle, ScanFace } from 'lucide-react';
+import { RefreshCw, Sparkles, Sun, Moon, Ban, CheckCircle2, AlertTriangle, Target, BrainCircuit, Stethoscope, Plus, Microscope, X, FlaskConical, Search, ArrowRight, Pipette, Droplet, Layers, Fingerprint, Info, AlertOctagon, GitBranch, ArrowUpRight, Syringe, Zap, Activity, MessageCircle, ShieldAlert, TrendingUp, TrendingDown, Minus, ShoppingBag, ScanBarcode, ShieldCheck, ChevronDown, Lock, Crown, ListChecks, HelpCircle, ScanFace, Tag } from 'lucide-react';
 
 // --- SUB COMPONENTS ---
 
@@ -766,7 +766,7 @@ const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({ userProfile, sh
                               <Crown size={12} className="text-amber-300 fill-amber-300" /> Beta Access
                           </div>
                           <h2 className="text-3xl font-black text-white tracking-tight leading-none mb-2 drop-shadow-md">
-                              Unlock Full Potential
+                              Unlock Skin Intelligence
                           </h2>
                           <p className="text-white/90 text-sm font-medium drop-shadow-sm">
                               Get the complete dermatologist toolkit.
@@ -781,7 +781,7 @@ const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({ userProfile, sh
                               </div>
                               <div>
                                   <h4 className="text-white font-bold text-xs uppercase tracking-wide mb-0.5">Buying Assistant</h4>
-                                  <p className="text-[10px] text-white/80 font-medium leading-relaxed">Deep ingredient safety checks & climate tips.</p>
+                                  <p className="text-[10px] text-white/80 font-medium leading-relaxed">Detailed ingredient matching, usage tips & smart alternatives.</p>
                               </div>
                           </div>
 
@@ -791,7 +791,7 @@ const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({ userProfile, sh
                               </div>
                               <div>
                                   <h4 className="text-white font-bold text-xs uppercase tracking-wide mb-0.5">Routine Architect</h4>
-                                  <p className="text-[10px] text-white/80 font-medium leading-relaxed">3-Tier product plans based on your budget.</p>
+                                  <p className="text-[10px] text-white/80 font-medium leading-relaxed">Custom product plans based on your budget & skin condition.</p>
                               </div>
                           </div>
 
@@ -805,13 +805,17 @@ const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({ userProfile, sh
                               </div>
                           </div>
 
-                          <div className="bg-white/10 backdrop-blur-md border border-white/20 p-4 rounded-2xl flex items-start gap-3">
+                          <div className="bg-white/10 backdrop-blur-md border border-white/20 p-4 rounded-2xl flex items-start gap-3 relative overflow-hidden">
+                              {/* "Coming Soon" Banner/Badge */}
+                              <div className="absolute top-0 right-0 bg-amber-400 text-amber-900 text-[8px] font-black uppercase px-2 py-0.5 rounded-bl-lg">
+                                  Coming Soon
+                              </div>
                               <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center shrink-0 text-white">
-                                  <ScanFace size={16} />
+                                  <Tag size={16} /> 
                               </div>
                               <div>
-                                  <h4 className="text-white font-bold text-xs uppercase tracking-wide mb-0.5">Unlimited Scans</h4>
-                                  <p className="text-[10px] text-white/80 font-medium leading-relaxed">Track progress with unlimited history.</p>
+                                  <h4 className="text-white font-bold text-xs uppercase tracking-wide mb-0.5">Price Scout</h4>
+                                  <p className="text-[10px] text-white/80 font-medium leading-relaxed">Find the cheapest offers & best stores instantly.</p>
                               </div>
                           </div>
                       </div>
