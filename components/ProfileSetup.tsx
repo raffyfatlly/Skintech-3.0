@@ -555,17 +555,46 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
       setIsDeleting(true);
       
       try {
-          // Artificial delay to show processing state (UX)
           await new Promise(r => setTimeout(r, 600));
           
-          // Filter out the selected scan by timestamp
+          // 1. New History
           const newHistory = (user.scanHistory || []).filter(s => s.timestamp !== scanToDelete.timestamp);
           
-          // Update User Profile with new history
-          // Note: App.tsx handles the DB sync automatically when this calls persistState
+          // 2. Determine if we deleted the current active scan
+          const isDeletingCurrent = user.biometrics.timestamp === scanToDelete.timestamp;
+          
+          let newBiometrics = user.biometrics;
+          let newFaceImage = user.faceImage;
+          let newHasScannedFace = user.hasScannedFace;
+
+          if (isDeletingCurrent) {
+              // We need to roll back
+              const sortedHistory = [...newHistory].sort((a, b) => b.timestamp - a.timestamp);
+              
+              if (sortedHistory.length > 0) {
+                  // Roll back to previous scan
+                  newBiometrics = sortedHistory[0];
+                  // We don't have the old image stored, so we clear it to avoid mismatch
+                  newFaceImage = undefined; 
+              } else {
+                  // No history left
+                  newHasScannedFace = false;
+                  // Reset biometrics to empty/safe defaults to avoid crashes if rendered
+                  newBiometrics = { 
+                      overallScore: 0, acneActive: 0, acneScars: 0, poreSize: 0, blackheads: 0,
+                      wrinkleFine: 0, wrinkleDeep: 0, sagging: 0, pigmentation: 0, redness: 0,
+                      texture: 0, hydration: 0, oiliness: 0, darkCircles: 0, timestamp: Date.now()
+                  };
+                  newFaceImage = undefined;
+              }
+          }
+
           onComplete({
               ...user,
-              scanHistory: newHistory
+              scanHistory: newHistory,
+              biometrics: newBiometrics,
+              faceImage: newFaceImage,
+              hasScannedFace: newHasScannedFace
           });
           
           setScanToDelete(null);

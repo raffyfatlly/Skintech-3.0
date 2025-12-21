@@ -340,6 +340,16 @@ const App: React.FC = () => {
                   />
               );
           case AppView.DASHBOARD:
+              // Safety: If user has no scanned face (e.g. deleted all scans), force FaceScanner
+              if (userProfile && !userProfile.hasScannedFace) {
+                  return (
+                      <FaceScanner 
+                        onScanComplete={handleFaceScanComplete} 
+                        scanHistory={userProfile?.scanHistory}
+                        // No cancel button allowed if forced
+                      />
+                  );
+              }
               return userProfile ? (
                   <SkinAnalysisReport 
                     userProfile={userProfile} 
