@@ -7,8 +7,7 @@ const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 // --- FEATURE-SPECIFIC MODEL CONFIGURATION ---
 // Separated to ensure changes to one feature don't break others.
 
-// 1. FACE ANALYSIS: Uses 2.5 Flash for speed + existing calibrated rubric.
-// DO NOT CHANGE without recalibrating the rubric.
+// 1. FACE ANALYSIS: Uses 3.0 Flash for speed + existing calibrated rubric.
 const MODEL_FACE_SCAN = 'gemini-3-flash-preview';
 
 // 2. PRODUCT INTELLIGENCE: Uses 3.0 Flash for superior Search Grounding & JSON formatting.
@@ -250,16 +249,17 @@ CATEGORY 3: VITALITY
         
         ${rubric}
         
-        INSTRUCTIONS FOR 'analysisSummary':
-        - **ROLE**: You are a supportive, friendly skincare coach. Not a doctor.
-        - **LANGUAGE**: **Ultra-simple, everyday English.** (Write for a 12-year-old).
-        - **BANNED WORDS**: Do NOT use words like: "resilience", "integrity", "diameter", "structural", "erythema", "sebum", "necrotic", "pathological", "turgor", "edema", "vascularity", "lesions".
-        - **INSTEAD USE**: "Strong", "Size", "Redness", "Oil", "Bounce", "Swelling", "Breakouts".
-        - **STRUCTURE**:
-          1. Start with a specific compliment (e.g. "Your skin texture looks really smooth!").
-          2. Mention one main thing to help (e.g. "We can work on clearing up those spots on your chin.").
-          3. Suggest a simple fix (e.g. "A gentle cleanser will help.").
-        - **LENGTH**: Max 2-3 short sentences.
+        INSTRUCTIONS FOR 'analysisSummary' (Clinical Verdict):
+        - **Goal**: Create a verdict that feels personal, precise, and encouraging.
+        - **Language Rule**: Use **Simple, 5th-grade English**. NO complex medical terms.
+          - **BAN**: "integrity", "diameter", "resilience", "structural", "erythema", "sebum", "necrotic", "pathological", "turgor", "edema", "vascularity", "lesions".
+          - **USE**: "strength", "size", "redness", "oil", "bounce", "swelling", "breakouts", "glow".
+        - **Tone**: Positive and observant. Like a smart friend noticing details.
+        - **Structure**:
+          1. **Validation**: Start with a strong compliment about their best feature (e.g. "Your cheek texture is glass-like...").
+          2. **Precision**: Mention a specific detail you see (e.g. "I noticed your T-zone is a bit shiny," or "Your under-eyes look well-rested").
+          3. **Action**: Connect a lower score to a simple fix (e.g. "To fix the redness, we just need to calm your skin barrier.").
+        - **Do not be generic.** Use specific facial areas (nose, chin, forehead) to show you "see" them.
         
         Return JSON fields: overallScore, acneActive, acneScars, poreSize, blackheads, wrinkleFine, wrinkleDeep, sagging, pigmentation, redness, texture, hydration, oiliness, darkCircles, skinAge, analysisSummary (string), observations (map of metric key to string).`;
         
