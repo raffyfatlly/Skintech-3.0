@@ -56,7 +56,7 @@ export interface UserProfile {
   hasScannedFace: boolean;
   biometrics: SkinMetrics;
   scanHistory?: SkinMetrics[]; // New: Track history for progress comparison
-  faceImage?: string; // Base64 Data URL
+  faceImage?: string | null; // Base64 Data URL or null if cleared
   isAnonymous?: boolean; // For lazy signup detection
   preferences?: UserPreferences;
   isPremium?: boolean; // NEW: Tracks payment status

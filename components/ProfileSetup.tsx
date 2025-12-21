@@ -103,6 +103,7 @@ const MonthGroup: React.FC<{
     );
 };
 
+// ... (GoalEditModal, HistoryChart, ScanDetailModal remain the same - abbreviated for brevity)
 // --- SUB-COMPONENT: GOAL EDIT MODAL ---
 const GoalEditModal: React.FC<{ 
     currentPreferences: UserPreferences; 
@@ -454,20 +455,15 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
   const [selectedScan, setSelectedScan] = useState<SkinMetrics | null>(null);
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
   
-  // Editing State
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editName, setEditName] = useState(user.name);
   const [editAge, setEditAge] = useState(user.age.toString());
   
-  // Loading & Toast States
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [actionToast, setActionToast] = useState<{message: string, type: 'success'|'error'} | null>(null);
   
-  // Clear Data Confirmation
   const [showClearConfirm, setShowClearConfirm] = useState(false);
-
-  // Single Scan Delete State
   const [scanToDelete, setScanToDelete] = useState<SkinMetrics | null>(null);
   
   const history = useMemo(() => user.scanHistory || [user.biometrics], [user.scanHistory, user.biometrics]);
@@ -477,7 +473,7 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
       setTimeout(() => setActionToast(null), 3000);
   };
 
-  // --- HELPER: Goal Progress ---
+  // ... (getGoalProgress and other helpers remain the same)
   const getGoalProgress = (goal: string, currentMetrics: SkinMetrics, initialMetrics: SkinMetrics) => {
       let metricKeys: (keyof SkinMetrics)[] = [];
       let label = "";
@@ -535,7 +531,6 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
   const handleSaveProfile = async () => {
       if (editName && editAge) {
           setIsSavingProfile(true);
-          // Artificial delay for UX perception
           await new Promise(r => setTimeout(r, 500));
           
           onComplete({
@@ -557,49 +552,50 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
       try {
           await new Promise(r => setTimeout(r, 600));
           
-          // 1. New History
-          const newHistory = (user.scanHistory || []).filter(s => s.timestamp !== scanToDelete.timestamp);
+          const currentTimestamp = user.biometrics.timestamp;
+          const deleteTimestamp = scanToDelete.timestamp;
           
-          // 2. Determine if we deleted the current active scan
-          const isDeletingCurrent = user.biometrics.timestamp === scanToDelete.timestamp;
+          // 1. Filter out deleted scan from history
+          const newHistory = (user.scanHistory || []).filter(s => s.timestamp !== deleteTimestamp);
           
-          let newBiometrics = user.biometrics;
-          let newFaceImage = user.faceImage;
-          let newHasScannedFace = user.hasScannedFace;
+          // 2. Check if we are deleting the CURRENT active scan
+          const isDeletingActive = currentTimestamp === deleteTimestamp;
 
-          if (isDeletingCurrent) {
-              // We need to roll back
-              const sortedHistory = [...newHistory].sort((a, b) => b.timestamp - a.timestamp);
+          let newProfileUpdate: Partial<UserProfile> = {
+              scanHistory: newHistory
+          };
+
+          if (isDeletingActive) {
+              // We deleted the active scan, need to rollback
+              const sorted = [...newHistory].sort((a, b) => b.timestamp - a.timestamp);
               
-              if (sortedHistory.length > 0) {
-                  // Roll back to previous scan
-                  newBiometrics = sortedHistory[0];
-                  // We don't have the old image stored, so we clear it to avoid mismatch
-                  newFaceImage = undefined; 
+              if (sorted.length > 0) {
+                  // Rollback to next latest
+                  newProfileUpdate.biometrics = sorted[0];
+                  // Important: Set faceImage to NULL to clear it (we don't store historical images)
+                  newProfileUpdate.faceImage = null; 
+                  newProfileUpdate.hasScannedFace = true;
               } else {
-                  // No history left
-                  newHasScannedFace = false;
-                  // Reset biometrics to empty/safe defaults to avoid crashes if rendered
-                  newBiometrics = { 
+                  // No scans left - Reset fully
+                  newProfileUpdate.biometrics = { 
                       overallScore: 0, acneActive: 0, acneScars: 0, poreSize: 0, blackheads: 0,
                       wrinkleFine: 0, wrinkleDeep: 0, sagging: 0, pigmentation: 0, redness: 0,
                       texture: 0, hydration: 0, oiliness: 0, darkCircles: 0, timestamp: Date.now()
                   };
-                  newFaceImage = undefined;
+                  newProfileUpdate.faceImage = null;
+                  newProfileUpdate.hasScannedFace = false;
               }
           }
 
           onComplete({
               ...user,
-              scanHistory: newHistory,
-              biometrics: newBiometrics,
-              faceImage: newFaceImage,
-              hasScannedFace: newHasScannedFace
-          });
+              ...newProfileUpdate
+          } as UserProfile);
           
           setScanToDelete(null);
           showToast("Scan deleted successfully");
       } catch (e) {
+          console.error(e);
           showToast("Failed to delete scan", "error");
       } finally {
           setIsDeleting(false);
@@ -612,14 +608,12 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
   }
 
   // --- RENDER: OVERVIEW ---
-  // History Processing
   const sortedHistory = [...history].sort((a, b) => b.timestamp - a.timestamp);
   const latest = sortedHistory[0];
   const previous = sortedHistory.length > 1 ? sortedHistory[1] : null;
-  const initial = sortedHistory[sortedHistory.length - 1]; // Baseline
+  const initial = sortedHistory[sortedHistory.length - 1]; 
   const totalProgress = latest.overallScore - initial.overallScore;
 
-  // Group History by Month for Scalability
   const groupedHistory: Record<string, SkinMetrics[]> = {};
   sortedHistory.forEach(scan => {
       const date = new Date(scan.timestamp);
@@ -628,11 +622,9 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
       groupedHistory[key].push(scan);
   });
 
-  // --- PREMIUM PROGRESS INTELLIGENCE LOGIC ---
   const progressIntel = useMemo(() => {
     if (!previous) return null;
     
-    // 1. Time Context
     const timeDiffMs = latest.timestamp - previous.timestamp;
     const hoursDiff = timeDiffMs / (1000 * 60 * 60);
     const daysDiff = hoursDiff / 24;
@@ -642,10 +634,8 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
     const isMediumTerm = daysDiff >= 7 && daysDiff < 30;
     const isLongTerm = daysDiff >= 30;
 
-    // 2. Score Deltas & Driving Factors
     const scoreDiff = latest.overallScore - previous.overallScore;
     
-    // Find biggest mover
     const metricsToCheck: (keyof SkinMetrics)[] = ['redness', 'hydration', 'acneActive', 'texture', 'wrinkleFine', 'pigmentation'];
     let biggestMover = { key: '', val: 0 };
     
@@ -658,21 +648,17 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
 
     const primaryFactorName = biggestMover.key === 'acneActive' ? 'Inflammation' : biggestMover.key.charAt(0).toUpperCase() + biggestMover.key.slice(1);
     
-    // 3. Shelf Context (Added Products)
     const addedProducts = shelf.filter(p => p.dateScanned > previous.timestamp && p.dateScanned < latest.timestamp);
     const latestProduct = addedProducts.length > 0 ? addedProducts[addedProducts.length - 1] : null;
 
-    // 4. Constructing the Narrative
     let statusTitle = "";
     let statusDesc = "";
     let strategy = "";
     let visualState: 'NEUTRAL' | 'GOOD' | 'BAD' = 'NEUTRAL';
 
-    // SCENARIO A: RAPID RESCAN (< 24 Hours)
     if (isRapidRescan) {
-        statusTitle = "Skin Progress"; // Changed from 'Daily Change'
+        statusTitle = "Skin Progress";
         visualState = 'NEUTRAL';
-        
         if (Math.abs(scoreDiff) > 5) {
             statusDesc = `Biometrics show a ${scoreDiff > 0 ? '+' : ''}${scoreDiff} point shift in ${Math.round(hoursDiff)} hours. likely due to hydration/lighting.`;
             strategy = "Focus on how your skin feels. Small daily shifts are normal.";
@@ -681,9 +667,7 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
             statusDesc = "Your skin metrics are consistent with your last scan.";
             strategy = "No immediate action needed. Continue your current routine.";
         }
-    }
-    // SCENARIO B: SHORT TERM (1-7 Days) -> Reaction Check
-    else if (isShortTerm) {
+    } else if (isShortTerm) {
         statusTitle = "Weekly Check";
         if (scoreDiff < -3) {
             visualState = 'BAD';
@@ -703,9 +687,7 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
             statusDesc = "Your skin is maintaining balance. No major spikes.";
             strategy = "This stability is good. You can safely introduce actives if needed.";
         }
-    }
-    // SCENARIO C: MEDIUM/LONG TERM (> 7 Days) -> Efficacy Check
-    else {
+    } else {
         statusTitle = "Long-Term Trend";
         if (scoreDiff > 5) {
             visualState = 'GOOD';
