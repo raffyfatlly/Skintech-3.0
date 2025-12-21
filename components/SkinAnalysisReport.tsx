@@ -1,8 +1,7 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { SkinMetrics, Product, UserProfile } from '../types';
 import { auditProduct, getClinicalTreatmentSuggestions } from '../services/geminiService';
-import { RefreshCw, Sparkles, Sun, Moon, Ban, CheckCircle2, AlertTriangle, Target, BrainCircuit, Stethoscope, Plus, Microscope, X, FlaskConical, Search, ArrowRight, Pipette, Droplet, Layers, Fingerprint, Info, AlertOctagon, GitBranch, ArrowUpRight, Syringe, Zap, Activity, MessageCircle, ShieldAlert, TrendingUp, TrendingDown, Minus, ShoppingBag, ScanBarcode, ShieldCheck, ChevronDown, Lock, Crown, ListChecks, HelpCircle } from 'lucide-react';
+import { RefreshCw, Sparkles, Sun, Moon, Ban, CheckCircle2, AlertTriangle, Target, BrainCircuit, Stethoscope, Plus, Microscope, X, FlaskConical, Search, ArrowRight, Pipette, Droplet, Layers, Fingerprint, Info, AlertOctagon, GitBranch, ArrowUpRight, Syringe, Zap, Activity, MessageCircle, ShieldAlert, TrendingUp, TrendingDown, Minus, ShoppingBag, ScanBarcode, ShieldCheck, ChevronDown, Lock, Crown, ListChecks, HelpCircle, ScanFace } from 'lucide-react';
 
 // --- SUB COMPONENTS ---
 
@@ -761,39 +760,75 @@ const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({ userProfile, sh
              <div className="absolute top-0 right-0 w-64 h-64 bg-white/20 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none mix-blend-overlay"></div>
 
              {!isPremiumUnlocked ? (
-                 <div className="text-center relative z-10 py-4">
-                      {/* Premium Teaser Icon */}
-                      <div className="w-20 h-20 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center mx-auto mb-6 border border-white/30 shadow-inner">
-                          <Lock className="text-white drop-shadow-sm" size={32} strokeWidth={2.5} />
-                      </div>
-                      
-                      <h2 className="text-3xl font-black text-white mb-2 tracking-tight drop-shadow-md">Unlock Your Routine</h2>
-                      
-                      {/* Enticing Value Prop - Updated Copy */}
-                      <p className="text-white/95 font-medium text-sm mb-8 max-w-xs mx-auto leading-relaxed drop-shadow-sm">
-                         We've identified the best products for your unique skin profile. Get a personalized routine and curated product plan built just for you.
-                      </p>
-                      
-                      {/* Feature List (Updated Tags) */}
-                      <div className="flex flex-wrap justify-center gap-2 mb-8 max-w-sm mx-auto opacity-90">
-                          {["Routine Architect", "Unlimited Rescans", "Smart Search", "Product Swaps", "Priority Access"].map((feat, i) => (
-                              <span key={i} className="px-2 py-1 bg-white/10 rounded-md text-[9px] font-bold text-white uppercase tracking-wider border border-white/10">
-                                  {feat}
-                              </span>
-                          ))}
+                 <div className="relative z-10">
+                      <div className="text-center mb-8">
+                          <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 backdrop-blur-md rounded-full border border-white/30 text-white text-[10px] font-bold uppercase tracking-widest shadow-sm mb-4">
+                              <Crown size={12} className="text-amber-300 fill-amber-300" /> Beta Access
+                          </div>
+                          <h2 className="text-3xl font-black text-white tracking-tight leading-none mb-2 drop-shadow-md">
+                              Unlock Full Potential
+                          </h2>
+                          <p className="text-white/90 text-sm font-medium drop-shadow-sm">
+                              Get the complete dermatologist toolkit.
+                          </p>
                       </div>
 
-                      {/* Unlock Button - ANIMATED */}
-                      <div className="relative inline-flex group rounded-full p-[2px] overflow-hidden shadow-[0_10px_20px_rgba(0,0,0,0.1)]">
-                          <div className="absolute inset-[-100%] animate-[spin_2s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#E2E8F0_0%,#E2E8F0_50%,#0F766E_100%)]" />
-                          <button 
-                            onClick={onUnlockPremium}
-                            className="relative z-10 bg-white text-teal-900 px-8 py-4 rounded-full font-black text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all flex items-center gap-2"
-                          >
-                              <Sparkles size={14} className="text-amber-400 fill-amber-400 group-hover:rotate-12 transition-transform" /> Unlock Full Access
-                          </button>
+                      {/* Feature Grid */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
+                          <div className="bg-white/10 backdrop-blur-md border border-white/20 p-4 rounded-2xl flex items-start gap-3">
+                              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center shrink-0 text-white">
+                                  <ShieldCheck size={16} />
+                              </div>
+                              <div>
+                                  <h4 className="text-white font-bold text-xs uppercase tracking-wide mb-0.5">Buying Assistant</h4>
+                                  <p className="text-[10px] text-white/80 font-medium leading-relaxed">Deep ingredient safety checks & climate tips.</p>
+                              </div>
+                          </div>
+
+                          <div className="bg-white/10 backdrop-blur-md border border-white/20 p-4 rounded-2xl flex items-start gap-3">
+                              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center shrink-0 text-white">
+                                  <Layers size={16} />
+                              </div>
+                              <div>
+                                  <h4 className="text-white font-bold text-xs uppercase tracking-wide mb-0.5">Routine Architect</h4>
+                                  <p className="text-[10px] text-white/80 font-medium leading-relaxed">3-Tier product plans based on your budget.</p>
+                              </div>
+                          </div>
+
+                          <div className="bg-white/10 backdrop-blur-md border border-white/20 p-4 rounded-2xl flex items-start gap-3">
+                              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center shrink-0 text-white">
+                                  <Search size={16} />
+                              </div>
+                              <div>
+                                  <h4 className="text-white font-bold text-xs uppercase tracking-wide mb-0.5">Smart Search</h4>
+                                  <p className="text-[10px] text-white/80 font-medium leading-relaxed">Instantly analyze any product by name.</p>
+                              </div>
+                          </div>
+
+                          <div className="bg-white/10 backdrop-blur-md border border-white/20 p-4 rounded-2xl flex items-start gap-3">
+                              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center shrink-0 text-white">
+                                  <ScanFace size={16} />
+                              </div>
+                              <div>
+                                  <h4 className="text-white font-bold text-xs uppercase tracking-wide mb-0.5">Unlimited Scans</h4>
+                                  <p className="text-[10px] text-white/80 font-medium leading-relaxed">Track progress with unlimited history.</p>
+                              </div>
+                          </div>
                       </div>
-                      <p className="text-[10px] text-white/80 font-bold mt-4 uppercase tracking-widest">RM 9.90 • One-time Payment</p>
+
+                      {/* Unlock Button */}
+                      <div className="text-center">
+                          <div className="relative inline-flex group rounded-full p-[2px] overflow-hidden shadow-[0_10px_20px_rgba(0,0,0,0.15)] hover:scale-105 transition-transform duration-300">
+                              <div className="absolute inset-[-100%] animate-[spin_2s_linear_infinite] bg-[conic-gradient(from_90deg_at_50%_50%,#E2E8F0_0%,#E2E8F0_50%,#0F766E_100%)]" />
+                              <button 
+                                onClick={onUnlockPremium}
+                                className="relative z-10 bg-white text-teal-900 px-8 py-4 rounded-full font-black text-xs uppercase tracking-widest active:scale-95 transition-all flex items-center gap-2"
+                              >
+                                  <Sparkles size={14} className="text-amber-400 fill-amber-400 group-hover:rotate-12 transition-transform" /> Unlock for RM 9.90
+                              </button>
+                          </div>
+                          <p className="text-[10px] text-white/70 font-bold mt-4 uppercase tracking-widest">One-time payment • Limited Beta Offer</p>
+                      </div>
                  </div>
              ) : (
                  <div className="relative z-10 animate-in fade-in slide-in-from-bottom-8 duration-500">

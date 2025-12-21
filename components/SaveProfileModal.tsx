@@ -156,8 +156,8 @@ const SaveProfileModal: React.FC<SaveProfileModalProps> = ({ onSave, onClose, on
               };
           case 'UNLOCK_DEAL':
               return {
-                  title: "Claim Exclusive Offer",
-                  desc: "Create a free account to unlock premium features and secure your lifetime access.",
+                  title: "Claim Beta Offer",
+                  desc: "Create an account to redeem the limited beta offer.",
                   icon: Crown
               };
           default:

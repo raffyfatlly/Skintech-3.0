@@ -30,7 +30,7 @@ import BetaOfferModal from './components/BetaOfferModal';
 import GuideOverlay from './components/GuideOverlay';
 
 // Icons
-import { ScanFace, LayoutGrid, User, Search, Home, Loader, ScanBarcode } from 'lucide-react';
+import { ScanFace, LayoutGrid, User, Search, Home, Loader, ScanBarcode, Lock } from 'lucide-react';
 
 const App: React.FC = () => {
   // --- STATE ---
@@ -278,10 +278,18 @@ const App: React.FC = () => {
         `flex flex-col items-center gap-1 p-2 rounded-2xl transition-all duration-300 ${currentView === view ? 'text-teal-600 bg-teal-50 scale-105' : 'text-zinc-400 hover:text-zinc-600'}`;
 
       const handleNavClick = (view: AppView) => {
-          if ((view === AppView.PRODUCT_SEARCH || view === AppView.PRODUCT_SCANNER) && userProfile?.isAnonymous) {
+          // Scanner requires login (Anonymous check)
+          if (view === AppView.PRODUCT_SCANNER && userProfile?.isAnonymous) {
               openAuth('SCAN_PRODUCT');
               return;
           }
+
+          // Search requires Premium
+          if (view === AppView.PRODUCT_SEARCH && !userProfile?.isPremium) {
+              handleUnlockPremium();
+              return;
+          }
+
           setCurrentView(view);
       };
 
@@ -311,7 +319,14 @@ const App: React.FC = () => {
               </div>
 
               <button onClick={() => handleNavClick(AppView.PRODUCT_SEARCH)} className={navItemClass(AppView.PRODUCT_SEARCH)}>
-                  <Search size={22} strokeWidth={currentView === AppView.PRODUCT_SEARCH ? 2.5 : 2} />
+                  <div className="relative">
+                      <Search size={22} strokeWidth={currentView === AppView.PRODUCT_SEARCH ? 2.5 : 2} />
+                      {!userProfile?.isPremium && (
+                          <div className="absolute -top-1.5 -right-1.5 bg-amber-400 text-white rounded-full p-0.5 border-2 border-white shadow-sm">
+                              <Lock size={8} strokeWidth={3} />
+                          </div>
+                      )}
+                  </div>
               </button>
 
               <button onClick={() => handleNavClick(AppView.PROFILE_SETUP)} className={navItemClass(AppView.PROFILE_SETUP)}>
