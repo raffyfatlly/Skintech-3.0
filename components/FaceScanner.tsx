@@ -1,14 +1,15 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Sparkles, Image as ImageIcon, ScanFace, BrainCircuit, Target, Lightbulb, CheckCircle2, Focus, X, ArrowRight } from 'lucide-react';
+import { Sparkles, Image as ImageIcon, ScanFace, BrainCircuit, Target, Lightbulb, CheckCircle2, Focus, X, ArrowRight, UserX, ShieldAlert, Fingerprint } from 'lucide-react';
 import { analyzeSkinFrame, drawBiometricOverlay, validateFrame, applyClinicalOverlays, applyMedicalProcessing, preprocessForAI } from '../services/visionService';
-import { analyzeFaceSkin } from '../services/geminiService';
+import { analyzeFaceSkin, compareFaceIdentity } from '../services/geminiService';
 import { SkinMetrics } from '../types';
 
 interface FaceScannerProps {
   onScanComplete: (metrics: SkinMetrics, image: string) => void;
   scanHistory?: SkinMetrics[];
   onCancel?: () => void;
+  referenceImage?: string | null;
 }
 
 const SCAN_TIPS = [
@@ -23,7 +24,7 @@ const SCAN_TIPS = [
   "Consistent weekly scans build the most accurate skin profile."
 ];
 
-const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, onCancel }) => {
+const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, onCancel, referenceImage }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -45,6 +46,10 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
   const [statusColor, setStatusColor] = useState<'default'|'warning'|'error'>('default');
   const [capturedSnapshot, setCapturedSnapshot] = useState<string | null>(null);
   const [currentTip, setCurrentTip] = useState<string>("");
+  
+  // Identity Verification State
+  const [identityStatus, setIdentityStatus] = useState<'CHECKING' | 'MATCH' | 'MISMATCH' | 'SKIPPED'>('SKIPPED');
+  const [showIdentityWarning, setShowIdentityWarning] = useState(false);
   
   // Result Display Logic
   const [resultMetrics, setResultMetrics] = useState<SkinMetrics | null>(null);
@@ -103,7 +108,7 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
       let progressInterval: ReturnType<typeof setInterval>;
       let tipInterval: ReturnType<typeof setInterval>;
 
-      if (isProcessingAI) {
+      if (isProcessingAI && !showIdentityWarning) {
           // Helper to get random tip excluding current
           const getRandomTip = (exclude?: string) => {
               const available = exclude ? SCAN_TIPS.filter(t => t !== exclude) : SCAN_TIPS;
@@ -132,7 +137,7 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
           clearInterval(progressInterval);
           clearInterval(tipInterval);
       };
-  }, [isProcessingAI]);
+  }, [isProcessingAI, showIdentityWarning]);
 
   // Score Animation Effect
   useEffect(() => {
@@ -288,6 +293,48 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
       }, 500);
   };
 
+  const handleAIProcess = async (source: HTMLVideoElement | HTMLImageElement, isFlipped: boolean, localMetrics: SkinMetrics) => {
+       setIsProcessingAI(true);
+       
+       const processedImage = captureProcessedImage(source, isFlipped);
+       const displayImage = captureSnapshot(source, isFlipped);
+       setCapturedSnapshot(displayImage);
+
+       // Parallel Execution: Skin Analysis + Identity Verification
+       const skinAnalysisPromise = analyzeFaceSkin(processedImage, localMetrics, scanHistory);
+       
+       let identityPromise: Promise<{ isMatch: boolean; confidence: number; reason: string }> | null = null;
+       if (referenceImage) {
+           setIdentityStatus('CHECKING');
+           identityPromise = compareFaceIdentity(processedImage, referenceImage);
+       }
+
+       try {
+           const [aiMetrics, identityResult] = await Promise.all([
+               skinAnalysisPromise,
+               identityPromise ? identityPromise : Promise.resolve(null)
+           ]);
+
+           if (identityResult) {
+               console.log("Identity Result:", identityResult);
+               if (!identityResult.isMatch) {
+                   setIdentityStatus('MISMATCH');
+                   setResultMetrics(aiMetrics); // Store metrics but pause for confirmation
+                   setShowIdentityWarning(true);
+                   return; // Stop here, wait for user confirmation
+               }
+               setIdentityStatus('MATCH');
+           }
+           
+           finalizeScan(aiMetrics, displayImage);
+
+       } catch (err) {
+           console.error("AI Analysis Failed", err);
+           // Fallback to local
+           finalizeScan(localMetrics, displayImage);
+       }
+  };
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
@@ -313,24 +360,7 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
                   
                   // Run local analysis on the uploaded image to get deterministic anchor data
                   const localMetrics = analyzeSkinFrame(ctx, w, h);
-                  
-                  // Capture visual snapshot for UI
-                  applyClinicalOverlays(ctx, w, h);
-                  const displaySnapshot = canvas.toDataURL('image/jpeg', 0.9);
-                  
-                  // Re-draw original for AI processing
-                  ctx.drawImage(img, 0, 0, w, h);
-                  // Use pre-processing for file uploads too!
-                  const processedBase64 = preprocessForAI(ctx, w, h);
-
-                  // Pass image, local metrics, AND HISTORY to AI for context-aware analysis
-                  analyzeFaceSkin(processedBase64, localMetrics, scanHistory).then(aiMetrics => {
-                      finalizeScan(aiMetrics, displaySnapshot);
-                  }).catch(err => {
-                      console.error(err);
-                      setIsProcessingAI(false);
-                      setStreamError("AI Analysis Failed.");
-                  });
+                  handleAIProcess(img, false, localMetrics);
               }
           };
           img.src = event.target?.result as string;
@@ -396,30 +426,15 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
 
       if (progressRef.current >= 100) {
            setIsScanning(false);
-           setIsProcessingAI(true);
-           
-           // Capture Processed Image (Auto-Exposed + Contrasted) for AI Consistency
-           const processedImage = captureProcessedImage(video, true);
            const avgLocalMetrics = calculateAverageMetrics(metricsBuffer.current);
-           
-           // Generate Image with Clinical Overlay for Display
-           const displayImage = captureSnapshot(video, true);
-           setCapturedSnapshot(displayImage);
-
-           // Pass averaged local metrics AND HISTORY as anchor
-           analyzeFaceSkin(processedImage, avgLocalMetrics, scanHistory).then(aiMetrics => {
-               finalizeScan(aiMetrics, displayImage);
-           }).catch(err => {
-               console.error("AI Failed", err);
-               finalizeScan(avgLocalMetrics, displayImage);
-           });
+           handleAIProcess(video, true, avgLocalMetrics);
       }
     }
 
     if (isScanning && !isProcessingAI) {
       requestAnimationFrame(scanFrame);
     }
-  }, [isScanning, isProcessingAI, scanHistory]);
+  }, [isScanning, isProcessingAI, scanHistory, referenceImage]);
 
   useEffect(() => {
     if (isScanning) {
@@ -438,6 +453,7 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
   }, [isScanning, scanFrame]);
 
   const getAIStatusText = (p: number) => {
+      if (identityStatus === 'CHECKING') return "Verifying Identity...";
       if (p < 30) return "Validating Biometrics...";
       if (p < 60) return "Consulting Database...";
       if (p < 90) return "Refining Analysis...";
@@ -448,6 +464,53 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
       if (statusColor === 'error') return 'bg-rose-500 border-rose-600 text-white';
       if (statusColor === 'warning') return 'bg-amber-400 border-amber-500 text-amber-900';
       return 'bg-white/90 border-white text-zinc-900';
+  }
+
+  // --- RENDER: IDENTITY WARNING ---
+  if (showIdentityWarning) {
+      return (
+        <div className="h-screen w-full bg-black flex flex-col items-center justify-center relative overflow-hidden font-sans p-6 animate-in fade-in duration-300">
+             {capturedSnapshot && (
+                 <img src={capturedSnapshot} className="absolute inset-0 w-full h-full object-cover opacity-20 blur-md grayscale" />
+             )}
+             
+             <div className="relative z-10 w-full max-w-sm bg-zinc-900 border border-red-900/50 rounded-3xl p-8 text-center shadow-2xl">
+                 <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-6 border border-red-500/30">
+                     <UserX size={40} className="text-red-500" />
+                 </div>
+                 
+                 <h2 className="text-2xl font-black text-white mb-2">Identity Mismatch</h2>
+                 <p className="text-zinc-400 text-sm mb-8 leading-relaxed">
+                     Biometrics indicate this face does not match the account owner. 
+                     This helps prevent your history from being polluted by other people's data.
+                 </p>
+
+                 <div className="flex flex-col gap-3">
+                     <button 
+                         onClick={() => {
+                             setShowIdentityWarning(false);
+                             if (resultMetrics && capturedSnapshot) {
+                                 finalizeScan(resultMetrics, capturedSnapshot);
+                             }
+                         }}
+                         className="w-full py-3.5 rounded-xl bg-white text-zinc-900 font-bold text-xs uppercase tracking-widest hover:bg-zinc-100 transition-colors"
+                     >
+                         It's Me (Override)
+                     </button>
+                     <button 
+                         onClick={() => {
+                             setShowIdentityWarning(false);
+                             setIsProcessingAI(false);
+                             setIsScanning(false);
+                         }}
+                         className="w-full py-3.5 rounded-xl bg-red-900/30 text-red-400 font-bold text-xs uppercase tracking-widest hover:bg-red-900/50 transition-colors border border-red-900/50"
+                     >
+                         Cancel
+                     </button>
+                 </div>
+             </div>
+        </div>
+      )
   }
 
   // --- RENDER: RESULT OVERLAY ---
@@ -520,22 +583,28 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
                  <div className="w-24 h-24 relative mb-10">
                      <div className="absolute inset-0 bg-teal-500/30 rounded-full animate-ping duration-1000"></div>
                      <div className="relative z-10 w-24 h-24 bg-gradient-to-tr from-teal-500 to-cyan-600 rounded-full flex items-center justify-center shadow-2xl border border-white/20">
-                        <BrainCircuit size={40} className="text-white animate-pulse" />
+                        {identityStatus === 'CHECKING' ? (
+                            <Fingerprint size={40} className="text-white animate-pulse" />
+                        ) : (
+                            <BrainCircuit size={40} className="text-white animate-pulse" />
+                        )}
                      </div>
                  </div>
                  <h2 className="text-3xl font-black text-white tracking-tight mb-2 text-center">Analyzing</h2>
                  <p className="text-teal-200 text-xs font-bold tracking-widest uppercase mb-4 animate-pulse text-center">{getAIStatusText(aiProgress)}</p>
                  
                  {/* PRO TIP DISPLAY (Animated) */}
-                 <div key={currentTip} className="bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl p-4 mt-4 animate-in slide-in-from-bottom-4 fade-in duration-500 flex flex-col items-center text-center max-w-xs min-h-[100px] justify-center">
-                     <div className="flex items-center gap-2 mb-2 text-teal-400">
-                         <Lightbulb size={14} />
-                         <span className="text-[10px] font-bold uppercase tracking-widest">Pro Tip</span>
-                     </div>
-                     <p className="text-white/80 text-xs font-medium leading-relaxed">
-                         {currentTip}
-                     </p>
-                 </div>
+                 {identityStatus !== 'CHECKING' && (
+                    <div key={currentTip} className="bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl p-4 mt-4 animate-in slide-in-from-bottom-4 fade-in duration-500 flex flex-col items-center text-center max-w-xs min-h-[100px] justify-center">
+                        <div className="flex items-center gap-2 mb-2 text-teal-400">
+                            <Lightbulb size={14} />
+                            <span className="text-[10px] font-bold uppercase tracking-widest">Pro Tip</span>
+                        </div>
+                        <p className="text-white/80 text-xs font-medium leading-relaxed">
+                            {currentTip}
+                        </p>
+                    </div>
+                 )}
              </div>
           </div>
       )

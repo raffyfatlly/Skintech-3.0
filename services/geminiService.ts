@@ -117,6 +117,45 @@ export const searchProducts = async (query: string): Promise<{ name: string, bra
     }, [{ name: query, brand: "Generic" }]);
 };
 
+export const compareFaceIdentity = async (newImage: string, referenceImage: string): Promise<{ isMatch: boolean; confidence: number; reason: string }> => {
+    return runWithRetry(async (ai) => {
+        const prompt = `
+        ACT AS A BIOMETRIC SECURITY SYSTEM.
+        
+        TASK: Compare the two provided face images.
+        1. Determine if they belong to the SAME PERSON.
+        2. Account for differences in lighting, makeup, or aging, but be strict about facial structure (jawline, nose shape, eye distance).
+        3. If one image is significantly lower quality, use your best judgement but lean towards "false" if uncertain.
+        
+        OUTPUT JSON:
+        {
+            "isMatch": boolean,
+            "confidence": number, // 0 to 100
+            "reason": "Short explanation of findings"
+        }
+        `;
+        
+        const response = await ai.models.generateContent({
+            model: MODEL_VISION, 
+            contents: {
+                parts: [
+                    { inlineData: { mimeType: 'image/jpeg', data: referenceImage.split(',')[1] } }, // Reference
+                    { inlineData: { mimeType: 'image/jpeg', data: newImage.split(',')[1] } }, // New
+                    { text: prompt }
+                ]
+            },
+            config: { responseMimeType: 'application/json' }
+        });
+
+        const result = parseJSONFromText(response.text || "{}");
+        return {
+            isMatch: result.isMatch === true,
+            confidence: result.confidence || 0,
+            reason: result.reason || "Analysis complete"
+        };
+    }, { isMatch: true, confidence: 100, reason: "Fallback: Service unavailable" });
+};
+
 export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, history?: SkinMetrics[]): Promise<SkinMetrics> => {
     return runWithRetry<SkinMetrics>(async (ai) => {
         // Extract previous scan data if available
@@ -313,7 +352,7 @@ export const analyzeProductFromSearch = async (productName: string, userMetrics:
         ACTIONS:
         1. USE GOOGLE SEARCH to find:
            - The OFFICIAL INCI ingredient list.
-           - The CURRENT PRICE in MALAYSIA (RM/MYR) (Watsons MY, Guardian MY, Sephora MY, Shopee Mall).
+           - The CURRENT PRICE in MALAYSIA (RM/MYR) (Watsons, Guardian, Sephora MY, Shopee Mall).
            - Reviews regarding humidity suitability (does it feel heavy/sticky?).
         
         2. ANALYZE:

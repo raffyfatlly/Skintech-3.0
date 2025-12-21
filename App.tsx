@@ -337,6 +337,7 @@ const App: React.FC = () => {
                     onScanComplete={handleFaceScanComplete} 
                     scanHistory={userProfile?.scanHistory}
                     onCancel={userProfile?.hasScannedFace ? () => setCurrentView(AppView.DASHBOARD) : undefined} 
+                    referenceImage={userProfile?.faceImage}
                   />
               );
           case AppView.DASHBOARD:
