@@ -89,6 +89,7 @@ export interface Product {
         'FOUNDATION' | 'CONCEALER' | 'POWDER' | 'PRIMER' | 'SETTING_SPRAY' | 'BLUSH' | 'BRONZER' | 'UNKNOWN';
   sources?: string[]; // URLs from Google Search Grounding
   usageTips?: string; // New: Personalized advice (Climate, Conflicts, Layering)
+  expertReview?: string; // New: Summary of expert reviews
 }
 
 export interface ShelfConflict {

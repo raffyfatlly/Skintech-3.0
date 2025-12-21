@@ -354,6 +354,7 @@ export const analyzeProductFromSearch = async (productName: string, userMetrics:
            - The OFFICIAL INCI ingredient list.
            - The CURRENT PRICE in MALAYSIA (RM/MYR) (Watsons, Guardian, Sephora MY, Shopee Mall).
            - Reviews regarding humidity suitability (does it feel heavy/sticky?).
+           - **EXPERT REVIEWS**: Look for consensus from dermatologists or skincare experts on efficacy.
         
         2. ANALYZE:
            - **Climate Fit**: Is this product texture suitable for hot/humid Malaysia?
@@ -375,7 +376,8 @@ export const analyzeProductFromSearch = async (productName: string, userMetrics:
             "benefits": [
                 { "ingredient": "Centella", "target": "redness", "description": "Calms active inflammation", "relevance": "HIGH" }
             ],
-            "usageTips": "Specific advice. E.g. 'Contains Retinol - do not use on the same night as your existing AHA serum. Since Malaysia is humid, use a thin layer only in the PM.'"
+            "usageTips": "Specific advice. E.g. 'Contains Retinol - do not use on the same night as your existing AHA serum. Since Malaysia is humid, use a thin layer only in the PM.'",
+            "expertReview": "A concise summary of expert reviews and efficacy claims found online."
         }
         `;
 
@@ -404,7 +406,8 @@ export const analyzeProductFromSearch = async (productName: string, userMetrics:
             benefits: data.benefits || [],
             dateScanned: Date.now(),
             sources: sources,
-            usageTips: data.usageTips
+            usageTips: data.usageTips,
+            expertReview: data.expertReview
         };
     }, { ...getFallbackProduct(userMetrics, productName), suitabilityScore: consistencyScore || 75, brand: knownBrand || "Unknown Brand" }, 60000); 
 };
@@ -456,6 +459,7 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
         2. FIND MALAYSIAN PRICE (RM).
         3. ANALYZE suitability and ROUTINE CONFLICTS (e.g. Retinol vs Acid).
         4. Provide CLIMATE-AWARE usage tips.
+        5. SUMMARIZE expert/dermatologist reviews.
 
         OUTPUT JSON:
         {
@@ -467,7 +471,8 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
             "suitabilityScore": 0,
             "risks": [{ "ingredient": "...", "riskLevel": "HIGH", "reason": "..." }],
             "benefits": [{ "ingredient": "...", "target": "...", "description": "...", "relevance": "HIGH" }],
-            "usageTips": "Advice on layering with current routine and handling Malaysian humidity."
+            "usageTips": "Advice on layering with current routine and handling Malaysian humidity.",
+            "expertReview": "A concise summary of expert reviews and efficacy claims found online."
         }
         `;
 
@@ -496,7 +501,8 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
             benefits: data.benefits || [],
             dateScanned: Date.now(),
             sources: sources,
-            usageTips: data.usageTips
+            usageTips: data.usageTips,
+            expertReview: data.expertReview
         };
 
     }, getFallbackProduct(userMetrics, "Scanned Product"), 60000); 

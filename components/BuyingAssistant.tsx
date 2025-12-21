@@ -3,7 +3,7 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Product, UserProfile } from '../types';
 import { getBuyingDecision } from '../services/geminiService';
 import { startCheckout } from '../services/stripeService';
-import { Check, X, AlertTriangle, ShieldCheck, Zap, AlertOctagon, TrendingUp, DollarSign, Clock, ArrowRight, Lock, Sparkles, Crown, Link, ExternalLink, CloudSun, Layers } from 'lucide-react';
+import { Check, X, AlertTriangle, ShieldCheck, Zap, AlertOctagon, TrendingUp, DollarSign, Clock, ArrowRight, Lock, Sparkles, Crown, Link, ExternalLink, CloudSun, Layers, MessageCircle } from 'lucide-react';
 
 interface BuyingAssistantProps {
   product: Product;
@@ -208,6 +208,18 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
                                     }
                                 })}
                             </div>
+                        </div>
+                    )}
+
+                    {/* EXPERT REVIEW - NEW */}
+                    {product.expertReview && (
+                        <div className="bg-white p-5 rounded-[1.5rem] border border-zinc-100 shadow-sm relative overflow-hidden">
+                             <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                <MessageCircle size={14} className="text-teal-500" /> Expert Review Summary
+                             </h3>
+                             <p className="text-xs text-zinc-600 font-medium leading-relaxed">
+                                 {product.expertReview}
+                             </p>
                         </div>
                     )}
 
