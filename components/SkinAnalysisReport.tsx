@@ -344,29 +344,28 @@ const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({ userProfile, sh
       return getClinicalTreatmentSuggestions(userProfile);
   }, [userProfile]);
 
-  const calculatedSkinType = useMemo(() => {
-      const parts = [];
-      const isSensitive = metrics.redness < 60;
-      const isCriticallyDry = metrics.hydration < 45;
-      const isOily = metrics.oiliness < 50;
-      const isDry = metrics.hydration < 55;
-      
-      if (isSensitive) parts.push("Sensitive");
+  const rubricState = useMemo(() => {
+      const score = metrics.overallScore;
+      if (score >= 93) return "Pristine";
+      if (score >= 80) return "Resilient";
+      if (score >= 60) return "Imbalanced";
+      if (score >= 40) return "Reactive";
+      if (score >= 20) return "Clinical";
+      return "Crisis";
+  }, [metrics.overallScore]);
 
-      if (isCriticallyDry) {
-          parts.push("Dry");
-      } else if (isOily) {
-          parts.push("Oily");
-      } else if (isDry) {
-          parts.push("Dry");
-      } else if (metrics.oiliness > 50 && metrics.oiliness < 70) {
-          parts.push("Combination");
-      } else {
-          parts.push("Normal");
+  // NEW: Dynamic Description based on Rubric
+  const rubricDescription = useMemo(() => {
+      switch(rubricState) {
+          case "Pristine": return "Status: Flawless • Glass-like • Optimized. Your barrier is functioning perfectly.";
+          case "Resilient": return "Status: Healthy • Clean • Balanced. High resistance to environmental stressors.";
+          case "Imbalanced": return "Status: Sub-Optimal • Dull • Congested. Requires optimization to prevent decline.";
+          case "Reactive": return "Status: Active Concern • Inflamed • Damaged. Visible signs of barrier stress.";
+          case "Clinical": return "Status: Severe • Pathological • Deeply Compromised. Professional intervention recommended.";
+          case "Crisis": return "Status: Critical • Emergency • Compromised. Immediate dermatological attention advised.";
+          default: return "Your clinical grade based on inflammation, barrier integrity, and resilience.";
       }
-
-      return parts.join(" + ");
-  }, [metrics]);
+  }, [rubricState]);
 
   const groupAnalysis = useMemo(() => {
       const blemishScore = (metrics.acneActive + metrics.acneScars + metrics.blackheads + metrics.poreSize) / 4;
@@ -636,11 +635,11 @@ const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({ userProfile, sh
                             </div>
                         </HeroTooltip>
 
-                        <HeroTooltip title="Skin State" content="Your dynamic skin type calculated from real-time oil, hydration, and sensitivity levels. This can change with weather and routine." align="right">
+                        <HeroTooltip title="Skin State" content={rubricDescription} align="right">
                             <div className="text-right sm:text-left">
                                  <span className="text-[9px] font-bold text-teal-400 uppercase tracking-widest block mb-0.5">Skin State</span>
                                  <span className="text-xl font-black text-white flex items-center justify-end sm:justify-start gap-1.5">
-                                    {calculatedSkinType.split('+')[0].trim()}
+                                    {rubricState}
                                  </span>
                             </div>
                         </HeroTooltip>

@@ -30,7 +30,7 @@ import BetaOfferModal from './components/BetaOfferModal';
 import GuideOverlay from './components/GuideOverlay';
 
 // Icons
-import { ScanFace, LayoutGrid, User, Search, Home, Loader } from 'lucide-react';
+import { ScanFace, LayoutGrid, User, Search, Home, Loader, ScanBarcode } from 'lucide-react';
 
 const App: React.FC = () => {
   // --- STATE ---
@@ -306,7 +306,7 @@ const App: React.FC = () => {
                     }}
                     className="w-16 h-16 bg-teal-600 rounded-full flex items-center justify-center text-white shadow-xl shadow-teal-600/30 hover:scale-110 transition-transform active:scale-95"
                   >
-                      <ScanFace size={24} />
+                      <ScanBarcode size={24} />
                   </button>
               </div>
 
