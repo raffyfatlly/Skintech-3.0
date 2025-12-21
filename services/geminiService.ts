@@ -250,10 +250,18 @@ CATEGORY 3: VITALITY
         
         ${rubric}
         
+        INSTRUCTIONS FOR 'analysisSummary':
+        - Tone: **Plain, simple, clear English**. Avoid medical jargon where possible. Be **positive and encouraging**, focusing on improvement.
+        - Structure:
+          1. Start with a positive observation (e.g., "Your skin texture is quite smooth," or "Great moisture balance").
+          2. Gently identify the main area to improve (e.g., "We can work on reducing redness on the cheeks").
+          3. Briefly mention how the app/routine will help (e.g., "Adjusting your routine can help balance this out.").
+        - Length: Keep it short (max 3 sentences).
+        
         Return JSON fields: overallScore, acneActive, acneScars, poreSize, blackheads, wrinkleFine, wrinkleDeep, sagging, pigmentation, redness, texture, hydration, oiliness, darkCircles, skinAge, analysisSummary (string), observations (map of metric key to string).`;
         
         const response = await ai.models.generateContent({
-            model: MODEL_FACE_SCAN, // MAINTAINED AS 2.5-FLASH
+            model: MODEL_FACE_SCAN, // MAINTAINED AS 3-FLASH
             contents: {
                 parts: [
                     { inlineData: { mimeType: 'image/jpeg', data: image.split(',')[1] } },
