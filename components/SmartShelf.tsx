@@ -11,105 +11,10 @@ interface SmartShelfProps {
   userProfile: UserProfile;
 }
 
-// --- INTERNAL COMPONENT: GRADING POPUP ---
-const GradingInfo = () => {
-    const [isOpen, setIsOpen] = useState(false);
-
-    return (
-        <>
-            <button 
-                type="button"
-                onClick={(e) => { e.stopPropagation(); setIsOpen(true); }}
-                className="ml-1.5 text-zinc-300 hover:text-teal-600 transition-colors align-middle"
-                aria-label="Grading Info"
-            >
-                <Info size={14} />
-            </button>
-
-            {isOpen && (
-                <div 
-                    className="fixed inset-0 z-[70] flex items-center justify-center p-6 bg-zinc-900/40 backdrop-blur-sm animate-in fade-in duration-200" 
-                    onClick={(e) => { e.stopPropagation(); setIsOpen(false); }}
-                >
-                    <div 
-                        className="w-full max-w-xs bg-white rounded-[2rem] p-6 shadow-2xl relative animate-in zoom-in-95 duration-300 border border-white/50" 
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        {/* Close Button - Fixed Z-Index and Interaction */}
-                        <button 
-                            type="button"
-                            onClick={(e) => { e.stopPropagation(); setIsOpen(false); }} 
-                            className="absolute top-4 right-4 p-2.5 bg-zinc-100 rounded-full text-zinc-500 hover:bg-zinc-200 hover:text-zinc-800 transition-colors z-50 cursor-pointer"
-                        >
-                            <X size={18} />
-                        </button>
-
-                        {/* Header */}
-                        <div className="text-center mb-6 pt-2">
-                            <div className="w-12 h-12 bg-teal-50 rounded-2xl flex items-center justify-center mx-auto mb-3 text-teal-600 shadow-sm border border-teal-100">
-                                <Award size={24} />
-                            </div>
-                            <h3 className="text-lg font-black text-zinc-900 tracking-tight">Routine Grading</h3>
-                            <p className="text-xs text-zinc-500 font-medium mt-1">AI evaluation of your shelf efficacy.</p>
-                        </div>
-
-                        {/* Tiers */}
-                        <div className="space-y-3">
-                            {/* S Tier */}
-                            <div className="flex items-center gap-3 p-3 bg-emerald-50/50 rounded-xl border border-emerald-100/50">
-                                <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-700 font-black text-sm shadow-sm">S</div>
-                                <div className="flex-1">
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-xs font-bold text-emerald-900 uppercase tracking-wide">Elite</span>
-                                        <span className="text-[10px] font-bold text-emerald-600 bg-white px-2 py-0.5 rounded-full border border-emerald-100 shadow-sm">{'>'} 85%</span>
-                                    </div>
-                                    <p className="text-[10px] text-emerald-800/70 leading-tight mt-0.5 font-medium">Requires Cleanser, Moisturizer & SPF.</p>
-                                </div>
-                            </div>
-
-                            {/* A Tier */}
-                            <div className="flex items-center gap-3 p-3 bg-teal-50/50 rounded-xl border border-teal-100/50">
-                                <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center text-teal-700 font-black text-sm shadow-sm">A</div>
-                                <div className="flex-1">
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-xs font-bold text-teal-900 uppercase tracking-wide">Excellent</span>
-                                        <span className="text-[10px] font-bold text-teal-600 bg-white px-2 py-0.5 rounded-full border border-teal-100 shadow-sm">{'>'} 75%</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* B Tier */}
-                            <div className="flex items-center gap-3 p-3 bg-sky-50/50 rounded-xl border border-sky-100/50">
-                                <div className="w-8 h-8 rounded-lg bg-sky-100 flex items-center justify-center text-sky-700 font-black text-sm shadow-sm">B</div>
-                                <div className="flex-1">
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-xs font-bold text-sky-900 uppercase tracking-wide">Good</span>
-                                        <span className="text-[10px] font-bold text-sky-600 bg-white px-2 py-0.5 rounded-full border border-sky-100 shadow-sm">{'>'} 60%</span>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* C Tier */}
-                            <div className="flex items-center gap-3 p-3 bg-amber-50/50 rounded-xl border border-amber-100/50">
-                                <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-700 font-black text-sm shadow-sm">C</div>
-                                <div className="flex-1">
-                                    <div className="flex justify-between items-center">
-                                        <span className="text-xs font-bold text-amber-900 uppercase tracking-wide">Fair</span>
-                                        <span className="text-[10px] font-bold text-amber-600 bg-white px-2 py-0.5 rounded-full border border-amber-100 shadow-sm">Optimize</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </>
-    );
-};
-
 const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onScanNew, onUpdateProduct, userProfile }) => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [activeTab, setActiveTab] = useState<'ROUTINE' | 'VANITY'>('ROUTINE');
+  const [showGradingInfo, setShowGradingInfo] = useState(false); // Lifted State
   
   // Price Editing State
   const [isEditingPrice, setIsEditingPrice] = useState(false);
@@ -488,7 +393,14 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                  <div>
                      <div className="flex items-center mb-1">
                         <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Routine Grade</h3>
-                        <GradingInfo />
+                        <button 
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setShowGradingInfo(true); }}
+                            className="ml-1.5 text-zinc-300 hover:text-teal-600 transition-colors align-middle"
+                            aria-label="Grading Info"
+                        >
+                            <Info size={14} />
+                        </button>
                      </div>
                      <div className="flex items-baseline gap-2">
                          <span className={`text-5xl font-black ${getGradeColor(shelfIQ.analysis.grade).split(' ')[0]}`}>
@@ -617,6 +529,85 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
            <div className="px-6 mt-4 text-center">
                <p className="text-zinc-400 text-sm font-medium">No cosmetics found. Scan foundation, powder, or primer to check compatibility.</p>
            </div>
+       )}
+
+       {/* GRADING INFO MODAL (Now rendered outside of any transformed parent) */}
+       {showGradingInfo && (
+            <div 
+                className="fixed inset-0 z-[70] flex items-center justify-center p-6 bg-zinc-900/40 backdrop-blur-sm animate-in fade-in duration-200" 
+                onClick={(e) => { e.stopPropagation(); setShowGradingInfo(false); }}
+            >
+                <div 
+                    className="w-full max-w-xs bg-white rounded-[2rem] p-6 shadow-2xl relative animate-in zoom-in-95 duration-300 border border-white/50" 
+                    onClick={(e) => e.stopPropagation()}
+                >
+                    {/* Close Button - Larger touch target */}
+                    <button 
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); setShowGradingInfo(false); }} 
+                        className="absolute top-4 right-4 p-3 bg-zinc-100 rounded-full text-zinc-500 hover:bg-zinc-200 hover:text-zinc-800 transition-colors z-50 cursor-pointer"
+                    >
+                        <X size={18} />
+                    </button>
+
+                    {/* Header */}
+                    <div className="text-center mb-6 pt-2">
+                        <div className="w-12 h-12 bg-teal-50 rounded-2xl flex items-center justify-center mx-auto mb-3 text-teal-600 shadow-sm border border-teal-100">
+                            <Award size={24} />
+                        </div>
+                        <h3 className="text-lg font-black text-zinc-900 tracking-tight">Routine Grading</h3>
+                        <p className="text-xs text-zinc-500 font-medium mt-1">AI evaluation of your shelf efficacy.</p>
+                    </div>
+
+                    {/* Tiers */}
+                    <div className="space-y-3">
+                        {/* S Tier */}
+                        <div className="flex items-center gap-3 p-3 bg-emerald-50/50 rounded-xl border border-emerald-100/50">
+                            <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-700 font-black text-sm shadow-sm">S</div>
+                            <div className="flex-1">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-xs font-bold text-emerald-900 uppercase tracking-wide">Elite</span>
+                                    <span className="text-[10px] font-bold text-emerald-600 bg-white px-2 py-0.5 rounded-full border border-emerald-100 shadow-sm">{'>'} 85%</span>
+                                </div>
+                                <p className="text-[10px] text-emerald-800/70 leading-tight mt-0.5 font-medium">Requires Cleanser, Moisturizer & SPF.</p>
+                            </div>
+                        </div>
+
+                        {/* A Tier */}
+                        <div className="flex items-center gap-3 p-3 bg-teal-50/50 rounded-xl border border-teal-100/50">
+                            <div className="w-8 h-8 rounded-lg bg-teal-100 flex items-center justify-center text-teal-700 font-black text-sm shadow-sm">A</div>
+                            <div className="flex-1">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-xs font-bold text-teal-900 uppercase tracking-wide">Excellent</span>
+                                    <span className="text-[10px] font-bold text-teal-600 bg-white px-2 py-0.5 rounded-full border border-teal-100 shadow-sm">{'>'} 75%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* B Tier */}
+                        <div className="flex items-center gap-3 p-3 bg-sky-50/50 rounded-xl border border-sky-100/50">
+                            <div className="w-8 h-8 rounded-lg bg-sky-100 flex items-center justify-center text-sky-700 font-black text-sm shadow-sm">B</div>
+                            <div className="flex-1">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-xs font-bold text-sky-900 uppercase tracking-wide">Good</span>
+                                    <span className="text-[10px] font-bold text-sky-600 bg-white px-2 py-0.5 rounded-full border border-sky-100 shadow-sm">{'>'} 60%</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* C Tier */}
+                        <div className="flex items-center gap-3 p-3 bg-amber-50/50 rounded-xl border border-amber-100/50">
+                            <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-700 font-black text-sm shadow-sm">C</div>
+                            <div className="flex-1">
+                                <div className="flex justify-between items-center">
+                                    <span className="text-xs font-bold text-amber-900 uppercase tracking-wide">Fair</span>
+                                    <span className="text-[10px] font-bold text-amber-600 bg-white px-2 py-0.5 rounded-full border border-amber-100 shadow-sm">Optimize</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
        )}
 
        {/* PRODUCT DETAIL MODAL - REDESIGNED */}
