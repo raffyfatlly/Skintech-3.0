@@ -179,23 +179,23 @@ export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, 
 
     TASK 2: HOLISTIC ANALYSIS SUMMARY (Structured JSON)
     - Do NOT just look at the lowest score. Look at the *relationship* between metrics.
-    - Example 1 (Mixed): High Oiliness + Low Hydration = "Compensatory Sebum Production" (Skin is oily *because* it's dry).
-    - Example 2 (Critical): Active Acne + High Redness = "Inflammatory Cascade".
-    - Example 3 (Good): High Texture + Good Tone = "Structural Resilience".
+    - **LANGUAGE RULE**: Avoid overly excessive medical jargon. If you MUST use a technical term (e.g. "comedones", "post-inflammatory erythema", "pastules"), you **MUST** provide a brief, simple explanation in brackets immediately after.
+      - Example: "Visible comedones (clogged pores) on the nose."
+      - Example: "Signs of erythema (redness caused by inflammation)."
     
     - Structure the 'analysisSummary' as a JSON OBJECT with:
-      1. 'headline': A punchy 2-4 word diagnostic title (e.g. "Barrier Compromised", "Structural Resilience", "Deep Pore Blockage").
-      2. 'points': An array of 3 objects, each with 'subtitle' (Dynamic topic) and 'content'.
+      1. 'headline': A punchy 2-4 word diagnostic title (e.g. "Barrier Compromised", "Structural Resilience").
+      2. 'generalCondition': A single, holistic sentence describing the overall face condition BEFORE listing specific points. Connect the dots between metrics (e.g. "Your skin is generally hydrated and firm, but excess oil production in the T-zone is leading to mild congestion.").
+      3. 'points': An array of 3 objects, each with 'subtitle' (Dynamic topic) and 'content'.
          - Flow for Issues: "The Root Cause" -> "The Biological Reaction" -> "The Complication".
          - Flow for Good Skin: "The Asset" -> "The Benefit" -> "The Strategy".
          - Flow for Mixed: "The Conflict" -> "The Imbalance" -> "The Fix".
-         - **Use holistic logic.** Don't just list bad things. Mention if their tone is great even if they have acne.
 
     TASK 3: IMMEDIATE ACTION
     - A single, powerful tip. Natural remedy or behavioral tweak first.
 
     Return JSON fields: overallScore, acneActive, acneScars, poreSize, blackheads, wrinkleFine, wrinkleDeep, sagging, pigmentation, redness, texture, hydration, oiliness, darkCircles, skinAge, 
-    analysisSummary (OBJECT: { headline: string, points: [{subtitle: string, content: string}] }), 
+    analysisSummary (OBJECT: { headline: string, generalCondition: string, points: [{subtitle: string, content: string}] }), 
     immediateAction (string), 
     observations (map of metric key to string).`;
     

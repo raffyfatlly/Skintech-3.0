@@ -17,6 +17,13 @@ const renderVerdict = (data: any) => {
                   <p className="text-zinc-900 font-black text-lg uppercase tracking-tight leading-snug drop-shadow-sm">
                       {data.headline}
                   </p>
+                  
+                  {/* New: Holistic Summary Sentence */}
+                  {data.generalCondition && (
+                      <p className="text-sm text-zinc-600 font-medium leading-relaxed mt-2 normal-case border-l-2 border-teal-100 pl-3">
+                          {data.generalCondition}
+                      </p>
+                  )}
               </div>
               
               <div className="space-y-4 pl-3 relative border-l-2 border-zinc-100">
