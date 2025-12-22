@@ -5,7 +5,7 @@ import {
   Users, Activity, DollarSign, Target, TrendingUp, AlertOctagon, 
   Zap, Eye, Crown, ArrowUpRight, ArrowDownRight, Fingerprint, 
   Search, Lock, RefreshCw, Smartphone, BarChart3, Database,
-  Calendar, Clock, AlertCircle, UserCheck
+  Calendar, Clock, AlertCircle, UserCheck, Filter
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -106,11 +106,14 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
     const [feed, setFeed] = useState<LiveEvent[]>([]);
     const [trends, setTrends] = useState<DailyMetric[]>([]);
     const [loading, setLoading] = useState(true);
+    
+    // Time Range State
+    const [timeRange, setTimeRange] = useState<'24h' | '7d' | '30d' | 'all'>('7d');
 
     const refreshData = async () => {
         try {
             const [statsData, feedData, trendsData] = await Promise.all([
-                getAdminStats(),
+                getAdminStats(timeRange), // Pass the selected time range
                 getLiveFeed(),
                 getDailyTrends()
             ]);
@@ -123,15 +126,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
     };
 
     useEffect(() => {
+        setLoading(true);
         const load = async () => {
             await refreshData();
             setLoading(false);
         };
         load();
 
-        const interval = setInterval(refreshData, 5000);
+        const interval = setInterval(refreshData, 10000); // 10s refresh
         return () => clearInterval(interval);
-    }, []);
+    }, [timeRange]); // Reload when filter changes
 
     const MetricCard = ({ title, value, sub, icon: Icon, trend, color = "teal" }: any) => (
         <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl relative overflow-hidden group hover:border-zinc-700 transition-colors">
@@ -159,12 +163,12 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
         </div>
     );
 
-    if (loading) {
+    if (loading && !metrics) {
         return (
             <div className="min-h-screen bg-black flex items-center justify-center">
                 <div className="flex flex-col items-center gap-4">
                     <div className="w-8 h-8 border-t-2 border-teal-500 rounded-full animate-spin"></div>
-                    <p className="text-teal-500 text-xs font-bold uppercase tracking-widest animate-pulse">Syncing Global Data...</p>
+                    <p className="text-teal-500 text-xs font-bold uppercase tracking-widest animate-pulse">Syncing {timeRange} Data...</p>
                 </div>
             </div>
         );
@@ -176,17 +180,33 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
         <div className="min-h-screen bg-black text-white font-sans selection:bg-teal-500/30 pb-20">
             {/* Header */}
             <div className="border-b border-zinc-800 bg-black/50 backdrop-blur-xl sticky top-0 z-50">
-                <div className="px-6 py-4 flex justify-between items-center max-w-7xl mx-auto">
-                    <div className="flex items-center gap-3">
+                <div className="px-6 py-4 flex flex-col md:flex-row justify-between items-center max-w-7xl mx-auto gap-4">
+                    <div className="flex items-center gap-3 w-full md:w-auto">
                         <div className="w-3 h-3 rounded-full bg-teal-500 animate-pulse shadow-[0_0_10px_#14b8a6]"></div>
                         <div>
                             <h1 className="text-lg font-black tracking-tight text-white leading-none">SkinOS <span className="text-zinc-600">Command</span></h1>
                             <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-0.5">Global Live View</p>
                         </div>
                     </div>
-                    <button onClick={onExit} className="px-4 py-2 rounded-lg bg-zinc-900 text-zinc-400 text-xs font-bold hover:text-white border border-zinc-800 transition-all hover:bg-zinc-800">
-                        Exit Dashboard
-                    </button>
+
+                    <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
+                        {/* Time Filters */}
+                        <div className="bg-zinc-900 border border-zinc-800 p-1 rounded-xl flex items-center">
+                            {(['24h', '7d', '30d', 'all'] as const).map((t) => (
+                                <button
+                                    key={t}
+                                    onClick={() => setTimeRange(t)}
+                                    className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase transition-all ${timeRange === t ? 'bg-zinc-800 text-white shadow-sm' : 'text-zinc-500 hover:text-zinc-300'}`}
+                                >
+                                    {t === 'all' ? 'All Time' : t.toUpperCase()}
+                                </button>
+                            ))}
+                        </div>
+
+                        <button onClick={onExit} className="px-4 py-2 rounded-lg bg-zinc-900 text-zinc-400 text-xs font-bold hover:text-white border border-zinc-800 transition-all hover:bg-zinc-800">
+                            Exit
+                        </button>
+                    </div>
                 </div>
             </div>
 
@@ -195,9 +215,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                 {/* 1. KEY PERFORMANCE INDICATORS (Global) */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <MetricCard 
-                        title="Active Visitors" 
-                        value={metrics.activeUsers24h} 
-                        sub="Unique hits in last 24h."
+                        title={`Visits (${timeRange})`} 
+                        value={metrics.totalUsers} 
+                        sub="Unique visitors."
                         icon={Eye}
                         trend={null}
                         color="teal"
@@ -205,7 +225,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                     <MetricCard 
                         title="Total Members" 
                         value={metrics.registeredUsers} 
-                        sub="Google & Email Signups."
+                        sub="Signups (Google/Email)."
                         icon={UserCheck}
                         trend={null}
                         color="indigo"
@@ -213,13 +233,13 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                     <MetricCard 
                         title="Conversion Rate" 
                         value={`${metrics.paywallHitRate}%`} 
-                        sub="Visitors who subscribed."
+                        sub="Visitor to Paid ratio."
                         icon={Crown}
                         trend={null}
                         color="amber"
                     />
                     <MetricCard 
-                        title="Total Revenue" 
+                        title="Revenue" 
                         value={`$${Math.round(metrics.localStats.mySpendPotential)}`} 
                         sub={`${metrics.retentionRate} Subscribers`}
                         icon={DollarSign}
@@ -242,7 +262,9 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                                     <p className="text-zinc-500 text-xs font-medium">Daily visitors compared to premium conversions.</p>
                                 </div>
                                 <div className="flex gap-2">
-                                    <span className="text-[10px] font-bold bg-zinc-800 px-3 py-1 rounded-full text-zinc-400">7D View</span>
+                                    <span className="text-[10px] font-bold bg-zinc-800 px-3 py-1 rounded-full text-zinc-400 flex items-center gap-2">
+                                        <Calendar size={12} /> Last 7 Days
+                                    </span>
                                 </div>
                             </div>
 
