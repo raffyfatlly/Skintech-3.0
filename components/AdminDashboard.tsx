@@ -5,7 +5,7 @@ import {
   Users, Activity, DollarSign, Target, TrendingUp, AlertOctagon, 
   Zap, Eye, Crown, ArrowUpRight, ArrowDownRight, Fingerprint, 
   Search, Lock, RefreshCw, Smartphone, BarChart3, Database,
-  Calendar, Clock, AlertCircle
+  Calendar, Clock, AlertCircle, UserCheck
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -195,18 +195,18 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                 {/* 1. KEY PERFORMANCE INDICATORS (Global) */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <MetricCard 
-                        title="Active Users" 
+                        title="Active Visitors" 
                         value={metrics.activeUsers24h} 
-                        sub="Unique visitors in last 24h."
-                        icon={Users}
+                        sub="Unique hits in last 24h."
+                        icon={Eye}
                         trend={null}
                         color="teal"
                     />
                     <MetricCard 
-                        title="Total Scans" 
-                        value={metrics.totalScans} 
-                        sub="Faces & Products analyzed."
-                        icon={Activity}
+                        title="Total Members" 
+                        value={metrics.registeredUsers} 
+                        sub="Google & Email Signups."
+                        icon={UserCheck}
                         trend={null}
                         color="indigo"
                     />

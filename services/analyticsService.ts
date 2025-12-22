@@ -1,12 +1,13 @@
 
 import { db } from './firebase';
-import { collection, addDoc, getDocs, query, orderBy, limit, where, Timestamp } from 'firebase/firestore';
+import { collection, addDoc, getDocs, query, orderBy, limit, where, Timestamp, getCountFromServer } from 'firebase/firestore';
 
 const GLOBAL_EVENTS_COLLECTION = 'analytics_events';
 
 // --- TYPES ---
 export interface ValidationMetrics {
-  totalUsers: number;
+  totalUsers: number; // Active Visitors (24h)
+  registeredUsers: number; // Total DB Users (Google/Email)
   activeUsers24h: number;
   retentionRate: number; // Used for "Total Subscribers" count
   totalScans: number;
@@ -141,7 +142,7 @@ export const getDailyTrends = async (): Promise<DailyMetric[]> => {
 
 export const getAdminStats = async (): Promise<ValidationMetrics> => {
     if (!db) return { 
-        totalUsers: 0, activeUsers24h: 0, retentionRate: 0, totalScans: 0, 
+        totalUsers: 0, registeredUsers: 0, activeUsers24h: 0, retentionRate: 0, totalScans: 0, 
         avgScansPerUser: 0, paywallHitRate: 0, trustScore: 0, apiCostEst: 0, 
         mostScannedBrands: [], localStats: { myScans: 0, myShelfSize: 0, mySpendPotential: 0 } 
     };
@@ -204,8 +205,19 @@ export const getAdminStats = async (): Promise<ValidationMetrics> => {
             .slice(0, 4)
             .map(([name, count]) => ({ name, count }));
 
+        // 7. Get REAL Registered User Count (Google/Email) from 'users' collection
+        let registeredUsers = 0;
+        try {
+            const usersColl = collection(db, 'users');
+            const userCountSnapshot = await getCountFromServer(usersColl);
+            registeredUsers = userCountSnapshot.data().count;
+        } catch (dbErr) {
+            console.warn("Could not fetch user count (Check permissions)", dbErr);
+        }
+
         return {
-            totalUsers: activeUsers.size, // Proxy for MAU/DAU in this view
+            totalUsers: activeUsers.size, // Proxy for Active Visitors
+            registeredUsers, // Actual DB Count
             activeUsers24h: activeUsers.size,
             retentionRate: subscribers, // Hijacking field for Total Sales
             totalScans,
@@ -223,7 +235,7 @@ export const getAdminStats = async (): Promise<ValidationMetrics> => {
     } catch (e) {
         console.error("Admin Stats Error", e);
         return { 
-            totalUsers: 0, activeUsers24h: 0, retentionRate: 0, totalScans: 0, 
+            totalUsers: 0, registeredUsers: 0, activeUsers24h: 0, retentionRate: 0, totalScans: 0, 
             avgScansPerUser: 0, paywallHitRate: 0, trustScore: 0, apiCostEst: 0, 
             mostScannedBrands: [], localStats: { myScans: 0, myShelfSize: 0, mySpendPotential: 0 } 
         };
