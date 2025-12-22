@@ -7,9 +7,11 @@ const GLOBAL_EVENTS_COLLECTION = 'analytics_events';
 // --- TYPES ---
 export interface ValidationMetrics {
   totalUsers: number; // Active Visitors in Range
-  registeredUsers: number; // Total Registered (Approximate if DB locked)
+  registeredUsers: number; // Total Registered
+  totalPremium: number; // Total Paid Users
+  isExactCount: boolean; // True if DB access worked, False if estimated from events
   activeUsers24h: number;
-  retentionRate: number; // Used for "Total Subscribers" count
+  retentionRate: number; 
   totalScans: number;
   avgScansPerUser: number; 
   paywallHitRate: number; // Conversion Rate (Paid / Visits)
@@ -135,7 +137,7 @@ export const getDailyTrends = async (): Promise<DailyMetric[]> => {
 
 export const getAdminStats = async (timeRange: '24h' | '7d' | '30d' | 'all' = '24h'): Promise<ValidationMetrics> => {
     if (!db) return { 
-        totalUsers: 0, registeredUsers: 0, activeUsers24h: 0, retentionRate: 0, totalScans: 0, 
+        totalUsers: 0, registeredUsers: 0, totalPremium: 0, isExactCount: false, activeUsers24h: 0, retentionRate: 0, totalScans: 0, 
         avgScansPerUser: 0, paywallHitRate: 0, trustScore: 0, apiCostEst: 0, 
         mostScannedBrands: [], localStats: { myScans: 0, myShelfSize: 0, mySpendPotential: 0 } 
     };
@@ -150,17 +152,15 @@ export const getAdminStats = async (timeRange: '24h' | '7d' | '30d' | 'all' = '2
         else startTime = 0; // All time
 
         // 2. Fetch Events
-        // Note: Firestore compound queries (where + orderBy) need index. 
-        // We fallback to client-side filtering if 'all' is not selected or if basic query fails.
-        // For 'all', we grab a larger limit.
-        const limitCount = timeRange === 'all' ? 5000 : 2500;
+        // INCREASE LIMIT TO 10,000 for 'all' to ensure deep history scan
+        const limitCount = timeRange === 'all' ? 10000 : 2500;
         
         const q = query(collection(db, GLOBAL_EVENTS_COLLECTION), orderBy('timestamp', 'desc'), limit(limitCount));
         const snapshot = await getDocs(q);
         
         let events = snapshot.docs.map(d => ({ ...d.data(), id: d.id })) as any[];
 
-        // Filter by time range client-side to avoid index errors on 'analytics_events'
+        // Filter by time range client-side
         if (startTime > 0) {
             events = events.filter(e => e.timestamp >= startTime);
         }
@@ -174,18 +174,17 @@ export const getAdminStats = async (timeRange: '24h' | '7d' | '30d' | 'all' = '2
         const scanEvents = events.filter(e => e.action === 'FACE_SCAN_COMPLETE' || e.action === 'PRODUCT_FOUND' || e.action === 'SCAN_PRODUCT');
         const totalScans = scanEvents.length;
 
-        // 3. Paid Subscribers (Unique User IDs or Anon IDs)
-        // If user is 'unauth', we track by anonId. If logged in, userId.
+        // 3. Paid Subscribers (From Events - Fallback)
         const subscriberSet = new Set();
         events.forEach(e => {
             if (e.action === 'PAYMENT_SUCCESS_CLOUD' || e.action === 'PAYMENT_SUCCESS_LOCAL' || e.action === 'CODE_REDEEMED') {
                 subscriberSet.add(e.userId && e.userId !== 'unauth' ? e.userId : e.anonId);
             }
         });
-        const subscribers = subscriberSet.size;
+        const subscribersFromEvents = subscriberSet.size;
         
         // 4. Conversion Rate
-        const conversionRate = visitors > 0 ? (subscribers / visitors) * 100 : 0;
+        const conversionRate = visitors > 0 ? (subscribersFromEvents / visitors) * 100 : 0;
 
         // 5. Trust Score
         const discards = events.filter(e => e.action === 'DISCARD_PRODUCT').length;
@@ -213,37 +212,50 @@ export const getAdminStats = async (timeRange: '24h' | '7d' | '30d' | 'all' = '2
         });
         const sortedBrands = Object.entries(brandCounts).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([name, count]) => ({ name, count }));
 
-        // 8. Registered Users (Total Members)
-        // STRATEGY: Try DB Count -> Fallback to Event Count -> Fallback to '0'
+        // 8. REAL REGISTERED USER & PREMIUM COUNT (Try DB -> Fallback to Events)
         let registeredUsers = 0;
+        let totalPremium = 0;
+        let isExactCount = false;
         
-        // A. Try direct DB count (Most Accurate, but might fail permissions)
         try {
+            // Attempt Exact Count
             const usersColl = collection(db, 'users');
             const userCountSnapshot = await getCountFromServer(usersColl);
             registeredUsers = userCountSnapshot.data().count;
+
+            // Attempt Premium Count
+            const premiumQuery = query(usersColl, where('profile.isPremium', '==', true));
+            const premiumSnapshot = await getCountFromServer(premiumQuery);
+            totalPremium = premiumSnapshot.data().count;
+
+            isExactCount = true;
         } catch (dbErr) {
-            console.warn("DB Count Permission Denied. Switching to Event-based estimation.");
+            console.warn("DB Count Permission Denied. Switching to Event-based estimation. (Fix Firestore Rules for exact count)");
             
-            // B. Fallback: Count unique logged-in users from events
+            // Fallback: Count unique logged-in users from events
             const uniqueUserIds = new Set();
             events.forEach(e => {
-                if (e.userId && e.userId !== 'unauth') {
-                    uniqueUserIds.add(e.userId);
-                }
-                // Also check 'LOGIN_SUCCESS' events specifically
+                // Check explicit Login/Signup events
                 if (e.action === 'LOGIN_SUCCESS' || e.action === 'SIGNUP_SUCCESS') {
                     if (e.userId && e.userId !== 'unauth') uniqueUserIds.add(e.userId);
                 }
+                // Check any authenticated action
+                if (e.userId && e.userId !== 'unauth') {
+                    uniqueUserIds.add(e.userId);
+                }
             });
             registeredUsers = uniqueUserIds.size;
+            totalPremium = subscribersFromEvents; // Use event-based subscriber count
+            isExactCount = false;
         }
 
         return {
             totalUsers: visitors, 
             registeredUsers, 
-            activeUsers24h: visitors, // In selected range
-            retentionRate: subscribers, 
+            totalPremium,
+            isExactCount,
+            activeUsers24h: visitors, 
+            retentionRate: subscribersFromEvents, 
             totalScans,
             avgScansPerUser: visitors > 0 ? Number((totalScans / visitors).toFixed(1)) : 0,
             paywallHitRate: Number(conversionRate.toFixed(1)),
@@ -253,13 +265,13 @@ export const getAdminStats = async (timeRange: '24h' | '7d' | '30d' | 'all' = '2
             localStats: {
                 myScans: totalScans, 
                 myShelfSize: 0, 
-                mySpendPotential: subscribers * 9.90 
+                mySpendPotential: totalPremium * 9.90 
             }
         };
     } catch (e) {
         console.error("Admin Stats Error", e);
         return { 
-            totalUsers: 0, registeredUsers: 0, activeUsers24h: 0, retentionRate: 0, totalScans: 0, 
+            totalUsers: 0, registeredUsers: 0, totalPremium: 0, isExactCount: false, activeUsers24h: 0, retentionRate: 0, totalScans: 0, 
             avgScansPerUser: 0, paywallHitRate: 0, trustScore: 0, apiCostEst: 0, 
             mostScannedBrands: [], localStats: { myScans: 0, myShelfSize: 0, mySpendPotential: 0 } 
         };

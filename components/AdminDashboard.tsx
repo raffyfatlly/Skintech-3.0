@@ -1,11 +1,12 @@
 
 import React, { useEffect, useState } from 'react';
 import { getAdminStats, getLiveFeed, getDailyTrends, ValidationMetrics, LiveEvent, DailyMetric } from '../services/analyticsService';
+import { auth } from '../services/firebase';
 import { 
   Users, Activity, DollarSign, Target, TrendingUp, AlertOctagon, 
   Zap, Eye, Crown, ArrowUpRight, ArrowDownRight, Fingerprint, 
   Search, Lock, RefreshCw, Smartphone, BarChart3, Database,
-  Calendar, Clock, AlertCircle, UserCheck, Filter
+  Calendar, Clock, AlertCircle, UserCheck, Filter, Info, Copy
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -106,6 +107,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
     const [feed, setFeed] = useState<LiveEvent[]>([]);
     const [trends, setTrends] = useState<DailyMetric[]>([]);
     const [loading, setLoading] = useState(true);
+    const [adminUid, setAdminUid] = useState<string>('');
     
     // Time Range State
     const [timeRange, setTimeRange] = useState<'24h' | '7d' | '30d' | 'all'>('7d');
@@ -126,6 +128,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
     };
 
     useEffect(() => {
+        setAdminUid(auth?.currentUser?.uid || 'unknown');
         setLoading(true);
         const load = async () => {
             await refreshData();
@@ -137,13 +140,21 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
         return () => clearInterval(interval);
     }, [timeRange]); // Reload when filter changes
 
-    const MetricCard = ({ title, value, sub, icon: Icon, trend, color = "teal" }: any) => (
+    const copyUid = () => {
+        navigator.clipboard.writeText(adminUid);
+        alert("UID Copied! Paste this into your Firestore Rules.");
+    };
+
+    const MetricCard = ({ title, value, sub, icon: Icon, trend, color = "teal", badge }: any) => (
         <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl relative overflow-hidden group hover:border-zinc-700 transition-colors">
             <div className={`absolute top-0 right-0 p-24 rounded-full blur-3xl opacity-5 bg-${color}-500/10 group-hover:bg-${color}-500/20 transition-all`}></div>
             
             <div className="relative z-10 flex justify-between items-start mb-4">
                 <div>
-                    <h3 className="text-zinc-400 text-xs font-bold uppercase tracking-widest mb-1">{title}</h3>
+                    <h3 className="text-zinc-400 text-xs font-bold uppercase tracking-widest mb-1 flex items-center gap-2">
+                        {title}
+                        {badge && <span className="bg-zinc-800 text-zinc-400 text-[9px] px-1.5 py-0.5 rounded">{badge}</span>}
+                    </h3>
                     <div className="flex items-baseline gap-2">
                         <span className="text-3xl font-black text-white tracking-tight">{value}</span>
                         {/* Only show trend if value > 0 to avoid -100% on empty state */}
@@ -225,28 +236,52 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                     <MetricCard 
                         title="Total Members" 
                         value={metrics.registeredUsers} 
-                        sub="Signups (Google/Email)."
+                        sub={metrics.isExactCount ? "Verified DB Count." : "Est. from Events (Check Rules)."}
                         icon={UserCheck}
                         trend={null}
                         color="indigo"
+                        badge={metrics.isExactCount ? "Exact" : "Est"}
                     />
                     <MetricCard 
-                        title="Conversion Rate" 
-                        value={`${metrics.paywallHitRate}%`} 
-                        sub="Visitor to Paid ratio."
+                        title="Paid Members" 
+                        value={metrics.totalPremium} 
+                        sub="Premium Plan Active."
                         icon={Crown}
                         trend={null}
                         color="amber"
+                        badge={metrics.isExactCount ? "Exact" : "Est"}
                     />
                     <MetricCard 
-                        title="Revenue" 
+                        title="Total Revenue" 
                         value={`$${Math.round(metrics.localStats.mySpendPotential)}`} 
-                        sub={`${metrics.retentionRate} Subscribers`}
+                        sub={`Based on ${metrics.totalPremium} subscribers.`}
                         icon={DollarSign}
                         trend={null}
                         color="emerald"
                     />
                 </div>
+
+                {!metrics.isExactCount && (
+                    <div className="bg-amber-900/20 border border-amber-500/20 p-4 rounded-2xl flex items-center justify-between gap-3 animate-in slide-in-from-top-2">
+                        <div className="flex items-start gap-3">
+                            <Info className="text-amber-500 mt-0.5" size={16} />
+                            <div>
+                                <h4 className="text-sm font-bold text-amber-400 mb-1">Database Permissions Limited</h4>
+                                <p className="text-xs text-amber-200/80 leading-relaxed max-w-xl">
+                                    The "Total Members" count is estimated because the Admin Dashboard cannot securely read the full user list yet. 
+                                    Update your Firestore Rules with your Admin UID below.
+                                </p>
+                            </div>
+                        </div>
+                        <button 
+                            onClick={copyUid}
+                            className="flex items-center gap-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 px-4 py-2 rounded-xl text-xs font-bold transition-colors border border-amber-500/30"
+                        >
+                            <Copy size={12} />
+                            Copy My UID
+                        </button>
+                    </div>
+                )}
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     
