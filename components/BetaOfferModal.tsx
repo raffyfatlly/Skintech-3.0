@@ -1,6 +1,5 @@
-
 import React, { useState } from 'react';
-import { X, Sparkles, Check, Crown, ArrowRight, ShieldCheck, Zap, KeyRound, Loader } from 'lucide-react';
+import { X, Sparkles, Check, Crown, ArrowRight, ShieldCheck, Zap, KeyRound, Loader, Search } from 'lucide-react';
 import { claimAccessCode } from '../services/storageService';
 
 interface BetaOfferModalProps {
@@ -110,6 +109,7 @@ const BetaOfferModal: React.FC<BetaOfferModalProps> = ({ onClose, onConfirm, onC
                     {[
                         { icon: Zap, text: "Advanced Ingredient Analysis" },
                         { icon: ShieldCheck, text: "Routine Architect (3-Tier Plan)" },
+                        { icon: Search, text: "Global Product Search" },
                         { icon: Crown, text: "Unlimited AI Rescans" },
                     ].map((feat, i) => (
                         <div key={i} className="flex items-center gap-2.5">
