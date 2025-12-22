@@ -18,6 +18,7 @@ const GradingInfo = () => {
     return (
         <>
             <button 
+                type="button"
                 onClick={(e) => { e.stopPropagation(); setIsOpen(true); }}
                 className="ml-1.5 text-zinc-300 hover:text-teal-600 transition-colors align-middle"
                 aria-label="Grading Info"
@@ -26,10 +27,17 @@ const GradingInfo = () => {
             </button>
 
             {isOpen && (
-                <div className="fixed inset-0 z-[60] flex items-center justify-center p-6 bg-zinc-900/40 backdrop-blur-sm animate-in fade-in duration-200" onClick={(e) => { e.stopPropagation(); setIsOpen(false); }}>
-                    <div className="w-full max-w-xs bg-white rounded-[2rem] p-6 shadow-2xl relative animate-in zoom-in-95 duration-300 border border-white/50" onClick={(e) => e.stopPropagation()}>
+                <div 
+                    className="fixed inset-0 z-[70] flex items-center justify-center p-6 bg-zinc-900/40 backdrop-blur-sm animate-in fade-in duration-200" 
+                    onClick={(e) => { e.stopPropagation(); setIsOpen(false); }}
+                >
+                    <div 
+                        className="w-full max-w-xs bg-white rounded-[2rem] p-6 shadow-2xl relative animate-in zoom-in-95 duration-300 border border-white/50" 
+                        onClick={(e) => e.stopPropagation()}
+                    >
                         {/* Close Button - Fixed Z-Index and Interaction */}
                         <button 
+                            type="button"
                             onClick={(e) => { e.stopPropagation(); setIsOpen(false); }} 
                             className="absolute top-4 right-4 p-2.5 bg-zinc-100 rounded-full text-zinc-500 hover:bg-zinc-200 hover:text-zinc-800 transition-colors z-50 cursor-pointer"
                         >
