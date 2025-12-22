@@ -1,6 +1,5 @@
-
 import React, { useEffect, useState } from 'react';
-import { ScanFace, ScanBarcode, TrendingUp, Sparkles, ArrowRight, ShieldCheck, Play, Lock, ChevronRight, Zap } from 'lucide-react';
+import { ScanFace, Scan, TrendingUp, Sparkles, ArrowRight, ShieldCheck, Play, Lock, ChevronRight, Zap, Layers, ThumbsUp } from 'lucide-react';
 
 interface LandingPageProps {
   onGetStarted: () => void;
@@ -82,74 +81,74 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onLogin }) => {
                
                <div className="text-center mb-12">
                    <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-3 flex items-center justify-center gap-2">
-                      <Play size={10} fill="currentColor" /> Powered by Computer Vision
+                      <Play size={10} fill="currentColor" /> The Complete Toolkit
                    </h3>
-                   <h2 className="text-3xl font-black text-zinc-900 tracking-tight">Your Pocket Clinic</h2>
+                   <h2 className="text-3xl font-black text-zinc-900 tracking-tight">Dermatology. Digitized.</h2>
                </div>
 
-                {/* FEATURE 1: PRODUCT SCANNER (Hero Card) */}
+                {/* FEATURE 1: FACE ANALYSIS (Hero Card) */}
                 <div className="bg-white rounded-[2rem] p-8 border border-zinc-100 shadow-xl shadow-zinc-200/20 relative overflow-hidden group hover:border-teal-100 transition-colors">
                     <div className="relative z-10">
                         <div className="flex items-center justify-between mb-6">
                             {/* Changed to Teal Badge */}
                             <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-teal-50 text-teal-700 rounded-full">
-                                <ScanBarcode size={14} />
-                                <span className="text-[10px] font-bold uppercase tracking-widest">In-Store Companion</span>
+                                <ScanFace size={14} />
+                                <span className="text-[10px] font-bold uppercase tracking-widest">Biometric Scan</span>
                             </div>
                         </div>
                         
                         {/* Softer Black Text */}
                         <h3 className="text-4xl font-black text-zinc-900 tracking-tighter leading-[0.9] mb-4">
-                            Don't guess.<br/>Just scan.
+                            Understand<br/>your skin.
                         </h3>
                         <p className="text-sm text-zinc-500 font-medium leading-relaxed max-w-xs">
-                            Instantly analyze ingredients at Watsons or Sephora to see if they match your skin profile.
+                            We measure redness, texture patterns, and hydration levels to give you a clinical score that tracks real progress over time.
                         </p>
 
                         <div className="mt-8 flex gap-3">
-                             <div className="px-3 py-1.5 rounded-lg border border-teal-100 bg-teal-50/50 text-teal-700 text-[10px] font-bold">Safe Match</div>
-                             <div className="px-3 py-1.5 rounded-lg border border-zinc-200 text-zinc-500 text-[10px] font-bold">Acne Risk</div>
+                             <div className="px-3 py-1.5 rounded-lg border border-teal-100 bg-teal-50/50 text-teal-700 text-[10px] font-bold">Acne Map</div>
+                             <div className="px-3 py-1.5 rounded-lg border border-zinc-200 text-zinc-500 text-[10px] font-bold">Barrier Score</div>
                         </div>
                     </div>
                 </div>
 
                 {/* GRID ROW */}
                 <div className="grid grid-cols-2 gap-4">
-                    {/* FEATURE 2: BIOMETRICS - White Theme with Teal Accent */}
+                    {/* FEATURE 2: PRODUCT INTELLIGENCE - White Theme with Indigo Accent */}
                     <div className="bg-white rounded-[2rem] p-6 text-zinc-900 border border-zinc-100 relative overflow-hidden flex flex-col justify-between min-h-[200px] shadow-lg shadow-zinc-200/20 hover:border-teal-100 transition-colors">
                         <div className="relative z-10">
-                            <div className="w-10 h-10 bg-teal-50 rounded-full flex items-center justify-center mb-4 border border-teal-100">
-                                <ScanFace size={20} className="text-teal-600" />
+                            <div className="w-10 h-10 bg-indigo-50 rounded-full flex items-center justify-center mb-4 border border-indigo-100">
+                                <Scan size={20} className="text-indigo-600" />
                             </div>
-                            <h3 className="text-lg font-bold leading-tight mb-2 text-zinc-900">Clinical Analysis</h3>
-                            <p className="text-xs text-zinc-500 font-medium">15+ biomarkers scanned instantly.</p>
+                            <h3 className="text-lg font-bold leading-tight mb-2 text-zinc-900">Smart Scan</h3>
+                            <p className="text-xs text-zinc-500 font-medium">No barcodes needed. Just snap a photo of the bottle to decode ingredients.</p>
                         </div>
                     </div>
 
-                    {/* FEATURE 3: RESULTS - White Theme with Teal Accent */}
+                    {/* FEATURE 3: ROUTINE ARCHITECT - White Theme with Amber Accent */}
                     <div className="bg-white rounded-[2rem] p-6 border border-zinc-100 relative overflow-hidden flex flex-col justify-between min-h-[200px] shadow-lg shadow-zinc-200/20 hover:border-teal-100 transition-colors">
                         <div className="relative z-10">
-                            <div className="w-10 h-10 bg-teal-50 rounded-full flex items-center justify-center mb-4 border border-teal-100">
-                                <TrendingUp size={20} className="text-teal-600" />
+                            <div className="w-10 h-10 bg-amber-50 rounded-full flex items-center justify-center mb-4 border border-amber-100">
+                                <Layers size={20} className="text-amber-600" />
                             </div>
-                            <h3 className="text-lg font-bold text-zinc-900 leading-tight mb-2">Real Results</h3>
-                            <p className="text-xs text-zinc-500 font-medium">Track your skin's improvement over time.</p>
+                            <h3 className="text-lg font-bold text-zinc-900 leading-tight mb-2">Routine Architect</h3>
+                            <p className="text-xs text-zinc-500 font-medium">Find the perfect products based on your skin profile & budget.</p>
                         </div>
                     </div>
                 </div>
 
-                {/* FEATURE 4: AI LOGIC - White Theme with Teal Accent */}
+                {/* FEATURE 4: BUYING ASSISTANT - White Theme with Emerald Accent */}
                 <div className="bg-white rounded-[2rem] p-8 text-zinc-900 border border-zinc-100 shadow-xl shadow-zinc-200/20 relative overflow-hidden hover:border-teal-100 transition-colors">
                     <div className="relative z-10">
-                        <div className="flex items-center gap-2 mb-4 text-teal-600">
-                            <Sparkles size={16} />
-                            <span className="text-[10px] font-bold uppercase tracking-widest">Smart Filtering</span>
+                        <div className="flex items-center gap-2 mb-4 text-emerald-600">
+                            <ShieldCheck size={16} />
+                            <span className="text-[10px] font-bold uppercase tracking-widest">Buying Assistant</span>
                         </div>
                         <h3 className="text-2xl font-black tracking-tight leading-tight mb-4 text-zinc-900">
-                            "This moisturizer isn't for you."
+                            "Great, Consider, or Avoid?"
                         </h3>
                         <p className="text-sm text-zinc-500 font-medium leading-relaxed">
-                            Our AI filters out products that conflict with your routine or sensitivity level.
+                            Instant verdicts on any product. We check for conflicts, allergens, and skin-type compatibility before you buy.
                         </p>
                     </div>
                 </div>
