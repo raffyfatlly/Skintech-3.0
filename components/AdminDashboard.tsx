@@ -6,7 +6,7 @@ import {
   Users, Activity, DollarSign, Target, TrendingUp, AlertOctagon, 
   Zap, Eye, Crown, ArrowUpRight, ArrowDownRight, Fingerprint, 
   Search, Lock, RefreshCw, Smartphone, BarChart3, Database,
-  Calendar, Clock, AlertCircle, UserCheck, Filter, Info, Copy
+  Calendar, Clock, AlertCircle, UserCheck, Filter, Info, Copy, Shield
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -142,7 +142,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
 
     const copyUid = () => {
         navigator.clipboard.writeText(adminUid);
-        alert("UID Copied! Paste this into your Firestore Rules.");
+        alert(`UID Copied:\n${adminUid}\n\nNow paste this into your Firestore Rules!`);
     };
 
     const MetricCard = ({ title, value, sub, icon: Icon, trend, color = "teal", badge }: any) => (
@@ -262,24 +262,35 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                 </div>
 
                 {!metrics.isExactCount && (
-                    <div className="bg-amber-900/20 border border-amber-500/20 p-4 rounded-2xl flex items-center justify-between gap-3 animate-in slide-in-from-top-2">
-                        <div className="flex items-start gap-3">
-                            <Info className="text-amber-500 mt-0.5" size={16} />
+                    <div className="bg-amber-900/20 border border-amber-500/20 p-6 rounded-3xl flex flex-col md:flex-row items-center justify-between gap-6 animate-in slide-in-from-top-2 shadow-2xl relative overflow-hidden">
+                        <div className="absolute top-0 right-0 w-64 h-64 bg-amber-500/10 blur-3xl rounded-full -mr-16 -mt-16 pointer-events-none"></div>
+                        
+                        <div className="flex items-start gap-4 relative z-10">
+                            <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0 border border-amber-500/30 text-amber-400">
+                                <Shield size={20} />
+                            </div>
                             <div>
-                                <h4 className="text-sm font-bold text-amber-400 mb-1">Database Permissions Limited</h4>
+                                <h4 className="text-base font-black text-amber-400 mb-1">Database Permissions Limited</h4>
                                 <p className="text-xs text-amber-200/80 leading-relaxed max-w-xl">
-                                    The "Total Members" count is estimated because the Admin Dashboard cannot securely read the full user list yet. 
-                                    Update your Firestore Rules with your Admin UID below.
+                                    The "Total Members" count is currently an estimate. To see exact numbers, you must allow your Admin UID to read the user database.
                                 </p>
                             </div>
                         </div>
-                        <button 
-                            onClick={copyUid}
-                            className="flex items-center gap-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 px-4 py-2 rounded-xl text-xs font-bold transition-colors border border-amber-500/30"
-                        >
-                            <Copy size={12} />
-                            Copy My UID
-                        </button>
+
+                        <div className="flex flex-col gap-2 w-full md:w-auto relative z-10">
+                            <div className="flex items-center gap-2 bg-black/40 p-2 rounded-xl border border-amber-500/20">
+                                <code className="text-[10px] font-mono text-amber-200 select-all px-2 break-all max-w-[200px] md:max-w-none">
+                                    {adminUid}
+                                </code>
+                            </div>
+                            <button 
+                                onClick={copyUid}
+                                className="flex items-center justify-center gap-2 bg-amber-500 text-amber-950 px-6 py-3 rounded-xl text-xs font-bold transition-all hover:scale-105 active:scale-95 shadow-lg shadow-amber-500/20"
+                            >
+                                <Copy size={14} />
+                                Copy My UID
+                            </button>
+                        </div>
                     </div>
                 )}
 
