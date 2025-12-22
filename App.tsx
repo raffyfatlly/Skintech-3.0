@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   AppView, 
@@ -401,6 +400,7 @@ const App: React.FC = () => {
                     scanHistory={userProfile?.scanHistory}
                     onCancel={userProfile?.hasScannedFace ? () => setCurrentView(AppView.DASHBOARD) : undefined} 
                     referenceImage={userProfile?.faceImage}
+                    shelf={shelf}
                   />
               );
           case AppView.DASHBOARD:
@@ -410,6 +410,7 @@ const App: React.FC = () => {
                       <FaceScanner 
                         onScanComplete={handleFaceScanComplete} 
                         scanHistory={userProfile?.scanHistory}
+                        shelf={shelf}
                         // No cancel button allowed if forced
                       />
                   );

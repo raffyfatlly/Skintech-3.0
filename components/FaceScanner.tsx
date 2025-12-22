@@ -1,15 +1,15 @@
-
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Sparkles, Image as ImageIcon, ScanFace, BrainCircuit, Target, Lightbulb, CheckCircle2, Focus, X, ArrowRight, UserX, ShieldAlert, Fingerprint, Lock } from 'lucide-react';
 import { analyzeSkinFrame, drawBiometricOverlay, validateFrame, applyClinicalOverlays, applyMedicalProcessing, preprocessForAI } from '../services/visionService';
 import { analyzeFaceSkin, compareFaceIdentity } from '../services/geminiService';
-import { SkinMetrics } from '../types';
+import { SkinMetrics, Product } from '../types';
 
 interface FaceScannerProps {
   onScanComplete: (metrics: SkinMetrics, image: string) => void;
   scanHistory?: SkinMetrics[];
   onCancel?: () => void;
   referenceImage?: string | null;
+  shelf?: Product[];
 }
 
 const SCAN_TIPS = [
@@ -24,7 +24,7 @@ const SCAN_TIPS = [
   "Consistent weekly scans build the most accurate skin profile."
 ];
 
-const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, onCancel, referenceImage }) => {
+const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, onCancel, referenceImage, shelf = [] }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -300,8 +300,11 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
        const displayImage = captureSnapshot(source, isFlipped);
        setCapturedSnapshot(displayImage);
 
+       // Flatten shelf data for AI
+       const shelfNames = shelf.map(p => `${p.brand || ''} ${p.name}`);
+
        // Parallel Execution: Skin Analysis + Identity Verification
-       const skinAnalysisPromise = analyzeFaceSkin(processedImage, localMetrics, scanHistory);
+       const skinAnalysisPromise = analyzeFaceSkin(processedImage, localMetrics, shelfNames, scanHistory);
        
        let identityPromise: Promise<{ isMatch: boolean; confidence: number; reason: string }> | null = null;
        if (referenceImage) {
@@ -330,8 +333,11 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
 
        } catch (err) {
            console.error("AI Analysis Failed", err);
-           // Fallback to local
-           finalizeScan(localMetrics, displayImage);
+           // Fallback Removed per requirement. 
+           // Show friendly error and prompt retry.
+           setIsProcessingAI(false);
+           setAiProgress(0);
+           setStreamError("We couldn't capture a clear analysis. Please ensure good lighting and try again.");
        }
   };
 
@@ -712,14 +718,27 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
           <div className="w-full pb-safe pointer-events-auto">
             <div className="pt-20 pb-10 px-6 flex flex-col items-center justify-end h-48 bg-gradient-to-t from-black via-black/40 to-transparent">
                 {streamError ? (
-                     <div className="text-rose-300 bg-rose-900/40 px-6 py-4 rounded-xl backdrop-blur-md border border-rose-500/30 mb-8 text-center">
-                        <p>{streamError}</p>
-                        <button onClick={() => fileInputRef.current?.click()} className="mt-3 text-white text-sm underline font-bold">Upload Photo Instead</button>
+                     <div className="text-rose-300 bg-rose-900/40 px-6 py-6 rounded-3xl backdrop-blur-md border border-rose-500/30 mb-8 text-center max-w-sm mx-auto">
+                        <p className="mb-4 text-sm font-medium leading-relaxed">{streamError}</p>
+                        <div className="flex gap-4 justify-center">
+                            <button 
+                                onClick={() => { setStreamError(null); setIsScanning(true); }} 
+                                className="px-6 py-2.5 bg-white text-rose-600 rounded-full font-bold text-xs uppercase tracking-widest shadow-lg hover:scale-105 active:scale-95 transition-all"
+                            >
+                                Try Again
+                            </button>
+                            <button 
+                                onClick={() => fileInputRef.current?.click()} 
+                                className="px-6 py-2.5 bg-rose-800/50 text-white border border-rose-500/50 rounded-full font-bold text-xs uppercase tracking-widest hover:bg-rose-800/70 transition-colors"
+                            >
+                                Upload
+                            </button>
+                        </div>
                      </div>
                 ) : !isScanning ? (
                     <div className="flex items-center gap-10 animate-in slide-in-from-bottom-8 duration-700">
                         <button onClick={() => fileInputRef.current?.click()} className="w-12 h-12 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/20 transition-all active:scale-95 border border-white/10"><ImageIcon size={20} /></button>
-                        <button onClick={() => setIsScanning(true)} className="w-20 h-20 bg-transparent rounded-full flex items-center justify-center border-4 border-white/30 hover:border-white transition-colors relative active:scale-95 group">
+                        <button onClick={() => { setIsScanning(true); setStreamError(null); }} className="w-20 h-20 bg-transparent rounded-full flex items-center justify-center border-4 border-white/30 hover:border-white transition-colors relative active:scale-95 group">
                             <div className="w-16 h-16 bg-white rounded-full group-hover:scale-90 transition-transform duration-300" />
                         </button>
                         <div className="w-12 h-12" /> 

@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Chat, GenerateContentResponse } from "@google/genai";
 import { SkinMetrics, Product, UserProfile, IngredientRisk, Benefit } from '../types';
 
@@ -156,80 +155,74 @@ export const compareFaceIdentity = async (newImage: string, referenceImage: stri
     }, { isMatch: true, confidence: 100, reason: "Fallback: Service unavailable" });
 };
 
-export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, history?: SkinMetrics[]): Promise<SkinMetrics> => {
-    return runWithRetry<SkinMetrics>(async (ai) => {
-        // Extract previous scan data if available
-        const previousScan = history && history.length > 0 ? history[history.length - 1] : null;
+export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, shelf: string[] = [], history?: SkinMetrics[]): Promise<SkinMetrics> => {
+    // STRICT MODE: No Fallback. Throws error on failure.
+    // We want the UI to prompt for a rescan if the AI cannot connect.
+    
+    // Extract previous scan data if available
+    const previousScan = history && history.length > 0 ? history[history.length - 1] : null;
 
-        const rubric = `
-AI REFERENCE RUBRIC: SKIN HEALTH & INTEGRITY GRADING
+    const prompt = `
+    You are a hyper-intelligent AI skin architect. You don't just see skin; you understand its functional state.
+    
+    Current computer-vision estimates (reference): ${JSON.stringify(localMetrics)}.
+    
+    ${previousScan ? `PREVIOUS SCAN CONTEXT (Timestamp: ${new Date(previousScan.timestamp).toLocaleDateString()}): 
+    - Overall Score: ${previousScan.overallScore}
+    - Previous Verdict: "${previousScan.analysisSummary}"
+    ` : ''}
 
-SCORING ARCHITECTURE
- * Group 1: Crisis (Score 02–19) - Critical / Medical Emergency / Necrotic / Disfigured
- * Group 2: Clinical (Score 20–39) - Severe / Pathological / Deeply Compromised
- * Group 3: Reactive (Score 40–59) - Active Concern / Inflamed / Visibly Damaged
- * Group 4: Imbalanced (Score 60–79) - Sub-Optimal / Dull / Minor Congestion
- * Group 5: Resilient (Score 80–92) - Healthy / Clean / Balanced
- * Group 6: Pristine (Score 93–98) - Flawless / Glass-like / Optimized
-        `;
+    USER'S CURRENT SHELF: ${shelf.length > 0 ? JSON.stringify(shelf) : "No products added yet."}
+    
+    TASK:
+    1. Calibrate scoring (0-100, Higher = Better/Clearer) based on the image evidence.
+    2. Generate a 'analysisSummary' that interprets the biological 'why'.
+    3. Generate 'immediateAction': A specific, actionable tip.
+    
+    INSTRUCTIONS FOR 'analysisSummary':
+    - Do NOT just list observations (e.g., "I see redness"). The user has a mirror; they know they are red.
+    - **INTERPRET THE FUNCTION**: Explain *why* the skin is behaving this way.
+        - Instead of "You have acne", say "Your lipid barrier is congested, trapping bacteria."
+        - Instead of "You are oily", say "Your skin is overproducing sebum to compensate for surface dehydration."
+    - Structure:
+        1. **Bold Headline** (2-4 words).
+        2. Exactly **3 bullet points**.
+        3. **Use 5th-grade English.** Simple but profound. No jargon.
 
-        const prompt = `
-        You are a hyper-intelligent AI skin expert with precise computer vision capabilities.
-        
-        Current computer-vision estimates (reference): ${JSON.stringify(localMetrics)}.
-        
-        ${previousScan ? `PREVIOUS SCAN CONTEXT (Timestamp: ${new Date(previousScan.timestamp).toLocaleDateString()}): 
-        - Overall Score: ${previousScan.overallScore}
-        - Previous Verdict: "${previousScan.analysisSummary}"
-        ` : ''}
-        
-        TASK:
-        1. Calibrate scoring (0-100, Higher = Better/Clearer) based on the image evidence.
-        2. Generate a 'analysisSummary' that anyone can understand.
-        3. Generate 'immediateAction': A specific suggestion linking to an app feature.
-        
-        INSTRUCTIONS FOR 'analysisSummary':
-        Strictly follow this structure:
-        1. Start with a **Bold Headline** (2-4 words maximum). E.g., **Oily & Sensitive**.
-        2. Follow with exactly **3 bullet points** (start each line with a *).
-        3. **LANGUAGE RULES**:
-           - **Use 5th-grade English.** Simple, everyday words.
-           - **NO medical jargon**. 
-             - Instead of "Hyperpigmentation", say "Dark spots".
-             - Instead of "Sebum", say "Oil".
-             - Instead of "Dehydration", say "Dryness".
-             - Instead of "Erythema", say "Redness".
-           - Keep it short and friendly. Connect the dots simply.
+    INSTRUCTIONS FOR 'immediateAction' (String):
+    - **PRIORITY**: Offer a natural remedy, behavioral tweak, or specific shelf advice FIRST.
+    - If they have products on their shelf that conflict with their current state (e.g. Acid when red), WARN THEM explicitly.
+    - Only mention app features *after* the advice.
+    - Example (Shelf-aware): "Skip the Retinol tonight. Your barrier is too stressed. Use the 'Smart Shelf' to find a calming alternative."
+    - Example (General): "Wash with lukewarm water only for 2 days. Heat is aggravating your redness. Check 'Routine Builder' for a gentler cleanser."
+    - Example (Good Skin): "Excellent balance. To keep this glow, double-check your pillowcase hygiene. Use 'Product Search' if you change detergents."
 
-        INSTRUCTIONS FOR 'immediateAction' (String):
-        - Provide ONE clear piece of advice.
-        - Mention a specific app feature to help: "Smart Search", "Routine Builder", or "Smart Shelf".
-        - Example: "Your skin needs water. Use **Product Search** to find a 'Hydrating Serum' without alcohol."
-        - Example: "Lots of redness today. Check **Smart Shelf** to remove any harsh acids for now."
+    Return JSON fields: overallScore, acneActive, acneScars, poreSize, blackheads, wrinkleFine, wrinkleDeep, sagging, pigmentation, redness, texture, hydration, oiliness, darkCircles, skinAge, analysisSummary (string), immediateAction (string), observations (map of metric key to string).`;
+    
+    const response = await ai.models.generateContent({
+        model: MODEL_FACE_SCAN,
+        contents: {
+            parts: [
+                { inlineData: { mimeType: 'image/jpeg', data: image.split(',')[1] } },
+                { text: prompt }
+            ]
+        },
+        config: { responseMimeType: 'application/json' }
+    });
+    
+    const data = parseJSONFromText(response.text || "{}");
+    
+    if (!data.overallScore && !data.analysisSummary) {
+        throw new Error("Incomplete analysis");
+    }
 
-        Return JSON fields: overallScore, acneActive, acneScars, poreSize, blackheads, wrinkleFine, wrinkleDeep, sagging, pigmentation, redness, texture, hydration, oiliness, darkCircles, skinAge, analysisSummary (string), immediateAction (string), observations (map of metric key to string).`;
-        
-        const response = await ai.models.generateContent({
-            model: MODEL_FACE_SCAN,
-            contents: {
-                parts: [
-                    { inlineData: { mimeType: 'image/jpeg', data: image.split(',')[1] } },
-                    { text: prompt }
-                ]
-            },
-            config: { responseMimeType: 'application/json' }
-        });
-        
-        const data = parseJSONFromText(response.text || "{}");
-        
-        // Map immediateAction to observations for storage
-        const observations = data.observations || {};
-        if (data.immediateAction) {
-            observations.advice = data.immediateAction;
-        }
+    // Map immediateAction to observations for storage
+    const observations = data.observations || {};
+    if (data.immediateAction) {
+        observations.advice = data.immediateAction;
+    }
 
-        return { ...localMetrics, ...data, observations, timestamp: Date.now() };
-    }, localMetrics);
+    return { ...localMetrics, ...data, observations, timestamp: Date.now() };
 };
 
 // Updated: Accepts routineActives for conflict checking
