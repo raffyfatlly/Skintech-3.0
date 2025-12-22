@@ -11,6 +11,7 @@ import { loadUserData, saveUserData, syncLocalToCloud, clearLocalData } from './
 import { auth } from './services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { startCheckout } from './services/stripeService';
+import { trackEvent } from './services/analyticsService'; // Import Analytics
 
 // Components
 import LandingPage from './components/LandingPage';
@@ -28,6 +29,7 @@ import SaveProfileModal, { AuthTrigger } from './components/SaveProfileModal';
 import SmartNotification, { NotificationType } from './components/SmartNotification';
 import BetaOfferModal from './components/BetaOfferModal';
 import GuideOverlay from './components/GuideOverlay';
+import AdminDashboard from './components/AdminDashboard'; // Import Admin
 
 // Icons
 import { ScanFace, LayoutGrid, User, Search, Home, Loader, ScanBarcode, Lock } from 'lucide-react';
@@ -50,6 +52,9 @@ const App: React.FC = () => {
   const [saveModalTrigger, setSaveModalTrigger] = useState<AuthTrigger>('GENERIC');
   const [showPremiumModal, setShowPremiumModal] = useState(false);
 
+  // Admin Mode State
+  const [isAdminMode, setIsAdminMode] = useState(false);
+
   // New: Pending Scan State (Holding area for anonymous users)
   const [pendingScan, setPendingScan] = useState<{metrics: SkinMetrics, image: string} | null>(null);
 
@@ -62,11 +67,13 @@ const App: React.FC = () => {
   useEffect(() => { viewRef.current = currentView; }, [currentView]);
 
   const openAuth = (trigger: AuthTrigger) => {
+      trackEvent('AUTH_OPENED', { trigger });
       setSaveModalTrigger(trigger);
       setShowSaveModal(true);
   };
 
   const handleUnlockPremium = () => {
+      trackEvent('PREMIUM_MODAL_OPEN', { source: currentView });
       if (userProfile?.isAnonymous) {
           openAuth('UNLOCK_DEAL');
           return;
@@ -84,6 +91,12 @@ const App: React.FC = () => {
     const init = async () => {
       const urlParams = new URLSearchParams(window.location.search);
       const isPaymentSuccess = urlParams.get('payment') === 'success';
+      const isSecretAdmin = urlParams.get('mode') === 'admin';
+
+      if (isSecretAdmin) {
+          setIsAdminMode(true);
+          return;
+      }
 
       const data = await loadUserData();
       let currentUser = data.user;
@@ -94,6 +107,7 @@ const App: React.FC = () => {
           currentUser = { ...currentUser, isPremium: true };
           // We don't clear URL here to allow auth state listener to also see it if needed
           saveUserData(currentUser, data.shelf);
+          trackEvent('PAYMENT_SUCCESS_LOCAL');
           
           if (!auth?.currentUser) {
              setNotification({
@@ -135,8 +149,6 @@ const App: React.FC = () => {
                 let currentUser = data.user;
 
                 // 3. CRITICAL: Handle Payment Success Check for Cloud Account
-                // If the user just returned from Stripe, ensure we mark them as premium
-                // even if the cloud data hasn't updated yet.
                 const urlParams = new URLSearchParams(window.location.search);
                 if (urlParams.get('payment') === 'success' && currentUser) {
                      console.log("Payment detected (Auth Listener)");
@@ -144,6 +156,7 @@ const App: React.FC = () => {
                      
                      // Force save to cloud immediately
                      await saveUserData(currentUser, data.shelf);
+                     trackEvent('PAYMENT_SUCCESS_CLOUD');
                      
                      setNotification({
                         type: 'GENERIC',
@@ -182,6 +195,7 @@ const App: React.FC = () => {
   }, []);
 
   const handleOnboardingComplete = (data: { name: string; age: number; skinType: SkinType }) => {
+      trackEvent('ONBOARDING_COMPLETE');
       const isAuth = !!auth?.currentUser;
       const newUser: UserProfile = {
           name: data.name,
@@ -199,6 +213,7 @@ const App: React.FC = () => {
   };
 
   const handleFaceScanComplete = (metrics: SkinMetrics, image: string) => {
+      trackEvent('FACE_SCAN_COMPLETE', { score: metrics.overallScore });
       if (!userProfile) return;
 
       // BLOCKER: If Anonymous, DO NOT show dashboard. Force Signup.
@@ -227,12 +242,14 @@ const App: React.FC = () => {
   };
 
   const handleProductFound = (product: Product) => {
+      trackEvent('PRODUCT_FOUND', { name: product.name, match: product.suitabilityScore });
       setAnalyzedProduct(product);
       setCurrentView(AppView.BUYING_ASSISTANT);
   };
 
   const handleAddToShelf = () => {
       if (!userProfile || !analyzedProduct) return;
+      trackEvent('ADD_TO_SHELF', { type: analyzedProduct.type });
       const newShelf = [...shelf, analyzedProduct];
       persistState(userProfile, newShelf);
       setAnalyzedProduct(null);
@@ -240,12 +257,14 @@ const App: React.FC = () => {
   };
 
   const handleDiscardProduct = () => {
+      if (analyzedProduct) trackEvent('DISCARD_PRODUCT', { reason: 'User choice' });
       setAnalyzedProduct(null);
       setCurrentView(AppView.SMART_SHELF); 
   };
 
   const handleRemoveProduct = (id: string) => {
       if (!userProfile) return;
+      trackEvent('REMOVE_PRODUCT');
       const newShelf = shelf.filter(p => p.id !== id);
       persistState(userProfile, newShelf);
   };
@@ -261,6 +280,7 @@ const App: React.FC = () => {
   };
 
   const handleResetApp = () => {
+      trackEvent('RESET_APP');
       clearLocalData();
       setUserProfile(null);
       setShelf([]);
@@ -269,6 +289,7 @@ const App: React.FC = () => {
 
   const handleCodeUnlock = () => {
       if (!userProfile) return;
+      trackEvent('CODE_REDEEMED');
       const updatedUser = { ...userProfile, isPremium: true };
       persistState(updatedUser, shelf);
       setShowPremiumModal(false);
@@ -282,7 +303,7 @@ const App: React.FC = () => {
   };
 
   const renderNavBar = () => {
-      if (isGlobalLoading) return null;
+      if (isGlobalLoading || isAdminMode) return null;
       if ([AppView.LANDING, AppView.ONBOARDING, AppView.FACE_SCANNER, AppView.PRODUCT_SCANNER, AppView.PRODUCT_SEARCH, AppView.BUYING_ASSISTANT, AppView.ROUTINE_BUILDER].includes(currentView)) return null;
 
       const navItemClass = (view: AppView) => 
@@ -346,6 +367,18 @@ const App: React.FC = () => {
           </div>
       );
   };
+
+  // --- ADMIN MODE GUARD ---
+  if (isAdminMode) {
+      return (
+          <AdminDashboard 
+            onExit={() => {
+                setIsAdminMode(false);
+                window.history.replaceState({}, document.title, window.location.pathname);
+            }} 
+          />
+      );
+  }
 
   const renderView = () => {
       if (!userProfile && ![AppView.LANDING, AppView.ONBOARDING].includes(currentView)) {
@@ -461,6 +494,7 @@ const App: React.FC = () => {
   // --- MOCK LOGIN CALLBACK ---
   // When user successfully auths in modal, update state immediately to prevent "Anonymous" flicker
   const handleMockLogin = () => {
+      trackEvent('LOGIN_SUCCESS');
       if (userProfile) {
           let updatedUser = { ...userProfile, isAnonymous: false };
           
