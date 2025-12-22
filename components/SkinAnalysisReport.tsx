@@ -6,15 +6,46 @@ import { RefreshCw, Sparkles, Sun, Moon, Ban, CheckCircle2, AlertTriangle, Targe
 
 // --- SUB COMPONENTS ---
 
-const renderVerdict = (text: string) => {
-  if (!text) return null;
-  // Split by bold markers for the headline
+const renderVerdict = (data: any) => {
+  if (!data) return null;
+
+  // New Structured Format (Object)
+  if (typeof data === 'object' && data.headline && Array.isArray(data.points)) {
+      return (
+          <div className="flex flex-col gap-5">
+              <div className="mb-1">
+                  <p className="text-zinc-900 font-black text-lg uppercase tracking-tight leading-snug drop-shadow-sm">
+                      {data.headline}
+                  </p>
+              </div>
+              
+              <div className="space-y-4 pl-3 relative border-l-2 border-zinc-100">
+                  {data.points.map((point: any, i: number) => (
+                      <div key={i} className="relative">
+                          {/* Dot connector */}
+                          <div className="absolute -left-[19px] top-1 w-3 h-3 rounded-full bg-teal-50 border-2 border-teal-100 flex items-center justify-center">
+                              <div className="w-1 h-1 bg-teal-500 rounded-full"></div>
+                          </div>
+                          
+                          <h4 className="text-[10px] font-bold text-teal-700 uppercase tracking-widest mb-1">
+                              {point.subtitle}
+                          </h4>
+                          <p className="text-xs text-zinc-600 font-medium leading-relaxed">
+                              {point.content}
+                          </p>
+                      </div>
+                  ))}
+              </div>
+          </div>
+      );
+  }
+
+  // Legacy String Format
+  const text = typeof data === 'string' ? data : JSON.stringify(data);
   const parts = text.split(/(\*\*.*?\*\*)/g);
   const headlinePart = parts.find(p => p.startsWith('**') && p.endsWith('**'));
   const bodyText = parts.filter(p => !p.startsWith('**')).join('');
 
-  // Parse bullet points
-  // Matches lines starting with *, -, or •
   const bulletPoints = bodyText.split(/\n/).filter(line => line.trim().match(/^[\*\-•]/)).map(line => line.replace(/^[\*\-•]\s*/, '').trim());
   const fallbackText = bodyText.split(/\n/).filter(line => !line.trim().match(/^[\*\-•]/) && line.trim().length > 0).join(' ');
 
@@ -402,7 +433,7 @@ const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({ userProfile, sh
       const scores = [{ name: 'Blemishes', val: blemishScore }, { name: 'Skin Health', val: healthScore }, { name: 'Vitality', val: agingScore }].sort((a,b) => a.val - b.val);
       const lowestGroup = scores[0];
 
-      let summary = "";
+      let summary: any = "";
       if (metrics.analysisSummary) {
           summary = metrics.analysisSummary;
       } else {

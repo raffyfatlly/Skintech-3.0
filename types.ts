@@ -26,7 +26,7 @@ export interface SkinMetrics {
   oiliness: number; // Higher = Balanced (Not too oily, not too dry)
   darkCircles: number; // Higher = Bright Under-eyes
   
-  analysisSummary?: string; // New: Specific location-based summary from AI
+  analysisSummary?: string | { headline: string; points: { subtitle: string; content: string }[] }; // Updated to support structured object
   observations?: Record<string, string>; // New: Specific per-metric observation (e.g. "Redness on cheeks")
   timestamp: number;
 }

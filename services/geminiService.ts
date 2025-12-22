@@ -163,41 +163,41 @@ export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, 
     const previousScan = history && history.length > 0 ? history[history.length - 1] : null;
 
     const prompt = `
-    You are a hyper-intelligent AI skin architect. You don't just see skin; you understand its functional state.
+    You are a hyper-intelligent AI skin architect. You don't just see skin; you understand its functional biological state.
     
     Current computer-vision estimates (reference): ${JSON.stringify(localMetrics)}.
     
     ${previousScan ? `PREVIOUS SCAN CONTEXT (Timestamp: ${new Date(previousScan.timestamp).toLocaleDateString()}): 
     - Overall Score: ${previousScan.overallScore}
-    - Previous Verdict: "${previousScan.analysisSummary}"
     ` : ''}
 
     USER'S CURRENT SHELF: ${shelf.length > 0 ? JSON.stringify(shelf) : "No products added yet."}
     
-    TASK:
-    1. Calibrate scoring (0-100, Higher = Better/Clearer) based on the image evidence.
-    2. Generate a 'analysisSummary' that interprets the biological 'why'.
-    3. Generate 'immediateAction': A specific, actionable tip.
+    TASK 1: BIOMETRIC CALIBRATION
+    - Calibrate the scoring (0-100, Higher = Better/Clearer) based on the image evidence.
+    - Be fair but strict. 100 is impossible perfection. 50 is average.
+
+    TASK 2: HOLISTIC ANALYSIS SUMMARY (Structured JSON)
+    - Do NOT just look at the lowest score. Look at the *relationship* between metrics.
+    - Example 1 (Mixed): High Oiliness + Low Hydration = "Compensatory Sebum Production" (Skin is oily *because* it's dry).
+    - Example 2 (Critical): Active Acne + High Redness = "Inflammatory Cascade".
+    - Example 3 (Good): High Texture + Good Tone = "Structural Resilience".
     
-    INSTRUCTIONS FOR 'analysisSummary':
-    - Do NOT just list observations (e.g., "I see redness"). The user has a mirror; they know they are red.
-    - **INTERPRET THE FUNCTION**: Explain *why* the skin is behaving this way.
-        - Instead of "You have acne", say "Your lipid barrier is congested, trapping bacteria."
-        - Instead of "You are oily", say "Your skin is overproducing sebum to compensate for surface dehydration."
-    - Structure:
-        1. **Bold Headline** (2-4 words).
-        2. Exactly **3 bullet points**.
-        3. **Use 5th-grade English.** Simple but profound. No jargon.
+    - Structure the 'analysisSummary' as a JSON OBJECT with:
+      1. 'headline': A punchy 2-4 word diagnostic title (e.g. "Barrier Compromised", "Structural Resilience", "Deep Pore Blockage").
+      2. 'points': An array of 3 objects, each with 'subtitle' (Dynamic topic) and 'content'.
+         - Flow for Issues: "The Root Cause" -> "The Biological Reaction" -> "The Complication".
+         - Flow for Good Skin: "The Asset" -> "The Benefit" -> "The Strategy".
+         - Flow for Mixed: "The Conflict" -> "The Imbalance" -> "The Fix".
+         - **Use holistic logic.** Don't just list bad things. Mention if their tone is great even if they have acne.
 
-    INSTRUCTIONS FOR 'immediateAction' (String):
-    - **PRIORITY**: Offer a natural remedy, behavioral tweak, or specific shelf advice FIRST.
-    - If they have products on their shelf that conflict with their current state (e.g. Acid when red), WARN THEM explicitly.
-    - Only mention app features *after* the advice.
-    - Example (Shelf-aware): "Skip the Retinol tonight. Your barrier is too stressed. Use the 'Smart Shelf' to find a calming alternative."
-    - Example (General): "Wash with lukewarm water only for 2 days. Heat is aggravating your redness. Check 'Routine Builder' for a gentler cleanser."
-    - Example (Good Skin): "Excellent balance. To keep this glow, double-check your pillowcase hygiene. Use 'Product Search' if you change detergents."
+    TASK 3: IMMEDIATE ACTION
+    - A single, powerful tip. Natural remedy or behavioral tweak first.
 
-    Return JSON fields: overallScore, acneActive, acneScars, poreSize, blackheads, wrinkleFine, wrinkleDeep, sagging, pigmentation, redness, texture, hydration, oiliness, darkCircles, skinAge, analysisSummary (string), immediateAction (string), observations (map of metric key to string).`;
+    Return JSON fields: overallScore, acneActive, acneScars, poreSize, blackheads, wrinkleFine, wrinkleDeep, sagging, pigmentation, redness, texture, hydration, oiliness, darkCircles, skinAge, 
+    analysisSummary (OBJECT: { headline: string, points: [{subtitle: string, content: string}] }), 
+    immediateAction (string), 
+    observations (map of metric key to string).`;
     
     const response = await ai.models.generateContent({
         model: MODEL_FACE_SCAN,
