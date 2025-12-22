@@ -98,6 +98,10 @@ const App: React.FC = () => {
           return;
       }
 
+      // Track Global Visit (Once per session load)
+      // This is crucial for your "Visits vs Subscribers" metric
+      trackEvent('APP_VISIT', { referrer: document.referrer });
+
       const data = await loadUserData();
       let currentUser = data.user;
 
