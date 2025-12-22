@@ -1,21 +1,49 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { SkinMetrics, Product, UserProfile } from '../types';
 import { auditProduct, getClinicalTreatmentSuggestions } from '../services/geminiService';
-import { RefreshCw, Sparkles, Sun, Moon, Ban, CheckCircle2, AlertTriangle, Target, BrainCircuit, Stethoscope, Plus, Microscope, X, FlaskConical, Search, ArrowRight, Pipette, Droplet, Layers, Fingerprint, Info, AlertOctagon, GitBranch, ArrowUpRight, Syringe, Zap, Activity, MessageCircle, ShieldAlert, TrendingUp, TrendingDown, Minus, ShoppingBag, ScanBarcode, ShieldCheck, ChevronDown, Lock, Crown, ListChecks, HelpCircle, ScanFace, Tag } from 'lucide-react';
+import { RefreshCw, Sparkles, Sun, Moon, Ban, CheckCircle2, AlertTriangle, Target, BrainCircuit, Stethoscope, Plus, Microscope, X, FlaskConical, Search, ArrowRight, Pipette, Droplet, Layers, Fingerprint, Info, AlertOctagon, GitBranch, ArrowUpRight, Syringe, Zap, Activity, MessageCircle, ShieldAlert, TrendingUp, TrendingDown, Minus, ShoppingBag, ScanBarcode, ShieldCheck, ChevronDown, Lock, Crown, ListChecks, HelpCircle, ScanFace, Tag, Dna, Dot, Lightbulb } from 'lucide-react';
 
 // --- SUB COMPONENTS ---
 
 const renderVerdict = (text: string) => {
   if (!text) return null;
-  // Split by bold markers
+  // Split by bold markers for the headline
   const parts = text.split(/(\*\*.*?\*\*)/g);
-  return parts.map((part, i) => {
-    if (part.startsWith('**') && part.endsWith('**')) {
-      // Mint Teal Highlighting for critical info
-      return <strong key={i} className="font-black text-teal-500">{part.slice(2, -2)}</strong>;
-    }
-    return <span key={i}>{part}</span>;
-  });
+  const headlinePart = parts.find(p => p.startsWith('**') && p.endsWith('**'));
+  const bodyText = parts.filter(p => !p.startsWith('**')).join('');
+
+  // Parse bullet points
+  // Matches lines starting with *, -, or •
+  const bulletPoints = bodyText.split(/\n/).filter(line => line.trim().match(/^[\*\-•]/)).map(line => line.replace(/^[\*\-•]\s*/, '').trim());
+  const fallbackText = bodyText.split(/\n/).filter(line => !line.trim().match(/^[\*\-•]/) && line.trim().length > 0).join(' ');
+
+  return (
+      <div className="flex flex-col gap-4">
+          {headlinePart && (
+              <div className="mb-2">
+                  <p className="text-zinc-900 font-black text-sm uppercase tracking-wide leading-snug">
+                      {headlinePart.slice(2, -2)}
+                  </p>
+              </div>
+          )}
+          
+          {bulletPoints.length > 0 ? (
+              <div className="space-y-3 pl-1">
+                  {bulletPoints.map((point, i) => (
+                      <div key={i} className="flex gap-3 items-start">
+                          <div className="w-5 h-5 rounded-full bg-zinc-100 flex items-center justify-center shrink-0 mt-0.5">
+                              <div className="w-1.5 h-1.5 rounded-full bg-teal-500"></div>
+                          </div>
+                          <p className="text-xs text-zinc-600 font-medium leading-relaxed">{point}</p>
+                      </div>
+                  ))}
+              </div>
+          ) : (
+              <p className="text-xs text-zinc-500 font-medium leading-relaxed px-1">{fallbackText || text.replace(/\*\*/g, '')}</p>
+          )}
+      </div>
+  )
 };
 
 // New Tooltip Component for Hero Section
@@ -392,6 +420,15 @@ const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({ userProfile, sh
       return { blemishScore, healthScore, agingScore, priorityCategory: lowestGroup.name, priorityScore: lowestGroup.val, summaryText: summary };
   }, [metrics]);
 
+  // --- PARSE SIGNATURES FROM RUBRIC ---
+  const skinSignatures = useMemo(() => {
+      // Input: "Status: Flawless • Glass-like • Optimized. Sentence..."
+      const parts = rubricDescription.replace('Status: ', '').split('.');
+      const keywordString = parts[0];
+      // keywords = ["Flawless", "Glass-like", "Optimized"]
+      return keywordString.split('•').map(s => s.trim()).filter(s => s.length > 0);
+  }, [rubricDescription]);
+
   const progressVerdict = useMemo(() => {
       if (!prevMetrics) {
           return {
@@ -557,16 +594,10 @@ const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({ userProfile, sh
 
   let verdictTagText = "";
   let verdictTagColor = "";
-  let verdictBodyText: React.ReactNode = renderVerdict(groupAnalysis.summaryText);
-
+  
   if (isAnonymous) {
       verdictTagText = "BASELINE SET";
       verdictTagColor = "bg-zinc-100 text-zinc-600 border-zinc-200";
-      verdictBodyText = (
-          <>
-            {verdictBodyText} <span className="block mt-2 font-medium italic text-teal-600/80">Rescan regularly to build a clinical history and unlock trend analysis.</span>
-          </>
-      );
   } else if (!hasHistory) {
        verdictTagText = "BASELINE ESTABLISHED";
        verdictTagColor = "bg-zinc-100 text-zinc-600 border-zinc-200";
@@ -599,6 +630,8 @@ const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({ userProfile, sh
           onViewProgress();
       }
   };
+
+  const adviceText = metrics.observations?.advice;
 
   // Increased bottom padding to 48 (12rem) to allow full scroll visibility above mobile navigation bars
   return (
@@ -647,32 +680,76 @@ const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({ userProfile, sh
             </div>
         </div>
 
-        {/* CLINICAL VERDICT SECTION */}
-        <div className="bg-white rounded-3xl p-6 shadow-sm border border-zinc-100 tech-reveal delay-100 flex flex-col sm:flex-row gap-4">
-             <div className="flex-1">
-                 <div className="flex items-center justify-between mb-3">
-                     <div className="flex items-center gap-2">
-                        <Stethoscope size={14} className="text-teal-500" />
-                        <h3 className="text-xs font-black text-zinc-400 uppercase tracking-widest">
-                            Clinical Verdict
-                        </h3>
-                     </div>
-                     <span className={`text-[9px] font-bold px-2 py-1 rounded border ${verdictTagColor}`}>
-                        {verdictTagText}
-                     </span>
-                 </div>
-                 <p className="text-sm text-zinc-600 font-normal leading-relaxed border-l-4 border-teal-400 pl-4 ml-1 bg-zinc-50/50 py-2 rounded-r-xl">
-                    {verdictBodyText}
-                 </p>
-             </div>
+        {/* REDESIGNED CLINICAL VERDICT SECTION */}
+        <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-zinc-100 tech-reveal delay-100 relative overflow-hidden">
              
+             {/* Header */}
+             <div className="flex items-center justify-between mb-6">
+                 <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center text-teal-600 border border-teal-100">
+                        <Dna size={20} />
+                    </div>
+                    <div>
+                        <h3 className="text-xs font-black text-zinc-900 uppercase tracking-widest leading-none mb-1">Clinical Verdict</h3>
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded border inline-block ${verdictTagColor}`}>
+                            {verdictTagText}
+                        </span>
+                    </div>
+                 </div>
+                 {/* Live Indicator */}
+                 <div className="relative flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-teal-500"></span>
+                 </div>
+             </div>
+
+             {/* Skin Signatures (Horizontal Tags) */}
+             <div className="flex flex-wrap gap-2 mb-6">
+                 {skinSignatures.map((sig, i) => (
+                     <div key={i} className="px-3 py-1.5 rounded-full bg-zinc-50 border border-zinc-100 text-[10px] font-bold text-zinc-600 uppercase tracking-wide">
+                         {sig}
+                     </div>
+                 ))}
+                 {skinSignatures.length === 0 && (
+                     <div className="px-3 py-1.5 rounded-full bg-zinc-50 border border-zinc-100 text-[10px] font-bold text-zinc-600 uppercase tracking-wide">
+                         Analysis Active
+                     </div>
+                 )}
+             </div>
+
+             {/* Structured Insight */}
+             <div className="relative">
+                 {renderVerdict(groupAnalysis.summaryText)}
+             </div>
+
+             {/* NEW: Immediate Action Tip */}
+             {adviceText && (
+                 <div className="mt-6 p-4 bg-teal-50/50 rounded-2xl border border-teal-100/80 flex items-start gap-3">
+                     <div className="bg-white p-1.5 rounded-full border border-teal-100 shadow-sm shrink-0">
+                         <Lightbulb size={14} className="text-teal-500 fill-teal-500" />
+                     </div>
+                     <div>
+                         <span className="text-[10px] font-bold text-teal-800 uppercase tracking-widest block mb-1">Quick Tip</span>
+                         <p className="text-xs font-medium text-teal-900 leading-snug">
+                             {adviceText.split(/(\*\*.*?\*\*)/).map((part, i) => 
+                                 part.startsWith('**') ? <strong key={i} className="font-bold">{part.slice(2,-2)}</strong> : part
+                             )}
+                         </p>
+                     </div>
+                 </div>
+             )}
+
+             {/* Secondary Action */}
              {onViewProgress && (
-                 <button 
-                    onClick={handleViewProgress}
-                    className="shrink-0 flex items-center justify-center gap-2 bg-zinc-50 hover:bg-zinc-100 text-zinc-600 rounded-xl px-5 py-3 text-xs font-bold uppercase tracking-wide border border-zinc-200 transition-colors self-start sm:self-center w-full sm:w-auto"
-                 >
-                    <TrendingUp size={14} /> See My Progress
-                 </button>
+                 <div className="mt-6 pt-4 border-t border-zinc-50">
+                     <button 
+                        onClick={handleViewProgress}
+                        className="w-full flex items-center justify-center gap-2 text-xs font-bold text-zinc-400 hover:text-teal-600 transition-colors py-2 group"
+                     >
+                        <TrendingUp size={14} className="group-hover:-translate-y-0.5 transition-transform" /> 
+                        See Detailed Progress Report
+                     </button>
+                 </div>
              )}
         </div>
 
