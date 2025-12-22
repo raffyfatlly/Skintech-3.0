@@ -179,9 +179,16 @@ export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, 
 
     TASK 2: HOLISTIC ANALYSIS SUMMARY (Structured JSON)
     - Do NOT just look at the lowest score. Look at the *relationship* between metrics.
-    - **LANGUAGE RULE**: Avoid overly excessive medical jargon. If you MUST use a technical term (e.g. "comedones", "post-inflammatory erythema", "pastules"), you **MUST** provide a brief, simple explanation in brackets immediately after.
-      - Example: "Visible comedones (clogged pores) on the nose."
-      - Example: "Signs of erythema (redness caused by inflammation)."
+    
+    - **LANGUAGE RULE (CRITICAL)**: Avoid excessive medical jargon. If you MUST use a technical term (e.g. "erythema", "comedones", "papules"), you **MUST** provide a simple explanation in brackets immediately after.
+      - Correct: "Signs of erythema (redness) on the cheeks."
+      - Correct: "Visible comedones (clogged pores) on the nose."
+      - Incorrect: "Patient exhibits post-inflammatory erythema."
+
+    - **FEATURE LINKING**: When suggesting fixes, direct them to our app features:
+      - If their routine might have conflicts: "Use the **Smart Shelf** to check for ingredient clashes."
+      - If they need products: "Use the **Routine Architect** to find safe matches."
+      - If they are buying new things: "Scan it with the **Buying Assistant** first."
     
     - Structure the 'analysisSummary' as a JSON OBJECT with:
       1. 'headline': A punchy 2-4 word diagnostic title (e.g. "Barrier Compromised", "Structural Resilience").

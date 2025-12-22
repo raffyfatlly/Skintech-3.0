@@ -6,6 +6,13 @@ import { RefreshCw, Sparkles, Sun, Moon, Ban, CheckCircle2, AlertTriangle, Targe
 
 // --- SUB COMPONENTS ---
 
+const renderFormattedText = (text: string) => {
+    if (!text) return null;
+    return text.split(/(\*\*.*?\*\*)/).map((part, i) => 
+        part.startsWith('**') ? <strong key={i} className="font-bold text-zinc-800">{part.slice(2,-2)}</strong> : part
+    );
+};
+
 const renderVerdict = (data: any) => {
   if (!data) return null;
 
@@ -20,9 +27,9 @@ const renderVerdict = (data: any) => {
                   
                   {/* New: Holistic Summary Sentence */}
                   {data.generalCondition && (
-                      <p className="text-sm text-zinc-600 font-medium leading-relaxed mt-2 normal-case border-l-2 border-teal-100 pl-3">
-                          {data.generalCondition}
-                      </p>
+                      <div className="text-sm text-zinc-600 font-medium leading-relaxed mt-2 normal-case border-l-2 border-teal-100 pl-3">
+                          {renderFormattedText(data.generalCondition)}
+                      </div>
                   )}
               </div>
               
@@ -37,9 +44,9 @@ const renderVerdict = (data: any) => {
                           <h4 className="text-[10px] font-bold text-teal-700 uppercase tracking-widest mb-1">
                               {point.subtitle}
                           </h4>
-                          <p className="text-xs text-zinc-600 font-medium leading-relaxed">
-                              {point.content}
-                          </p>
+                          <div className="text-xs text-zinc-600 font-medium leading-relaxed">
+                              {renderFormattedText(point.content)}
+                          </div>
                       </div>
                   ))}
               </div>
