@@ -1,12 +1,13 @@
 
 import React, { useEffect, useState } from 'react';
 import { getAdminStats, getLiveFeed, getDailyTrends, ValidationMetrics, LiveEvent, DailyMetric } from '../services/analyticsService';
-import { auth } from '../services/firebase';
+import { auth, signInWithGoogle } from '../services/firebase'; // Import signIn
+import { onAuthStateChanged, User } from 'firebase/auth'; // Import auth listener
 import { 
   Users, Activity, DollarSign, Target, TrendingUp, AlertOctagon, 
   Zap, Eye, Crown, ArrowUpRight, ArrowDownRight, Fingerprint, 
   Search, Lock, RefreshCw, Smartphone, BarChart3, Database,
-  Calendar, Clock, AlertCircle, UserCheck, Filter, Info, Copy, Shield
+  Calendar, Clock, AlertCircle, UserCheck, Filter, Info, Copy, Shield, LogIn
 } from 'lucide-react';
 
 interface AdminDashboardProps {
@@ -107,7 +108,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
     const [feed, setFeed] = useState<LiveEvent[]>([]);
     const [trends, setTrends] = useState<DailyMetric[]>([]);
     const [loading, setLoading] = useState(true);
-    const [adminUid, setAdminUid] = useState<string>('');
+    const [adminUser, setAdminUser] = useState<User | null>(auth?.currentUser || null);
     
     // Time Range State
     const [timeRange, setTimeRange] = useState<'24h' | '7d' | '30d' | 'all'>('7d');
@@ -127,8 +128,20 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
         }
     };
 
+    // AUTH LISTENER: Updates UID automatically when user logs in
     useEffect(() => {
-        setAdminUid(auth?.currentUser?.uid || 'unknown');
+        if (!auth) return;
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+            setAdminUser(user);
+            if (user) {
+                // Trigger refresh once we have a user to try DB permissions again
+                refreshData(); 
+            }
+        });
+        return () => unsubscribe();
+    }, []);
+
+    useEffect(() => {
         setLoading(true);
         const load = async () => {
             await refreshData();
@@ -140,10 +153,46 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
         return () => clearInterval(interval);
     }, [timeRange]); // Reload when filter changes
 
-    const copyUid = () => {
-        navigator.clipboard.writeText(adminUid);
-        alert(`UID Copied:\n${adminUid}\n\nNow paste this into your Firestore Rules!`);
+    const handleLogin = async () => {
+        try {
+            await signInWithGoogle();
+        } catch (e) {
+            alert("Login failed. Check console.");
+            console.error(e);
+        }
     };
+
+    const copyUid = () => {
+        if (adminUser) {
+            navigator.clipboard.writeText(adminUser.uid);
+            alert(`UID Copied:\n${adminUser.uid}\n\nNow paste this into your Firestore Rules!`);
+        }
+    };
+
+    // --- LOGIN SCREEN (If not authenticated) ---
+    if (!adminUser) {
+        return (
+            <div className="min-h-screen bg-black flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-500">
+                <div className="w-20 h-20 bg-zinc-900 rounded-[2rem] border border-zinc-800 flex items-center justify-center mb-8 shadow-2xl relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-tr from-teal-500/20 to-transparent"></div>
+                    <Lock size={32} className="text-zinc-400 relative z-10" />
+                </div>
+                <h1 className="text-3xl font-black text-white tracking-tight mb-3">Admin Access Required</h1>
+                <p className="text-zinc-500 font-medium text-sm mb-10 max-w-xs leading-relaxed">
+                    You must be authenticated to view sensitive analytics and configure database permissions.
+                </p>
+                <button 
+                    onClick={handleLogin}
+                    className="bg-white text-zinc-900 px-8 py-4 rounded-full font-bold text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all flex items-center gap-3 shadow-[0_0_30px_rgba(255,255,255,0.15)]"
+                >
+                    <LogIn size={16} /> Authenticate
+                </button>
+                <button onClick={onExit} className="mt-8 text-zinc-600 text-xs font-bold uppercase hover:text-white transition-colors">
+                    Back to App
+                </button>
+            </div>
+        );
+    }
 
     const MetricCard = ({ title, value, sub, icon: Icon, trend, color = "teal", badge }: any) => (
         <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-3xl relative overflow-hidden group hover:border-zinc-700 transition-colors">
@@ -280,7 +329,7 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
                         <div className="flex flex-col gap-2 w-full md:w-auto relative z-10">
                             <div className="flex items-center gap-2 bg-black/40 p-2 rounded-xl border border-amber-500/20">
                                 <code className="text-[10px] font-mono text-amber-200 select-all px-2 break-all max-w-[200px] md:max-w-none">
-                                    {adminUid}
+                                    {adminUser.uid}
                                 </code>
                             </div>
                             <button 
