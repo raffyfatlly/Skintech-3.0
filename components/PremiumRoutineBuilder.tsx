@@ -1,8 +1,8 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { UserProfile, SkinMetrics } from '../types';
 import { generateTargetedRecommendations } from '../services/geminiService';
-import { Sparkles, ArrowLeft, DollarSign, Star, Crown, Lock, Search, Droplet, Sun, Zap, ShieldCheck, Loader, Sliders, AlertCircle, Target } from 'lucide-react';
+import { Sparkles, ArrowLeft, DollarSign, Star, Crown, Lock, Search, Droplet, Sun, Zap, ShieldCheck, Loader, Sliders, AlertCircle, Target, CheckCircle2 } from 'lucide-react';
 
 interface RecommendedProduct {
     name: string;
@@ -59,6 +59,31 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
     const [results, setResults] = useState<RecommendedProduct[]>([]);
     const [loading, setLoading] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
+    
+    // Loading Animation State
+    const [loadingText, setLoadingText] = useState("Initializing Architect...");
+
+    // Cycle through affirmations while loading
+    useEffect(() => {
+        let interval: ReturnType<typeof setInterval>;
+        if (loading) {
+            const messages = [
+                "Scanning locally available products...",
+                "Filtering matches for your skin type...",
+                "Checking ingredients for safety...",
+                "Optimizing for your budget...",
+                "Analyzing reviews and efficacy...",
+                "Selecting the top 3 best matches..."
+            ];
+            let i = 0;
+            setLoadingText(messages[0]);
+            interval = setInterval(() => {
+                i = (i + 1) % messages.length;
+                setLoadingText(messages[i]);
+            }, 2000); // Change text every 2 seconds
+        }
+        return () => clearInterval(interval);
+    }, [loading]);
 
     const isPaid = !!user.isPremium; 
 
@@ -207,14 +232,27 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                         className="w-full py-4 bg-zinc-900 text-white rounded-xl font-bold text-sm uppercase tracking-widest shadow-lg shadow-zinc-900/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
                     >
                         {loading ? <Loader size={18} className="animate-spin text-zinc-500" /> : <Search size={18} />}
-                        {loading ? 'Analyzing Options...' : 'Find Matches'}
+                        {loading ? 'Processing...' : 'Find Matches'}
                     </button>
                 </div>
             </div>
 
             {/* RESULTS AREA */}
             <div className="px-6 mt-8 space-y-4">
-                {hasSearched && results.length > 0 && (
+                {/* LOADING STATE - Now with affirmations */}
+                {loading && (
+                    <div className="py-12 flex flex-col items-center justify-center text-center animate-in fade-in slide-in-from-bottom-2">
+                        <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-6 relative shadow-md">
+                             <div className="absolute inset-0 border-4 border-zinc-100 rounded-full"></div>
+                             <div className="absolute inset-0 border-4 border-t-teal-500 border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin"></div>
+                             <Sparkles className="text-teal-600 animate-pulse" size={24} />
+                        </div>
+                        <h3 className="text-lg font-black text-zinc-900 mb-2">Building Routine</h3>
+                        <p className="text-sm text-zinc-500 font-medium animate-pulse max-w-[200px] leading-relaxed">{loadingText}</p>
+                    </div>
+                )}
+
+                {hasSearched && !loading && results.length > 0 && (
                     <div className="animate-in slide-in-from-bottom-4 duration-500">
                         <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                             <Sparkles size={14} className="text-teal-500" /> Top Recommendations
