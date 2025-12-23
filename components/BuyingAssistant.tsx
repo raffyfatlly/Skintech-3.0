@@ -14,13 +14,13 @@ interface BuyingAssistantProps {
   onUnlockPremium: () => void;
 }
 
-// Helper to render bold text from Markdown
-const renderFormattedText = (text: string) => {
+// Helper to render bold text from Markdown with customizable highlight class
+const renderFormattedText = (text: string, highlightClass: string = "font-black") => {
   if (!text) return null;
   const parts = text.split(/(\*\*.*?\*\*)/g);
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**')) {
-      return <strong key={i} className="font-black text-indigo-900">{part.slice(2, -2)}</strong>;
+      return <strong key={i} className={highlightClass}>{part.slice(2, -2)}</strong>;
     }
     return <span key={i}>{part}</span>;
   });
@@ -52,6 +52,47 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
           return { type: 'CONSIDER', label: 'Consider', color: 'amber', icon: HelpCircle };
       }
   }, [verdict.decision]);
+
+  const dynamicDescription = useMemo(() => {
+      const decision = simpleVerdict.type;
+      
+      // 1. GOOD MATCH
+      if (decision === 'GREAT') {
+          // Find high relevance benefits first
+          const relevantBenefits = product.benefits.filter(b => b.relevance === 'HIGH');
+          const primaryBenefit = relevantBenefits.length > 0 ? relevantBenefits[0] : product.benefits[0];
+
+          if (primaryBenefit) {
+              return `Excellent match. This formulation is optimized to **${primaryBenefit.description.toLowerCase()}**, directly targeting your skin needs.`;
+          }
+          return "This product aligns perfectly with your skin profile and contains no harsh irritants.";
+      }
+
+      // 2. CONSIDER
+      if (decision === 'CONSIDER') {
+          const benefit = product.benefits[0];
+          const risk = product.risks[0]; // Usually the reason for 'Consider'
+
+          if (benefit && risk) {
+              return `While it can help **${benefit.description.toLowerCase()}**, it contains **${risk.ingredient}** which may cause **${risk.reason.toLowerCase()}**. Use with caution.`;
+          }
+          if (risk) {
+              return `Proceed with caution. Contains **${risk.ingredient}** which can trigger **${risk.reason.toLowerCase()}**.`;
+          }
+          return verdict.description;
+      }
+
+      // 3. AVOID
+      if (decision === 'AVOID') {
+          const risk = product.risks.find(r => r.riskLevel === 'HIGH') || product.risks[0];
+          if (risk) {
+              return `Not recommended. Contains **${risk.ingredient}** which is likely to exacerbate **${risk.reason.toLowerCase()}**.`;
+          }
+          return "This product formulation conflicts with your current skin biometric profile.";
+      }
+
+      return verdict.description;
+  }, [simpleVerdict.type, product, verdict.description]);
 
   const getThemeClasses = () => {
       switch(simpleVerdict.type) {
@@ -134,7 +175,7 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
 
                 <div className={`p-4 rounded-2xl ${theme.bg} border ${theme.border} mb-4`}>
                     <p className={`text-xs font-medium leading-relaxed ${theme.text}`}>
-                        {verdict.description}
+                        {renderFormattedText(dynamicDescription)}
                     </p>
                 </div>
 
@@ -225,7 +266,7 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
                                 <Layers size={14} className="text-indigo-600" /> Smart Usage
                             </h3>
                             <p className="text-xs text-indigo-800 font-medium leading-relaxed relative z-10">
-                                {renderFormattedText(product.usageTips)}
+                                {renderFormattedText(product.usageTips, "font-black text-indigo-900")}
                             </p>
                         </div>
                     )}
