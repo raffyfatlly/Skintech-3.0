@@ -1,9 +1,9 @@
 
-import React, { useMemo, useState, useEffect } from 'react';
+import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Product, UserProfile } from '../types';
 import { getBuyingDecision } from '../services/geminiService';
 import { startCheckout } from '../services/stripeService';
-import { Check, X, AlertTriangle, ShieldCheck, Zap, AlertOctagon, TrendingUp, DollarSign, Clock, ArrowRight, Lock, Sparkles, Crown, Link, ExternalLink, CloudSun, Layers, MessageCircle, ArrowLeft, ThumbsUp, ThumbsDown, HelpCircle } from 'lucide-react';
+import { Check, X, AlertTriangle, ShieldCheck, Zap, AlertOctagon, TrendingUp, DollarSign, Clock, ArrowRight, Lock, Sparkles, Crown, Link, ExternalLink, CloudSun, Layers, MessageCircle, ArrowLeft, ThumbsUp, ThumbsDown, HelpCircle, ChevronDown } from 'lucide-react';
 
 interface BuyingAssistantProps {
   product: Product;
@@ -29,11 +29,22 @@ const renderFormattedText = (text: string, highlightClass: string = "font-black"
 const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf, onAddToShelf, onDiscard, onUnlockPremium }) => {
   // If user is premium, unlocked by default
   const [isUnlocked, setIsUnlocked] = useState(!!user.isPremium);
+  const [showDetails, setShowDetails] = useState(false);
+  const detailsRef = useRef<HTMLDivElement>(null);
   
   // Sync if user becomes premium while viewing
   useEffect(() => {
     setIsUnlocked(!!user.isPremium);
   }, [user.isPremium]);
+
+  // Auto-scroll when expanded
+  useEffect(() => {
+      if (showDetails && detailsRef.current) {
+          setTimeout(() => {
+              detailsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }, 100);
+      }
+  }, [showDetails]);
 
   const decisionData = useMemo(() => {
     return getBuyingDecision(product, shelf, user);
@@ -193,168 +204,181 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
                 </div>
             </div>
 
-            {/* DETAILED ANALYSIS - LOCKED FOR PREMIUM */}
-            <div className="relative">
-                 {/* LOCKED OVERLAY */}
-                 {!isUnlocked && (
-                     <div className="absolute inset-x-0 top-0 bottom-0 z-30 flex flex-col items-center justify-center bg-white/80 backdrop-blur-[2px] rounded-[2rem] border border-zinc-100 shadow-sm p-6 text-center">
-                         <div className="w-14 h-14 bg-zinc-100 rounded-full flex items-center justify-center mb-4">
-                             <Lock className="text-zinc-400" size={24} />
-                         </div>
-                         <h2 className="text-lg font-black text-zinc-900 mb-2">Deep Analysis Locked</h2>
-                         <p className="text-zinc-500 text-xs font-medium mb-6 max-w-[200px]">
-                            Unlock detailed ingredient risks, routine conflicts, and expert reviews.
-                         </p>
-                         <button 
-                            onClick={onUnlockPremium}
-                            className="bg-zinc-900 text-white px-6 py-3 rounded-full font-bold text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all flex items-center gap-2 shadow-lg"
-                        >
-                            <Sparkles size={14} className="text-amber-300" /> Unlock Now
-                        </button>
-                     </div>
-                 )}
+            {/* EXPAND ACTION */}
+            {!showDetails && (
+                <button 
+                    onClick={() => setShowDetails(true)}
+                    className="w-full bg-white rounded-[2rem] p-4 flex items-center justify-center gap-2 shadow-sm border border-zinc-100 text-zinc-400 font-bold text-xs uppercase tracking-widest hover:text-teal-600 hover:border-teal-100 transition-all active:scale-95 group animate-in slide-in-from-bottom-2"
+                >
+                    View Full Analysis 
+                    <ChevronDown size={16} className="group-hover:translate-y-0.5 transition-transform" />
+                </button>
+            )}
 
-                 <div className={`space-y-4 transition-all duration-700 ${!isUnlocked ? 'filter blur-md opacity-50 pointer-events-none select-none h-[400px] overflow-hidden' : ''}`}>
-                    
-                    {/* SOURCES */}
-                    {product.sources && product.sources.length > 0 && (
-                        <div className="px-2">
-                            <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
-                                <Link size={12} /> Verified Sources
-                            </h3>
-                            <div className="flex flex-wrap gap-2">
-                                {product.sources.slice(0, 3).map((src, i) => {
-                                    try {
-                                        const url = new URL(src);
-                                        const domain = url.hostname.replace('www.', '');
-                                        return (
-                                            <a 
-                                                key={i} 
-                                                href={src} 
-                                                target="_blank" 
-                                                rel="noreferrer"
-                                                className="bg-white px-3 py-1.5 rounded-full border border-zinc-200 text-[10px] font-bold text-zinc-500 flex items-center gap-1 hover:border-teal-300 hover:text-teal-700 transition-colors shadow-sm"
-                                            >
-                                                {domain} <ExternalLink size={8} />
-                                            </a>
-                                        );
-                                    } catch (e) { return null; }
-                                })}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* EXPERT REVIEW */}
-                    {product.expertReview && (
-                        <div className="bg-white p-6 rounded-[1.5rem] border border-zinc-100 shadow-sm">
-                             <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                <MessageCircle size={14} className="text-teal-500" /> Expert Take
-                             </h3>
-                             <p className="text-xs text-zinc-600 font-medium leading-relaxed">
-                                 {product.expertReview}
+            {/* DETAILED ANALYSIS - EXPANDABLE */}
+            {showDetails && (
+                <div ref={detailsRef} className="relative animate-in slide-in-from-bottom-4 duration-500 fade-in pt-2">
+                     {/* LOCKED OVERLAY */}
+                     {!isUnlocked && (
+                         <div className="absolute inset-x-0 top-0 bottom-0 z-30 flex flex-col items-center justify-center bg-white/80 backdrop-blur-[2px] rounded-[2rem] border border-zinc-100 shadow-sm p-6 text-center">
+                             <div className="w-14 h-14 bg-zinc-100 rounded-full flex items-center justify-center mb-4">
+                                 <Lock className="text-zinc-400" size={24} />
+                             </div>
+                             <h2 className="text-lg font-black text-zinc-900 mb-2">Deep Analysis Locked</h2>
+                             <p className="text-zinc-500 text-xs font-medium mb-6 max-w-[200px]">
+                                Unlock detailed ingredient risks, routine conflicts, and expert reviews.
                              </p>
-                        </div>
-                    )}
+                             <button 
+                                onClick={onUnlockPremium}
+                                className="bg-zinc-900 text-white px-6 py-3 rounded-full font-bold text-xs uppercase tracking-widest hover:scale-105 active:scale-95 transition-all flex items-center gap-2 shadow-lg"
+                            >
+                                <Sparkles size={14} className="text-amber-300" /> Unlock Now
+                            </button>
+                         </div>
+                     )}
 
-                    {/* USAGE TIPS */}
-                    {product.usageTips && (
-                        <div className="bg-gradient-to-br from-indigo-50 to-white p-6 rounded-[1.5rem] border border-indigo-100 shadow-sm relative overflow-hidden">
-                            <div className="absolute top-0 right-0 p-4 opacity-10">
-                                <CloudSun size={64} className="text-indigo-900" />
+                     <div className={`space-y-4 transition-all duration-700 ${!isUnlocked ? 'filter blur-md opacity-50 pointer-events-none select-none h-[400px] overflow-hidden' : ''}`}>
+                        
+                        {/* SOURCES */}
+                        {product.sources && product.sources.length > 0 && (
+                            <div className="px-2">
+                                <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
+                                    <Link size={12} /> Verified Sources
+                                </h3>
+                                <div className="flex flex-wrap gap-2">
+                                    {product.sources.slice(0, 3).map((src, i) => {
+                                        try {
+                                            const url = new URL(src);
+                                            const domain = url.hostname.replace('www.', '');
+                                            return (
+                                                <a 
+                                                    key={i} 
+                                                    href={src} 
+                                                    target="_blank" 
+                                                    rel="noreferrer"
+                                                    className="bg-white px-3 py-1.5 rounded-full border border-zinc-200 text-[10px] font-bold text-zinc-500 flex items-center gap-1 hover:border-teal-300 hover:text-teal-700 transition-colors shadow-sm"
+                                                >
+                                                    {domain} <ExternalLink size={8} />
+                                                </a>
+                                            );
+                                        } catch (e) { return null; }
+                                    })}
+                                </div>
                             </div>
-                            <h3 className="text-xs font-bold text-indigo-900 uppercase tracking-widest mb-3 flex items-center gap-2 relative z-10">
-                                <Layers size={14} className="text-indigo-600" /> Smart Usage
-                            </h3>
-                            <p className="text-xs text-indigo-800 font-medium leading-relaxed relative z-10">
-                                {renderFormattedText(product.usageTips, "font-black text-indigo-900")}
-                            </p>
-                        </div>
-                    )}
+                        )}
 
-                    {/* RISKS */}
-                    {(audit.warnings.length > 0 || !isUnlocked) ? (
-                        <div className="bg-white p-6 rounded-[1.5rem] border border-zinc-100 shadow-sm">
-                            <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                <AlertOctagon size={14} className="text-rose-500" /> Risk Analysis
-                            </h3>
-                            <div className="space-y-3">
-                                {(audit.warnings.length > 0 ? audit.warnings : [{ severity: 'CAUTION', reason: "Contains potential irritants." }]).map((w, i) => (
-                                    <div key={i} className={`flex gap-3 p-3 rounded-xl border ${w.severity === 'CRITICAL' ? 'bg-rose-50 border-rose-100' : 'bg-amber-50 border-amber-100'}`}>
-                                        <div className="mt-0.5">
-                                            {w.severity === 'CRITICAL' ? <AlertOctagon size={16} className="text-rose-500" /> : <AlertTriangle size={16} className="text-amber-500" />}
-                                        </div>
-                                        <div>
-                                            <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded mb-1 inline-block ${w.severity === 'CRITICAL' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
-                                                {w.severity}
-                                            </span>
-                                            <p className={`text-xs font-medium leading-snug ${w.severity === 'CRITICAL' ? 'text-rose-900' : 'text-amber-900'}`}>
-                                                {w.reason}
-                                            </p>
-                                        </div>
-                                    </div>
-                                ))}
+                        {/* EXPERT REVIEW */}
+                        {product.expertReview && (
+                            <div className="bg-white p-6 rounded-[1.5rem] border border-zinc-100 shadow-sm">
+                                 <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                    <MessageCircle size={14} className="text-teal-500" /> Expert Take
+                                 </h3>
+                                 <p className="text-xs text-zinc-600 font-medium leading-relaxed">
+                                     {product.expertReview}
+                                 </p>
                             </div>
-                        </div>
-                    ) : (
-                        <div className="bg-white p-6 rounded-[1.5rem] border border-emerald-100 bg-emerald-50/30 shadow-sm">
-                             <h3 className="text-xs font-bold text-emerald-700 uppercase tracking-widest mb-2 flex items-center gap-2">
-                                <ShieldCheck size={14} /> Safety Check
-                            </h3>
-                            <p className="text-xs text-emerald-800 font-medium">Safe match. No harsh ingredients detected for your skin type.</p>
-                        </div>
-                    )}
+                        )}
 
-                    {/* CONFLICTS */}
-                    {shelfConflicts.length > 0 && (
-                        <div className="bg-white p-6 rounded-[1.5rem] border border-zinc-100 shadow-sm">
-                            <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                <Clock size={14} className="text-indigo-500" /> Routine Conflicts
-                            </h3>
-                            <div className="space-y-2">
-                                {shelfConflicts.map((c, i) => (
-                                    <div key={i} className="flex gap-3 p-3 rounded-xl bg-indigo-50 border border-indigo-100">
-                                        <AlertTriangle size={16} className="text-indigo-500 mt-0.5" />
-                                        <p className="text-xs font-medium text-indigo-800 leading-snug">{c}</p>
-                                    </div>
-                                ))}
+                        {/* USAGE TIPS */}
+                        {product.usageTips && (
+                            <div className="bg-gradient-to-br from-indigo-50 to-white p-6 rounded-[1.5rem] border border-indigo-100 shadow-sm relative overflow-hidden">
+                                <div className="absolute top-0 right-0 p-4 opacity-10">
+                                    <CloudSun size={64} className="text-indigo-900" />
+                                </div>
+                                <h3 className="text-xs font-bold text-indigo-900 uppercase tracking-widest mb-3 flex items-center gap-2 relative z-10">
+                                    <Layers size={14} className="text-indigo-600" /> Smart Usage
+                                </h3>
+                                <p className="text-xs text-indigo-800 font-medium leading-relaxed relative z-10">
+                                    {renderFormattedText(product.usageTips, "font-black text-indigo-900")}
+                                </p>
                             </div>
-                        </div>
-                    )}
+                        )}
 
-                    {/* BENEFITS */}
-                    {product.benefits.length > 0 && (
-                        <div className="bg-white p-6 rounded-[1.5rem] border border-zinc-100 shadow-sm">
-                            <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                <ShieldCheck size={14} className="text-teal-500" /> Key Benefits
-                            </h3>
-                            <div className="space-y-3">
-                                {product.benefits.slice(0, 3).map((b, i) => {
-                                    const val = user.biometrics[b.target as keyof typeof user.biometrics];
-                                    const metricScore = typeof val === 'number' ? val : 0;
-                                    const isTargeted = metricScore < 60;
-                                    
-                                    return (
-                                        <div key={i} className="flex gap-3 items-start">
-                                            <div className={`mt-0.5 ${isTargeted ? 'text-teal-500' : 'text-zinc-300'}`}>
-                                                <Check size={16} strokeWidth={3} />
+                        {/* RISKS */}
+                        {(audit.warnings.length > 0 || !isUnlocked) ? (
+                            <div className="bg-white p-6 rounded-[1.5rem] border border-zinc-100 shadow-sm">
+                                <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                    <AlertOctagon size={14} className="text-rose-500" /> Risk Analysis
+                                </h3>
+                                <div className="space-y-3">
+                                    {(audit.warnings.length > 0 ? audit.warnings : [{ severity: 'CAUTION', reason: "Contains potential irritants." }]).map((w, i) => (
+                                        <div key={i} className={`flex gap-3 p-3 rounded-xl border ${w.severity === 'CRITICAL' ? 'bg-rose-50 border-rose-100' : 'bg-amber-50 border-amber-100'}`}>
+                                            <div className="mt-0.5">
+                                                {w.severity === 'CRITICAL' ? <AlertOctagon size={16} className="text-rose-500" /> : <AlertTriangle size={16} className="text-amber-500" />}
                                             </div>
                                             <div>
-                                                <div className="flex items-center gap-2 mb-0.5">
-                                                    <span className="text-sm font-bold text-zinc-900">{b.ingredient}</span>
-                                                    {isTargeted && (
-                                                        <span className="text-[9px] font-bold bg-teal-50 text-teal-700 px-1.5 py-0.5 rounded border border-teal-100 uppercase">Targeted</span>
-                                                    )}
-                                                </div>
-                                                <p className="text-xs text-zinc-500 font-medium leading-snug">{b.description}</p>
+                                                <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded mb-1 inline-block ${w.severity === 'CRITICAL' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
+                                                    {w.severity}
+                                                </span>
+                                                <p className={`text-xs font-medium leading-snug ${w.severity === 'CRITICAL' ? 'text-rose-900' : 'text-amber-900'}`}>
+                                                    {w.reason}
+                                                </p>
                                             </div>
                                         </div>
-                                    )
-                                })}
+                                    ))}
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        ) : (
+                            <div className="bg-white p-6 rounded-[1.5rem] border border-emerald-100 bg-emerald-50/30 shadow-sm">
+                                 <h3 className="text-xs font-bold text-emerald-700 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                    <ShieldCheck size={14} /> Safety Check
+                                </h3>
+                                <p className="text-xs text-emerald-800 font-medium">Safe match. No harsh ingredients detected for your skin type.</p>
+                            </div>
+                        )}
+
+                        {/* CONFLICTS */}
+                        {shelfConflicts.length > 0 && (
+                            <div className="bg-white p-6 rounded-[1.5rem] border border-zinc-100 shadow-sm">
+                                <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                    <Clock size={14} className="text-indigo-500" /> Routine Conflicts
+                                </h3>
+                                <div className="space-y-2">
+                                    {shelfConflicts.map((c, i) => (
+                                        <div key={i} className="flex gap-3 p-3 rounded-xl bg-indigo-50 border border-indigo-100">
+                                            <AlertTriangle size={16} className="text-indigo-500 mt-0.5" />
+                                            <p className="text-xs font-medium text-indigo-800 leading-snug">{c}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* BENEFITS */}
+                        {product.benefits.length > 0 && (
+                            <div className="bg-white p-6 rounded-[1.5rem] border border-zinc-100 shadow-sm">
+                                <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                    <ShieldCheck size={14} className="text-teal-500" /> Key Benefits
+                                </h3>
+                                <div className="space-y-3">
+                                    {product.benefits.slice(0, 3).map((b, i) => {
+                                        const val = user.biometrics[b.target as keyof typeof user.biometrics];
+                                        const metricScore = typeof val === 'number' ? val : 0;
+                                        const isTargeted = metricScore < 60;
+                                        
+                                        return (
+                                            <div key={i} className="flex gap-3 items-start">
+                                                <div className={`mt-0.5 ${isTargeted ? 'text-teal-500' : 'text-zinc-300'}`}>
+                                                    <Check size={16} strokeWidth={3} />
+                                                </div>
+                                                <div>
+                                                    <div className="flex items-center gap-2 mb-0.5">
+                                                        <span className="text-sm font-bold text-zinc-900">{b.ingredient}</span>
+                                                        {isTargeted && (
+                                                            <span className="text-[9px] font-bold bg-teal-50 text-teal-700 px-1.5 py-0.5 rounded border border-teal-100 uppercase">Targeted</span>
+                                                        )}
+                                                    </div>
+                                                    <p className="text-xs text-zinc-500 font-medium leading-snug">{b.description}</p>
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        )}
+                    </div>
                 </div>
-            </div>
+            )}
         </div>
 
         {/* FIXED BOTTOM BAR - Only visible when unlocked */}
