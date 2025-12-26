@@ -100,17 +100,33 @@ export const syncLocalToCloud = async () => {
         await saveUserData(localUser, localShelf);
         console.log("Synced local data to new cloud account");
     } else {
-        console.log("Cloud account exists, checking for merge...");
         const cloudData = docSnap.data();
         const cloudProfile = cloudData.profile as UserProfile;
         
-        // Intelligent Merge: Upgrade cloud if local is premium
-        if (localUser.isPremium && !cloudProfile.isPremium) {
-            console.log("Merging Premium status from Local to Cloud");
+        // Smart Merge Logic
+        const localTs = localUser.biometrics?.timestamp || 0;
+        const cloudTs = cloudProfile.biometrics?.timestamp || 0;
+
+        // 1. If Local Scan is Newer -> Push to Cloud
+        if (localTs > cloudTs) {
+            console.log("Local scan is newer. Syncing to Cloud.");
+            // Preserve Premium if Cloud had it (e.g. bought on another device)
+            const isPremium = localUser.isPremium || cloudProfile.isPremium;
+            const mergedProfile = { ...localUser, isPremium };
+            await saveUserData(mergedProfile, localShelf);
+        } 
+        // 2. If Local Premium is Newer -> Push to Cloud
+        else if (localUser.isPremium && !cloudProfile.isPremium) {
+            console.log("Local Premium detected. Syncing to Cloud.");
             const mergedProfile = { ...cloudProfile, isPremium: true };
-            await saveUserData(mergedProfile, cloudData.shelf || []); 
-        } else {
-            console.log("Switching to cloud data");
+            // Use cloud shelf to avoid overwriting unless scan was also new
+            await saveUserData(mergedProfile, cloudData.shelf || []);
+        } 
+        // 3. Otherwise -> Pull from Cloud
+        else {
+            console.log("Cloud data is up-to-date. Syncing to Local.");
+            localStorage.setItem(USER_KEY, JSON.stringify(cloudProfile));
+            localStorage.setItem(SHELF_KEY, JSON.stringify(cloudData.shelf || []));
         }
     }
 };
