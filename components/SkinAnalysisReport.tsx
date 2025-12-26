@@ -737,8 +737,9 @@ const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({ userProfile, sh
                          </div>
                          <span className="text-[10px] font-bold uppercase tracking-widest text-white/90">24/7 Support</span>
                      </div>
-                     <h3 className="text-2xl font-black text-white tracking-tight leading-tight mb-2 drop-shadow-sm">
+                     <h3 className="text-2xl font-black text-white tracking-tight leading-tight mb-2 drop-shadow-sm flex items-center gap-2">
                          Ask SkinOS
+                         {!isPremiumUnlocked && <span className="text-xs bg-white/20 px-2 py-1 rounded-lg font-bold uppercase tracking-wider backdrop-blur-sm">Free Trial</span>}
                      </h3>
                      <p className="text-sm text-white/90 font-bold max-w-[240px] leading-relaxed">
                          Your personal skin advisor. Ask about ingredients, routine conflicts, or specific concerns based on your analysis.
@@ -848,44 +849,38 @@ const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({ userProfile, sh
                 )}
         </div>
 
-        {/* 3. MEMBERSHIP PLAN (MOVED TO BOTTOM) */}
-        <div className="bg-gradient-to-br from-zinc-50 to-white rounded-[2.5rem] p-8 shadow-sm border border-zinc-100 relative overflow-hidden animate-in slide-in-from-bottom-8 duration-700 delay-500">
+        {/* 3. MEMBERSHIP PLAN (MOVED TO BOTTOM) - REDESIGNED */}
+        <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-zinc-100 relative overflow-hidden animate-in slide-in-from-bottom-8 duration-700 delay-500">
              
-             <div className="flex items-center justify-between mb-6">
+             <div className="flex items-center justify-between mb-8">
                  <div>
-                     <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1 flex items-center gap-2">
-                         <Crown size={12} className={isPremiumUnlocked ? "text-amber-400 fill-amber-400" : "text-zinc-400"} /> 
-                         Your Plan
+                     <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                         <Crown size={14} className={isPremiumUnlocked ? "text-amber-400 fill-amber-400" : "text-zinc-300"} /> 
+                         Current Plan
                      </h3>
-                     <h2 className="text-2xl font-black text-zinc-900 tracking-tight">
-                         {isPremiumUnlocked ? "Premium Member" : "Free Starter"}
+                     <h2 className="text-3xl font-black text-zinc-900 tracking-tighter">
+                         {isPremiumUnlocked ? "Premium" : "Free Starter"}
                      </h2>
                  </div>
                  {!isPremiumUnlocked && (
                      <button 
                         onClick={onUnlockPremium}
-                        className="bg-zinc-900 text-white px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-md"
+                        className="bg-zinc-900 text-white px-5 py-2.5 rounded-full text-[10px] font-bold uppercase tracking-widest hover:bg-zinc-800 transition-all shadow-lg shadow-zinc-900/10"
                      >
-                         Upgrade
+                         Unlock All
                      </button>
                  )}
              </div>
 
-             <div className="bg-white rounded-2xl p-5 border border-zinc-100 shadow-sm mb-4">
-                 {renderUsageBar(usage.manualScans, 3, "Smart Scan & Search")}
-                 {renderUsageBar(usage.buyingAssistantViews, 3, "Buying Assistant Analysis")}
-                 {renderUsageBar(usage.routineGenerations, 1, "Routine Architect Generation")}
-             </div>
-
-             <div className="flex items-center gap-3 p-3 rounded-xl bg-indigo-50/50 border border-indigo-100/50">
-                 <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-indigo-600 shadow-sm shrink-0">
-                     <MessageCircle size={16} />
-                 </div>
-                 <div className="flex-1">
-                     <span className="text-xs font-bold text-indigo-900 block">AI Dermatologist</span>
-                     <span className="text-[10px] text-indigo-700 font-medium">
-                         Unlimited Chat Access
-                     </span>
+             <div className="space-y-6">
+                 {/* Usage Bars */}
+                 <div>
+                    <h4 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-4 border-b border-zinc-50 pb-2">Usage Limits</h4>
+                    <div className="space-y-4">
+                        {renderUsageBar(usage.manualScans, 3, "Smart Scan & Search")}
+                        {renderUsageBar(usage.buyingAssistantViews, 3, "Buying Assistant")}
+                        {renderUsageBar(usage.routineGenerations, 1, "Routine Architect")}
+                    </div>
                  </div>
              </div>
         </div>

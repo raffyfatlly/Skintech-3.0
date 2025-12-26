@@ -143,7 +143,7 @@ export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, 
     const previousScan = history && history.length > 0 ? history[history.length - 1] : null;
 
     const prompt = `
-    You are Dr. AI, a hyper-intelligent dermatologist.
+    You are SkinOS, a hyper-intelligent digital dermatologist.
     
     INPUT DATA:
     - CV Metrics (Algorithmic Estimates): ${JSON.stringify(localMetrics)}
@@ -459,7 +459,7 @@ export const createDermatologistSession = (user: UserProfile, shelf: Product[]):
     return getAi().chats.create({
         model: MODEL_FACE_SCAN, 
         config: {
-             systemInstruction: `You are Dr. AI. Profile: ${JSON.stringify(user.biometrics)}. Keep answers concise.`
+             systemInstruction: `You are SkinOS, an expert skincare assistant. Profile: ${JSON.stringify(user.biometrics)}. Keep answers concise and helpful.`
         }
     });
 };
