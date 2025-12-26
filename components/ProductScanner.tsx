@@ -41,7 +41,12 @@ const ProductScanner: React.FC<ProductScannerProps> = ({ userProfile, shelf, onP
             "Consulting global database...",
             "Checking ingredient safety...",
             "Analyzing shelf conflicts...",
-            "Calculating climate match..."
+            "Calculating climate match...",
+            // Extended messages for longer wait times
+            "Verifying formulation details...",
+            "Generating expert consensus...",
+            "Taking a bit longer than usual...",
+            "Almost ready, thanks for waiting..."
         ];
         let i = 0;
         setLoadingText(messages[0]);
@@ -50,7 +55,7 @@ const ProductScanner: React.FC<ProductScannerProps> = ({ userProfile, shelf, onP
                 i++;
                 setLoadingText(messages[i]);
             }
-        }, 2000); 
+        }, 3000); // 3 seconds per message
     }
     return () => clearInterval(interval);
   }, [isProcessing]);

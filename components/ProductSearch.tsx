@@ -40,7 +40,12 @@ const ProductSearch: React.FC<ProductSearchProps> = ({ userProfile, shelf, onPro
                 "Extracting full ingredient list...",
                 "Checking conflicts with your shelf...",
                 "Analyzing humidity compatibility...",
-                "Calculating final match score..."
+                "Calculating final match score...",
+                // Extended messages for longer wait times
+                "Verifying formulation details...",
+                "Generating expert consensus...",
+                "Taking a bit longer than usual...",
+                "Almost ready, thanks for waiting..."
             ];
             let i = 0;
             setLoadingText(messages[0]);
@@ -49,7 +54,7 @@ const ProductSearch: React.FC<ProductSearchProps> = ({ userProfile, shelf, onPro
                     i++;
                     setLoadingText(messages[i]);
                 }
-            }, 3500);
+            }, 3000); // 3 seconds per message
         }
         return () => clearInterval(interval);
     }, [isAnalyzing]);

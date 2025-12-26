@@ -288,7 +288,7 @@ export const analyzeProductFromSearch = async (productName: string, userMetrics:
             usageTips: data.usageTips,
             expertReview: data.expertReview
         };
-    }, { ...getFallbackProduct(userMetrics, productName), suitabilityScore: consistencyScore || 75, brand: knownBrand || "Unknown Brand" }, 60000); 
+    }, { ...getFallbackProduct(userMetrics, productName), suitabilityScore: consistencyScore || 75, brand: knownBrand || "Unknown Brand" }, 90000); 
 };
 
 export const analyzeProductImage = async (base64: string, userMetrics: SkinMetrics, routineActives: string[] = []): Promise<Product> => {
@@ -373,7 +373,7 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
             usageTips: data.usageTips,
             expertReview: data.expertReview
         };
-    }, getFallbackProduct(userMetrics, "Scanned Product"), 60000); 
+    }, getFallbackProduct(userMetrics, "Scanned Product"), 90000); 
 };
 
 export const auditProduct = (product: Product, user: UserProfile) => {
