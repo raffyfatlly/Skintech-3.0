@@ -29,7 +29,14 @@ export const VALID_ACCESS_CODES = [
 
 // --- LOAD DATA ---
 export const loadUserData = async (): Promise<{ user: UserProfile | null, shelf: Product[] }> => {
-    // 1. Try Cloud First if Logged In
+    // 1. Get Local Data First
+    const localUserStr = localStorage.getItem(USER_KEY);
+    const localShelfStr = localStorage.getItem(SHELF_KEY);
+    
+    let localUser = localUserStr ? JSON.parse(localUserStr) as UserProfile : null;
+    let localShelf = localShelfStr ? JSON.parse(localShelfStr) : [];
+
+    // 2. Try Cloud if Logged In
     if (auth?.currentUser && db) {
         try {
             const docRef = doc(db, "users", auth.currentUser.uid);
@@ -37,23 +44,39 @@ export const loadUserData = async (): Promise<{ user: UserProfile | null, shelf:
             
             if (docSnap.exists()) {
                 const data = docSnap.data();
-                return {
-                    user: data.profile as UserProfile,
-                    shelf: data.shelf as Product[] || []
-                };
+                const cloudProfile = data.profile as UserProfile;
+                const cloudShelf = data.shelf as Product[] || [];
+
+                // --- SMART CONFLICT RESOLUTION ---
+                // We compare the timestamp of the biometric scan.
+                // Whichever source has the NEWER scan wins.
+                
+                const localTs = localUser?.biometrics?.timestamp || 0;
+                const cloudTs = cloudProfile?.biometrics?.timestamp || 0;
+
+                if (localTs > cloudTs) {
+                    console.log("Load: Local data is newer than Cloud. Using Local.");
+                    // Don't overwrite local with stale cloud data.
+                    // We return local, and let syncLocalToCloud() handle pushing it later.
+                    return { user: localUser, shelf: localShelf };
+                } else {
+                    console.log("Load: Cloud data is newer/equal. Updating Local.");
+                    // Cloud is fresher, so update local cache
+                    localStorage.setItem(USER_KEY, JSON.stringify(cloudProfile));
+                    localStorage.setItem(SHELF_KEY, JSON.stringify(cloudShelf));
+                    return { user: cloudProfile, shelf: cloudShelf };
+                }
             }
         } catch (e) {
             console.error("Cloud Load Error:", e);
+            // If cloud fails, fallback to local silently
         }
     }
 
-    // 2. Fallback to Local Storage
-    const localUser = localStorage.getItem(USER_KEY);
-    const localShelf = localStorage.getItem(SHELF_KEY);
-    
+    // 3. Fallback (Not logged in or Cloud failed)
     return {
-        user: localUser ? JSON.parse(localUser) : null,
-        shelf: localShelf ? JSON.parse(localShelf) : []
+        user: localUser,
+        shelf: localShelf
     };
 };
 
