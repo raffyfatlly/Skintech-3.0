@@ -54,6 +54,12 @@ export interface UserPreferences {
   buyingPriority: string;
 }
 
+export interface UsageStats {
+  buyingAssistantViews: number;
+  manualScans: number; // Shared for Product Scanner and Search
+  routineGenerations: number;
+}
+
 export interface UserProfile {
   name: string;
   age: number;
@@ -65,6 +71,7 @@ export interface UserProfile {
   isAnonymous?: boolean; // For lazy signup detection
   preferences?: UserPreferences;
   isPremium?: boolean; // NEW: Tracks payment status
+  usage?: UsageStats; // NEW: Track free tier usage
 }
 
 export interface IngredientRisk {

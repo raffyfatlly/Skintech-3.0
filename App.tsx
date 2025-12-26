@@ -1,16 +1,18 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   AppView, 
   UserProfile, 
   Product, 
   SkinMetrics, 
-  SkinType 
+  SkinType,
+  UsageStats
 } from './types';
 import { loadUserData, saveUserData, syncLocalToCloud, clearLocalData } from './services/storageService';
 import { auth } from './services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { startCheckout } from './services/stripeService';
-import { trackEvent } from './services/analyticsService'; // Import Analytics
+import { trackEvent } from './services/analyticsService';
 
 // Components
 import LandingPage from './components/LandingPage';
@@ -28,38 +30,27 @@ import SaveProfileModal, { AuthTrigger } from './components/SaveProfileModal';
 import SmartNotification, { NotificationType } from './components/SmartNotification';
 import BetaOfferModal from './components/BetaOfferModal';
 import GuideOverlay from './components/GuideOverlay';
-import AdminDashboard from './components/AdminDashboard'; // Import Admin
+import AdminDashboard from './components/AdminDashboard';
 
-// Icons
 import { ScanFace, LayoutGrid, User, Search, Home, Loader, ScanBarcode, Lock } from 'lucide-react';
 
+const LIMIT_SCANS = 3;
+
 const App: React.FC = () => {
-  // --- STATE ---
   const [currentView, setCurrentView] = useState<AppView>(AppView.LANDING);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [shelf, setShelf] = useState<Product[]>([]);
-  
   const [isGlobalLoading, setIsGlobalLoading] = useState(false);
   const viewRef = useRef<AppView>(AppView.LANDING);
-
   const [analyzedProduct, setAnalyzedProduct] = useState<Product | null>(null);
   const [prefillName, setPrefillName] = useState<string>('');
   const [showAIAssistant, setShowAIAssistant] = useState(false);
-  
-  // Auth & Premium Modals
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveModalTrigger, setSaveModalTrigger] = useState<AuthTrigger>('GENERIC');
   const [showPremiumModal, setShowPremiumModal] = useState(false);
-
-  // Admin Mode State
   const [isAdminMode, setIsAdminMode] = useState(false);
-
-  // New: Pending Scan State (Holding area for anonymous users)
   const [pendingScan, setPendingScan] = useState<{metrics: SkinMetrics, image: string} | null>(null);
-
-  // New: Scanner Guide Bubble State
   const [activeGuide, setActiveGuide] = useState<'SCAN' | null>(null);
-
   const [notification, setNotification] = useState<{ type: NotificationType, title: string, description: string, actionLabel: string, onAction: () => void } | null>(null);
   const [aiQuery, setAiQuery] = useState<string | null>(null);
 
@@ -86,6 +77,15 @@ const App: React.FC = () => {
       saveUserData(newUser, newShelf);
   };
 
+  const incrementUsage = (type: keyof UsageStats) => {
+      if (!userProfile) return;
+      
+      const currentUsage = userProfile.usage || { buyingAssistantViews: 0, manualScans: 0, routineGenerations: 0 };
+      const newUsage = { ...currentUsage, [type]: currentUsage[type] + 1 };
+      const updatedUser = { ...userProfile, usage: newUsage };
+      persistState(updatedUser, shelf);
+  };
+
   useEffect(() => {
     const init = async () => {
       const urlParams = new URLSearchParams(window.location.search);
@@ -97,29 +97,16 @@ const App: React.FC = () => {
           return;
       }
 
-      // Track Global Visit (Once per session load)
-      // This is crucial for your "Visits vs Subscribers" metric
       trackEvent('APP_VISIT', { referrer: document.referrer });
-
       const data = await loadUserData();
       let currentUser = data.user;
 
-      // Handle Anonymous Payment Success here
       if (isPaymentSuccess && currentUser) {
-          console.log("Payment detected (Local Init)");
           currentUser = { ...currentUser, isPremium: true };
-          // We don't clear URL here to allow auth state listener to also see it if needed
           saveUserData(currentUser, data.shelf);
           trackEvent('PAYMENT_SUCCESS_LOCAL');
-          
           if (!auth?.currentUser) {
-             setNotification({
-                type: 'GENERIC',
-                title: 'Premium Unlocked!',
-                description: 'You now have unlimited access.',
-                actionLabel: 'Great',
-                onAction: () => {}
-             });
+             setNotification({ type: 'GENERIC', title: 'Premium Unlocked!', description: 'You now have unlimited access.', actionLabel: 'Great', onAction: () => {} });
              window.history.replaceState({}, document.title, window.location.pathname);
           }
       }
@@ -127,11 +114,7 @@ const App: React.FC = () => {
       if (currentUser) {
         setUserProfile(currentUser);
         setShelf(data.shelf);
-        if (currentUser.hasScannedFace) {
-            setCurrentView(AppView.DASHBOARD);
-        } else {
-            setCurrentView(AppView.FACE_SCANNER);
-        }
+        setCurrentView(currentUser.hasScannedFace ? AppView.DASHBOARD : AppView.FACE_SCANNER);
       } else {
         setCurrentView(AppView.LANDING);
       }
@@ -142,58 +125,29 @@ const App: React.FC = () => {
         if (user) {
             const isLoginFlow = viewRef.current === AppView.LANDING || viewRef.current === AppView.ONBOARDING;
             if (isLoginFlow) setIsGlobalLoading(true);
-
             try {
-                // 1. Sync any local data (including anonymous payments) to cloud
                 await syncLocalToCloud();
-                
-                // 2. Load fresh data
                 const data = await loadUserData();
                 let currentUser = data.user;
-
-                // 3. CRITICAL: Handle Payment Success Check for Cloud Account
                 const urlParams = new URLSearchParams(window.location.search);
                 if (urlParams.get('payment') === 'success' && currentUser) {
-                     console.log("Payment detected (Auth Listener)");
                      currentUser = { ...currentUser, isPremium: true };
-                     
-                     // Force save to cloud immediately
                      await saveUserData(currentUser, data.shelf);
                      trackEvent('PAYMENT_SUCCESS_CLOUD');
-                     
-                     setNotification({
-                        type: 'GENERIC',
-                        title: 'Premium Unlocked!',
-                        description: 'Your account has been upgraded.',
-                        actionLabel: 'Awesome',
-                        onAction: () => {}
-                     });
-                     
-                     // Clear URL to prevent re-triggering
+                     setNotification({ type: 'GENERIC', title: 'Premium Unlocked!', description: 'Your account has been upgraded.', actionLabel: 'Awesome', onAction: () => {} });
                      window.history.replaceState({}, document.title, window.location.pathname);
                 }
-
                 if (currentUser) {
                     setUserProfile(currentUser);
                     setShelf(data.shelf);
-                    if (isLoginFlow) {
-                        setCurrentView(currentUser.hasScannedFace ? AppView.DASHBOARD : AppView.FACE_SCANNER);
-                    }
+                    if (isLoginFlow) setCurrentView(currentUser.hasScannedFace ? AppView.DASHBOARD : AppView.FACE_SCANNER);
                 } else if (isLoginFlow) {
                     if (user.displayName) setPrefillName(user.displayName);
                     setCurrentView(AppView.ONBOARDING);
                 }
-            } catch (e) {
-                console.error("Auth Sync Error", e);
-            } finally {
-                setTimeout(() => {
-                    setIsGlobalLoading(false);
-                    // Don't close modal here, let handleMockLogin handle it to preserve flow
-                }, 500);
-            }
+            } catch (e) { console.error(e); } finally { setTimeout(() => setIsGlobalLoading(false), 500); }
         }
     }) : () => {};
-
     return () => unsubscribe();
   }, []);
 
@@ -201,50 +155,37 @@ const App: React.FC = () => {
       trackEvent('ONBOARDING_COMPLETE');
       const isAuth = !!auth?.currentUser;
       const newUser: UserProfile = {
-          name: data.name,
-          age: data.age,
-          skinType: data.skinType,
-          hasScannedFace: false,
-          biometrics: {} as any, 
-          isAnonymous: !isAuth,
-          isPremium: false 
+          name: data.name, age: data.age, skinType: data.skinType, hasScannedFace: false, biometrics: {} as any, 
+          isAnonymous: !isAuth, isPremium: false,
+          usage: { buyingAssistantViews: 0, manualScans: 0, routineGenerations: 0 }
       };
       setUserProfile(newUser);
-      if (isAuth) saveUserData(newUser, shelf);
-      else persistState(newUser, shelf);
+      if (isAuth) saveUserData(newUser, shelf); else persistState(newUser, shelf);
       setCurrentView(AppView.FACE_SCANNER);
   };
 
   const handleFaceScanComplete = (metrics: SkinMetrics, image: string) => {
       trackEvent('FACE_SCAN_COMPLETE', { score: metrics.overallScore });
       if (!userProfile) return;
-
-      // BLOCKER: If Anonymous, DO NOT show dashboard. Force Signup.
       if (userProfile.isAnonymous) {
           setPendingScan({ metrics, image });
           openAuth('SAVE_RESULTS');
           return;
       }
-
-      // Normal Flow for Logged In Users
       const updatedUser: UserProfile = {
-          ...userProfile,
-          hasScannedFace: true,
-          biometrics: metrics,
-          faceImage: image,
-          scanHistory: [...(userProfile.scanHistory || []), metrics]
+          ...userProfile, hasScannedFace: true, biometrics: metrics, faceImage: image,
+          scanHistory: [...(userProfile.scanHistory || []), metrics],
+          usage: userProfile.usage || { buyingAssistantViews: 0, manualScans: 0, routineGenerations: 0 }
       };
-
       persistState(updatedUser, shelf);
       setCurrentView(AppView.DASHBOARD);
-      
-      // Trigger Guide Bubble after scan
-      setTimeout(() => {
-          setActiveGuide('SCAN');
-      }, 5000);
+      setTimeout(() => setActiveGuide('SCAN'), 5000);
   };
 
   const handleProductFound = (product: Product) => {
+      if (!userProfile?.isPremium) {
+          incrementUsage('manualScans');
+      }
       trackEvent('PRODUCT_FOUND', { name: product.name, match: product.suitabilityScore });
       setAnalyzedProduct(product);
       setCurrentView(AppView.BUYING_ASSISTANT);
@@ -296,13 +237,7 @@ const App: React.FC = () => {
       const updatedUser = { ...userProfile, isPremium: true };
       persistState(updatedUser, shelf);
       setShowPremiumModal(false);
-      setNotification({
-          type: 'GENERIC',
-          title: 'Premium Unlocked!',
-          description: 'Access code redeemed successfully.',
-          actionLabel: 'Awesome',
-          onAction: () => {}
-      });
+      setNotification({ type: 'GENERIC', title: 'Premium Unlocked!', description: 'Access code redeemed successfully.', actionLabel: 'Awesome', onAction: () => {} });
   };
 
   const renderNavBar = () => {
@@ -313,22 +248,22 @@ const App: React.FC = () => {
         `flex flex-col items-center gap-1 p-2 rounded-2xl transition-all duration-300 ${currentView === view ? 'text-teal-600 bg-teal-50 scale-105' : 'text-zinc-400 hover:text-zinc-600'}`;
 
       const handleNavClick = (view: AppView) => {
-          // Scanner requires login (Anonymous check)
           if (view === AppView.PRODUCT_SCANNER && userProfile?.isAnonymous) {
               openAuth('SCAN_PRODUCT');
               return;
           }
-
-          // Search requires Premium
-          if (view === AppView.PRODUCT_SEARCH && !userProfile?.isPremium) {
-              handleUnlockPremium();
-              return;
+          if (view === AppView.PRODUCT_SEARCH || view === AppView.PRODUCT_SCANNER) {
+              if (!userProfile?.isPremium) {
+                  const used = userProfile?.usage?.manualScans || 0;
+                  if (used >= LIMIT_SCANS) {
+                      handleUnlockPremium();
+                      return;
+                  }
+              }
           }
-
           setCurrentView(view);
       };
 
-      // Elevate z-index if guide is active to show button above backdrop
       const navZIndex = activeGuide ? 'z-[60]' : 'z-30';
 
       return (
@@ -336,34 +271,25 @@ const App: React.FC = () => {
               <button onClick={() => handleNavClick(AppView.DASHBOARD)} className={navItemClass(AppView.DASHBOARD)}>
                   <Home size={22} strokeWidth={currentView === AppView.DASHBOARD ? 2.5 : 2} />
               </button>
-              
               <button onClick={() => handleNavClick(AppView.SMART_SHELF)} className={navItemClass(AppView.SMART_SHELF)}>
                   <LayoutGrid size={22} strokeWidth={currentView === AppView.SMART_SHELF ? 2.5 : 2} />
               </button>
-
               <div className="relative -top-8">
                   <button 
-                    onClick={() => {
-                        setActiveGuide(null);
-                        handleNavClick(AppView.PRODUCT_SCANNER);
-                    }}
-                    className="w-16 h-16 bg-teal-600 rounded-full flex items-center justify-center text-white shadow-xl shadow-teal-600/30 hover:scale-110 transition-transform active:scale-95"
+                    onClick={() => { setActiveGuide(null); handleNavClick(AppView.PRODUCT_SCANNER); }}
+                    className="w-16 h-16 bg-teal-600 rounded-full flex items-center justify-center text-white shadow-xl shadow-teal-600/30 hover:scale-110 transition-transform active:scale-95 relative"
                   >
                       <ScanBarcode size={24} />
-                  </button>
-              </div>
-
-              <button onClick={() => handleNavClick(AppView.PRODUCT_SEARCH)} className={navItemClass(AppView.PRODUCT_SEARCH)}>
-                  <div className="relative">
-                      <Search size={22} strokeWidth={currentView === AppView.PRODUCT_SEARCH ? 2.5 : 2} />
                       {!userProfile?.isPremium && (
-                          <div className="absolute -top-1.5 -right-1.5 bg-amber-400 text-white rounded-full p-0.5 border-2 border-white shadow-sm">
-                              <Lock size={8} strokeWidth={3} />
+                          <div className="absolute -bottom-2 bg-amber-400 text-amber-900 text-[9px] font-bold px-2 py-0.5 rounded-full border border-white">
+                              {(userProfile?.usage?.manualScans || 0)}/{LIMIT_SCANS}
                           </div>
                       )}
-                  </div>
+                  </button>
+              </div>
+              <button onClick={() => handleNavClick(AppView.PRODUCT_SEARCH)} className={navItemClass(AppView.PRODUCT_SEARCH)}>
+                  <Search size={22} strokeWidth={currentView === AppView.PRODUCT_SEARCH ? 2.5 : 2} />
               </button>
-
               <button onClick={() => handleNavClick(AppView.PROFILE_SETUP)} className={navItemClass(AppView.PROFILE_SETUP)}>
                   <User size={22} strokeWidth={currentView === AppView.PROFILE_SETUP ? 2.5 : 2} />
               </button>
@@ -371,17 +297,7 @@ const App: React.FC = () => {
       );
   };
 
-  // --- ADMIN MODE GUARD ---
-  if (isAdminMode) {
-      return (
-          <AdminDashboard 
-            onExit={() => {
-                setIsAdminMode(false);
-                window.history.replaceState({}, document.title, window.location.pathname);
-            }} 
-          />
-      );
-  }
+  if (isAdminMode) return <AdminDashboard onExit={() => { setIsAdminMode(false); window.history.replaceState({}, document.title, window.location.pathname); }} />;
 
   const renderView = () => {
       if (!userProfile && ![AppView.LANDING, AppView.ONBOARDING].includes(currentView)) {
@@ -389,67 +305,26 @@ const App: React.FC = () => {
       }
 
       switch (currentView) {
-          case AppView.LANDING:
-              return <LandingPage onGetStarted={() => setCurrentView(AppView.ONBOARDING)} onLogin={() => openAuth('GENERIC')} />;
-          case AppView.ONBOARDING:
-              return <Onboarding onComplete={handleOnboardingComplete} onSignIn={() => openAuth('GENERIC')} initialName={prefillName} />;
-          case AppView.FACE_SCANNER:
-              return (
-                  <FaceScanner 
-                    onScanComplete={handleFaceScanComplete} 
-                    scanHistory={userProfile?.scanHistory}
-                    onCancel={userProfile?.hasScannedFace ? () => setCurrentView(AppView.DASHBOARD) : undefined} 
-                    referenceImage={userProfile?.faceImage}
-                    shelf={shelf}
-                  />
-              );
+          case AppView.LANDING: return <LandingPage onGetStarted={() => setCurrentView(AppView.ONBOARDING)} onLogin={() => openAuth('GENERIC')} />;
+          case AppView.ONBOARDING: return <Onboarding onComplete={handleOnboardingComplete} onSignIn={() => openAuth('GENERIC')} initialName={prefillName} />;
+          case AppView.FACE_SCANNER: return <FaceScanner onScanComplete={handleFaceScanComplete} scanHistory={userProfile?.scanHistory} onCancel={userProfile?.hasScannedFace ? () => setCurrentView(AppView.DASHBOARD) : undefined} referenceImage={userProfile?.faceImage} shelf={shelf} />;
           case AppView.DASHBOARD:
-              // Safety: If user has no scanned face (e.g. deleted all scans), force FaceScanner
-              if (userProfile && !userProfile.hasScannedFace) {
-                  return (
-                      <FaceScanner 
-                        onScanComplete={handleFaceScanComplete} 
-                        scanHistory={userProfile?.scanHistory}
-                        shelf={shelf}
-                        // No cancel button allowed if forced
-                      />
-                  );
-              }
-              return userProfile ? (
-                  <SkinAnalysisReport 
-                    userProfile={userProfile} 
-                    shelf={shelf} 
-                    onRescan={() => setCurrentView(AppView.FACE_SCANNER)}
-                    onConsultAI={(q) => { setAiQuery(q); setShowAIAssistant(true); }}
-                    onViewProgress={() => setCurrentView(AppView.PROFILE_SETUP)}
-                    onOpenRoutineBuilder={() => setCurrentView(AppView.ROUTINE_BUILDER)}
-                    onLoginRequired={(reason) => openAuth(reason as AuthTrigger)}
-                    onUnlockPremium={handleUnlockPremium}
-                  />
-              ) : null;
+              if (userProfile && !userProfile.hasScannedFace) return <FaceScanner onScanComplete={handleFaceScanComplete} scanHistory={userProfile?.scanHistory} shelf={shelf} />;
+              return userProfile ? <SkinAnalysisReport userProfile={userProfile} shelf={shelf} onRescan={() => setCurrentView(AppView.FACE_SCANNER)} onConsultAI={(q) => { setAiQuery(q); setShowAIAssistant(true); }} onViewProgress={() => setCurrentView(AppView.PROFILE_SETUP)} onOpenRoutineBuilder={() => setCurrentView(AppView.ROUTINE_BUILDER)} onLoginRequired={(reason) => openAuth(reason as AuthTrigger)} onUnlockPremium={handleUnlockPremium} /> : null;
           case AppView.SMART_SHELF:
-              return userProfile ? (
-                  <SmartShelf 
-                    products={shelf} 
-                    userProfile={userProfile}
-                    onRemoveProduct={handleRemoveProduct}
-                    onUpdateProduct={handleUpdateProduct}
-                    onScanNew={() => {
-                        setActiveGuide(null);
-                        setCurrentView(AppView.PRODUCT_SCANNER);
-                    }}
-                  />
-              ) : null;
+              return userProfile ? <SmartShelf products={shelf} userProfile={userProfile} onRemoveProduct={handleRemoveProduct} onUpdateProduct={handleUpdateProduct} onScanNew={() => { setActiveGuide(null); if (!userProfile.isPremium && (userProfile.usage?.manualScans || 0) >= LIMIT_SCANS) { handleUnlockPremium(); } else { setCurrentView(AppView.PRODUCT_SCANNER); } }} /> : null;
           case AppView.PRODUCT_SCANNER:
               return userProfile ? (
                   <ProductScanner 
                      userProfile={userProfile}
                      shelf={shelf}
                      onProductFound={handleProductFound}
-                     onCancel={() => {
-                         if (userProfile.hasScannedFace) setCurrentView(AppView.SMART_SHELF);
-                         else setCurrentView(AppView.DASHBOARD);
-                     }}
+                     onCancel={() => { if (userProfile.hasScannedFace) setCurrentView(AppView.SMART_SHELF); else setCurrentView(AppView.DASHBOARD); }}
+                     // ENFORCE QUOTA PROPS
+                     usageCount={userProfile.usage?.manualScans || 0}
+                     limit={LIMIT_SCANS}
+                     isPremium={!!userProfile.isPremium}
+                     onUnlockPremium={handleUnlockPremium}
                   />
               ) : null;
           case AppView.PRODUCT_SEARCH:
@@ -459,142 +334,54 @@ const App: React.FC = () => {
                      shelf={shelf}
                      onProductFound={handleProductFound}
                      onCancel={() => setCurrentView(AppView.SMART_SHELF)}
-                  />
-              ) : null;
-          case AppView.BUYING_ASSISTANT:
-              return userProfile && analyzedProduct ? (
-                  <BuyingAssistant 
-                     product={analyzedProduct}
-                     user={userProfile}
-                     shelf={shelf}
-                     onAddToShelf={handleAddToShelf}
-                     onDiscard={handleDiscardProduct}
+                     // ENFORCE QUOTA PROPS
+                     usageCount={userProfile.usage?.manualScans || 0}
+                     limit={LIMIT_SCANS}
+                     isPremium={!!userProfile.isPremium}
                      onUnlockPremium={handleUnlockPremium}
                   />
               ) : null;
+          case AppView.BUYING_ASSISTANT:
+              return userProfile && analyzedProduct ? <BuyingAssistant product={analyzedProduct} user={userProfile} shelf={shelf} onAddToShelf={handleAddToShelf} onDiscard={handleDiscardProduct} onUnlockPremium={handleUnlockPremium} usageCount={userProfile.usage?.buyingAssistantViews || 0} onIncrementUsage={() => incrementUsage('buyingAssistantViews')} /> : null;
           case AppView.PROFILE_SETUP:
-              return userProfile ? (
-                  <ProfileSetup 
-                     user={userProfile} 
-                     shelf={shelf}
-                     onComplete={handleProfileUpdate} 
-                     onBack={() => setCurrentView(AppView.DASHBOARD)}
-                     onReset={handleResetApp}
-                     onLoginRequired={(trigger) => openAuth(trigger as AuthTrigger)}
-                  />
-              ) : null;
+              return userProfile ? <ProfileSetup user={userProfile} shelf={shelf} onComplete={handleProfileUpdate} onBack={() => setCurrentView(AppView.DASHBOARD)} onReset={handleResetApp} onLoginRequired={(trigger) => openAuth(trigger as AuthTrigger)} /> : null;
           case AppView.ROUTINE_BUILDER:
-              return userProfile ? (
-                  <PremiumRoutineBuilder 
-                      user={userProfile}
-                      onBack={() => setCurrentView(AppView.DASHBOARD)}
-                      onUnlockPremium={handleUnlockPremium}
-                  />
-              ) : null;
-          default:
-              return <LandingPage onGetStarted={() => setCurrentView(AppView.ONBOARDING)} onLogin={() => openAuth('GENERIC')} />;
+              return userProfile ? <PremiumRoutineBuilder user={userProfile} onBack={() => setCurrentView(AppView.DASHBOARD)} onUnlockPremium={handleUnlockPremium} usageCount={userProfile.usage?.routineGenerations || 0} onIncrementUsage={() => incrementUsage('routineGenerations')} /> : null;
+          default: return <LandingPage onGetStarted={() => setCurrentView(AppView.ONBOARDING)} onLogin={() => openAuth('GENERIC')} />;
       }
   };
 
-  // --- MOCK LOGIN CALLBACK ---
-  // When user successfully auths in modal, update state immediately to prevent "Anonymous" flicker
   const handleMockLogin = () => {
       trackEvent('LOGIN_SUCCESS');
       if (userProfile) {
           let updatedUser = { ...userProfile, isAnonymous: false };
-          
-          // Apply Pending Scan if exists (Unlock Mechanism)
           if (pendingScan) {
-              updatedUser = {
-                  ...updatedUser,
-                  hasScannedFace: true,
-                  biometrics: pendingScan.metrics,
-                  faceImage: pendingScan.image,
-                  scanHistory: [...(updatedUser.scanHistory || []), pendingScan.metrics]
-              };
-              setPendingScan(null); // Clear holding buffer
-              setCurrentView(AppView.DASHBOARD); // NOW transition to dashboard
-              
-              // Trigger Guide Bubble after scan
-              setTimeout(() => {
-                  setActiveGuide('SCAN');
-              }, 5000);
+              updatedUser = { ...updatedUser, hasScannedFace: true, biometrics: pendingScan.metrics, faceImage: pendingScan.image, scanHistory: [...(updatedUser.scanHistory || []), pendingScan.metrics] };
+              setPendingScan(null); 
+              setCurrentView(AppView.DASHBOARD); 
+              setTimeout(() => setActiveGuide('SCAN'), 5000);
           }
-
           setUserProfile(updatedUser);
           persistState(updatedUser, shelf);
       }
       setShowSaveModal(false);
-      setNotification({
-          type: 'GENERIC',
-          title: 'Account Synced',
-          description: 'Your data is now saved to the cloud.',
-          actionLabel: 'OK',
-          onAction: () => {}
-      });
+      setNotification({ type: 'GENERIC', title: 'Account Synced', description: 'Your data is now saved to the cloud.', actionLabel: 'OK', onAction: () => {} });
   };
 
   return (
     <div className="bg-zinc-50 min-h-screen font-sans">
-      {/* GLOBAL LOADING OVERLAY */}
       {isGlobalLoading && (
           <div className="fixed inset-0 z-[60] bg-white flex items-center justify-center">
-              <div className="flex flex-col items-center">
-                  <Loader size={32} className="text-teal-500 animate-spin mb-4" />
-                  <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest animate-pulse">Syncing Profile...</p>
-              </div>
+              <div className="flex flex-col items-center"><Loader size={32} className="text-teal-500 animate-spin mb-4" /><p className="text-xs font-bold text-zinc-400 uppercase tracking-widest animate-pulse">Syncing Profile...</p></div>
           </div>
       )}
-
       {renderView()}
-      
       {renderNavBar()}
-
-      {/* MODALS */}
-      {userProfile && (
-          <AIAssistant 
-             user={userProfile}
-             shelf={shelf}
-             isOpen={showAIAssistant}
-             onOpen={() => setShowAIAssistant(true)}
-             onClose={() => setShowAIAssistant(false)}
-             triggerQuery={aiQuery}
-          />
-      )}
-
-      {showSaveModal && (
-          <SaveProfileModal 
-              onSave={() => {}} 
-              onClose={() => setShowSaveModal(false)}
-              onMockLogin={handleMockLogin}
-              mode={saveModalTrigger === 'GENERIC' ? 'LOGIN' : 'SAVE'}
-              trigger={saveModalTrigger}
-          />
-      )}
-
-      {showPremiumModal && (
-          <BetaOfferModal 
-              onClose={() => setShowPremiumModal(false)}
-              onConfirm={() => startCheckout()}
-              onCodeSuccess={handleCodeUnlock}
-          />
-      )}
-
-      {notification && (
-          <SmartNotification 
-              {...notification}
-              onClose={() => setNotification(null)}
-          />
-      )}
-
-      {/* Guide Overlay - Only show for Scan Step if active */}
-      {activeGuide && (
-          <GuideOverlay 
-              step={activeGuide} 
-              onDismiss={() => setActiveGuide(null)}
-              onNext={() => setActiveGuide(null)}
-          />
-      )}
+      {userProfile && <AIAssistant user={userProfile} shelf={shelf} isOpen={showAIAssistant} onOpen={() => setShowAIAssistant(true)} onClose={() => setShowAIAssistant(false)} triggerQuery={aiQuery} onUnlockPremium={handleUnlockPremium} />}
+      {showSaveModal && <SaveProfileModal onSave={() => {}} onClose={() => setShowSaveModal(false)} onMockLogin={handleMockLogin} mode={saveModalTrigger === 'GENERIC' ? 'LOGIN' : 'SAVE'} trigger={saveModalTrigger} />}
+      {showPremiumModal && <BetaOfferModal onClose={() => setShowPremiumModal(false)} onConfirm={() => startCheckout()} onCodeSuccess={handleCodeUnlock} />}
+      {notification && <SmartNotification {...notification} onClose={() => setNotification(null)} />}
+      {activeGuide && <GuideOverlay step={activeGuide} onDismiss={() => setActiveGuide(null)} onNext={() => setActiveGuide(null)} />}
     </div>
   );
 };

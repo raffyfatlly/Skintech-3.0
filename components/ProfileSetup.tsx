@@ -1,22 +1,81 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { UserProfile, UserPreferences, SkinMetrics, Product } from '../types';
 import { ArrowLeft, ArrowRight, Check, Sparkles, Target, Zap, Activity, TrendingUp, LineChart, X, Trash2, Settings2, ChevronDown, ChevronRight, Minus, Trophy, LogOut, AlertCircle, Clock, Calendar, Edit2, Loader, CheckCircle2, MessageCircle } from 'lucide-react';
 import { signOut, auth } from '../services/firebase';
 
-// Helper to parse markdown-style bolding from AI response
-const renderFormattedText = (text: string) => {
-  if (!text) return null;
-  // Clean up bullets/asterisks
-  const cleanText = text.replace(/^\s*\*\s*/gm, '• ').replace(/\*\*/g, ''); 
-  // We can also handle bolding properly:
+// Helper to parse markdown-style bolding from string
+const renderFormattedText = (input: string) => {
+  if (!input) return null;
+  const text = String(input); // Safety cast
   const parts = text.split(/(\*\*.*?\*\*)/g);
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**')) {
       return <strong key={i} className="font-bold text-teal-800">{part.slice(2, -2)}</strong>;
     }
-    // Remove standalone asterisks that might be left over
     return <span key={i}>{part.replace(/^\s*\*\s*/gm, '• ')}</span>;
   });
+};
+
+// NEW: Rich Renderer for History Details (Restores missing details)
+const renderRichAnalysis = (data: any) => {
+    if (!data) return null;
+
+    // 1. Handle Structured Object (New Format)
+    if (typeof data === 'object' && data !== null) {
+        return (
+            <div className="space-y-5">
+                {/* Headline */}
+                {data.headline && (
+                    <div>
+                        <p className="text-zinc-900 font-black text-lg uppercase tracking-tight leading-snug">
+                            {data.headline}
+                        </p>
+                    </div>
+                )}
+                
+                {/* General Condition / Summary */}
+                {data.generalCondition && (
+                    <div className="text-sm text-zinc-600 font-medium leading-relaxed border-l-2 border-teal-100 pl-3">
+                        {renderFormattedText(data.generalCondition)}
+                    </div>
+                )}
+                
+                {/* Detailed Points */}
+                {Array.isArray(data.points) && (
+                    <div className="space-y-3">
+                        {data.points.map((point: any, i: number) => (
+                            <div key={i} className="bg-zinc-50/80 rounded-xl p-4 border border-zinc-100">
+                                <h4 className="text-[10px] font-bold text-teal-700 uppercase tracking-widest mb-1.5 flex items-center gap-2">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-teal-400"></div>
+                                    {point.subtitle}
+                                </h4>
+                                <div className="text-xs text-zinc-600 font-medium leading-relaxed">
+                                    {renderFormattedText(point.content)}
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* Fallback if object exists but empty specific fields */}
+                {!data.headline && !data.points && (
+                    <div className="text-sm text-zinc-500 italic">No detailed analysis available for this scan.</div>
+                )}
+            </div>
+        );
+    }
+
+    // 2. Handle Legacy String Format
+    if (typeof data === 'string') {
+        return (
+            <div className="text-sm font-medium text-zinc-700 leading-relaxed">
+                {renderFormattedText(data)}
+            </div>
+        );
+    }
+
+    return null;
 };
 
 interface ProfileSetupProps {
@@ -102,7 +161,6 @@ const MonthGroup: React.FC<{
     );
 };
 
-// ... (GoalEditModal, HistoryChart, ScanDetailModal remain the same - abbreviated for brevity)
 // --- SUB-COMPONENT: GOAL EDIT MODAL ---
 const GoalEditModal: React.FC<{ 
     currentPreferences: UserPreferences; 
@@ -390,7 +448,7 @@ const ScanDetailModal: React.FC<{ scan: SkinMetrics; onClose: () => void }> = ({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-teal-900/40 backdrop-blur-md animate-in fade-in duration-300">
-            <div className="w-full max-w-sm bg-white rounded-[2.5rem] p-8 relative animate-in zoom-in-95 shadow-2xl overflow-hidden">
+            <div className="w-full max-w-sm bg-white rounded-[2.5rem] p-8 relative animate-in zoom-in-95 shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto no-scrollbar">
                 <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-teal-50 to-white pointer-events-none" />
                 
                 <button onClick={onClose} className="absolute top-6 right-6 p-2 bg-white rounded-full text-zinc-400 hover:text-zinc-900 transition-colors z-20 shadow-sm border border-zinc-100">
@@ -404,13 +462,13 @@ const ScanDetailModal: React.FC<{ scan: SkinMetrics; onClose: () => void }> = ({
                 </div>
 
                 <div className="space-y-4 relative z-10">
-                    <div className="p-5 bg-zinc-50 rounded-2xl border border-zinc-100">
-                        <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                    <div className="p-5 bg-white rounded-2xl border border-zinc-100 shadow-sm">
+                        <h4 className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                             <Activity size={14} className="text-teal-500" /> Primary Analysis
                         </h4>
-                        <div className="text-sm font-medium text-zinc-700 leading-relaxed">
-                            {renderFormattedText(scan.analysisSummary || `During this scan, your primary concern was ${primaryIssue.label.toLowerCase()} (Score: ${primaryIssue.val}).`)}
-                        </div>
+                        
+                        {/* RESTORED: Uses rich renderer to show full details (points/headline) if available */}
+                        {renderRichAnalysis(scan.analysisSummary || `During this scan, your primary concern was ${primaryIssue.label.toLowerCase()} (Score: ${primaryIssue.val}).`)}
                     </div>
 
                     <div className="grid grid-cols-2 gap-3">
@@ -465,14 +523,17 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [scanToDelete, setScanToDelete] = useState<SkinMetrics | null>(null);
   
-  const history = useMemo(() => user.scanHistory || [user.biometrics], [user.scanHistory, user.biometrics]);
+  const history = useMemo(() => {
+      const raw = user.scanHistory || (user.biometrics ? [user.biometrics] : []);
+      // Filter out invalid entries to prevent crashes
+      return raw.filter(x => x && typeof x.overallScore === 'number' && x.timestamp);
+  }, [user.scanHistory, user.biometrics]);
 
   const showToast = (message: string, type: 'success'|'error' = 'success') => {
       setActionToast({ message, type });
       setTimeout(() => setActionToast(null), 3000);
   };
 
-  // ... (getGoalProgress and other helpers remain the same)
   const getGoalProgress = (goal: string, currentMetrics: SkinMetrics, initialMetrics: SkinMetrics) => {
       let metricKeys: (keyof SkinMetrics)[] = [];
       let label = "";
@@ -611,7 +672,7 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
   const latest = sortedHistory[0];
   const previous = sortedHistory.length > 1 ? sortedHistory[1] : null;
   const initial = sortedHistory[sortedHistory.length - 1]; 
-  const totalProgress = latest.overallScore - initial.overallScore;
+  const totalProgress = (latest && initial) ? latest.overallScore - initial.overallScore : 0;
 
   const groupedHistory: Record<string, SkinMetrics[]> = {};
   sortedHistory.forEach(scan => {
@@ -622,7 +683,7 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
   });
 
   const progressIntel = useMemo(() => {
-    if (!previous) return null;
+    if (!previous || !latest) return null;
     
     const timeDiffMs = latest.timestamp - previous.timestamp;
     const hoursDiff = timeDiffMs / (1000 * 60 * 60);

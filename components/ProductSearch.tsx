@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Search, X, Loader, AlertCircle, ArrowRight } from 'lucide-react';
+import { Search, X, Loader, AlertCircle, ArrowRight, Lock, Crown } from 'lucide-react';
 import { Product, UserProfile } from '../types';
 import { analyzeProductFromSearch, searchProducts } from '../services/geminiService';
 
@@ -12,12 +12,16 @@ interface SearchResult {
 
 interface ProductSearchProps {
     userProfile: UserProfile;
-    shelf: Product[]; // New Prop
+    shelf: Product[];
     onProductFound: (product: Product) => void;
     onCancel: () => void;
+    usageCount: number;
+    limit: number;
+    isPremium: boolean;
+    onUnlockPremium: () => void;
 }
 
-const ProductSearch: React.FC<ProductSearchProps> = ({ userProfile, shelf, onProductFound, onCancel }) => {
+const ProductSearch: React.FC<ProductSearchProps> = ({ userProfile, shelf, onProductFound, onCancel, usageCount, limit, isPremium, onUnlockPremium }) => {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<SearchResult[]>([]);
     const [isSearching, setIsSearching] = useState(false);
@@ -25,6 +29,8 @@ const ProductSearch: React.FC<ProductSearchProps> = ({ userProfile, shelf, onPro
     const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [loadingText, setLoadingText] = useState("Analyzing Product...");
+
+    const isLimitReached = !isPremium && usageCount >= limit;
 
     useEffect(() => {
         let interval: ReturnType<typeof setInterval>;
@@ -38,7 +44,6 @@ const ProductSearch: React.FC<ProductSearchProps> = ({ userProfile, shelf, onPro
             ];
             let i = 0;
             setLoadingText(messages[0]);
-            // Increased interval to 3500ms and removed looping to prevent "restart" confusion
             interval = setInterval(() => {
                 if (i < messages.length - 1) {
                     i++;
@@ -51,24 +56,24 @@ const ProductSearch: React.FC<ProductSearchProps> = ({ userProfile, shelf, onPro
 
     const handleSearch = async () => {
         if (!query.trim()) return;
+        if (isLimitReached) {
+            onUnlockPremium();
+            return;
+        }
         setIsSearching(true);
         setHasSearched(true);
         setError(null);
         
         try {
             const products = await searchProducts(query);
-            
-            // Map to SearchResult interface
             const mappedResults: SearchResult[] = products.map(p => ({
                 name: p.name,
                 brand: p.brand,
-                score: 0 // Default score, triggers full analysis
+                score: 0
             }));
-
             setResults(mappedResults);
         } catch (e) {
             console.error(e);
-            // Fallback if search fails
             setResults([]);
             setError("Unable to connect to product database.");
         } finally {
@@ -77,14 +82,14 @@ const ProductSearch: React.FC<ProductSearchProps> = ({ userProfile, shelf, onPro
     };
 
     const handleSelectProduct = async (item: SearchResult) => {
+        if (isLimitReached) {
+            onUnlockPremium();
+            return;
+        }
         setIsAnalyzing(true);
         setError(null);
-        
         try {
-          // Flatten existing shelf ingredients to pass for conflict check
-          const shelfIngredients = shelf.flatMap(p => p.ingredients).slice(0, 50); // limit to avoiding huge prompt
-          
-          // Pass score, brand, and shelf actives
+          const shelfIngredients = shelf.flatMap(p => p.ingredients).slice(0, 50);
           const product = await analyzeProductFromSearch(
               item.name, 
               userProfile.biometrics, 
@@ -99,6 +104,34 @@ const ProductSearch: React.FC<ProductSearchProps> = ({ userProfile, shelf, onPro
           setIsAnalyzing(false);
         }
       };
+
+    if (isLimitReached) {
+        return (
+            <div className="fixed inset-0 bg-white z-50 flex flex-col items-center justify-center p-6 text-center animate-in fade-in">
+                <div className="w-16 h-16 bg-zinc-100 rounded-full flex items-center justify-center mb-6">
+                    <Lock size={24} className="text-zinc-400" />
+                </div>
+                <h2 className="text-xl font-black text-zinc-900 mb-2">Search Limit Reached</h2>
+                <p className="text-sm text-zinc-500 mb-8 max-w-xs">
+                    You've reached the free limit of 3 scans/searches. Upgrade to continue exploring products.
+                </p>
+                <div className="flex flex-col gap-3 w-full max-w-xs">
+                    <button 
+                        onClick={onUnlockPremium}
+                        className="w-full py-3.5 bg-zinc-900 text-white rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2"
+                    >
+                        <Crown size={14} className="text-amber-300" /> Unlock Unlimited
+                    </button>
+                    <button 
+                        onClick={onCancel}
+                        className="w-full py-3.5 text-zinc-500 font-bold text-xs uppercase tracking-widest hover:text-zinc-800"
+                    >
+                        Close
+                    </button>
+                </div>
+            </div>
+        )
+    }
 
     return (
         <div className="fixed inset-0 bg-white z-50 flex flex-col">
@@ -119,8 +152,6 @@ const ProductSearch: React.FC<ProductSearchProps> = ({ userProfile, shelf, onPro
                         autoFocus
                     />
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={18} />
-                    
-                    {/* Explicit Search Button inside Input */}
                     {query && (
                         <button 
                             onClick={handleSearch}
@@ -155,23 +186,17 @@ const ProductSearch: React.FC<ProductSearchProps> = ({ userProfile, shelf, onPro
                                 <div className="text-xs text-zinc-500 font-medium uppercase tracking-wider">{res.brand}</div>
                             </button>
                         ))}
-                        
-                        {/* Case: Has Typed but not searched */}
                         {results.length === 0 && query && !hasSearched && (
                              <div className="text-center text-zinc-300 mt-20 animate-in fade-in duration-500">
                                 <Search size={48} className="mx-auto mb-4 opacity-20" />
                                 <p className="text-sm font-medium">Tap the arrow to search</p>
                              </div>
                         )}
-                        
-                        {/* Case: Searched but no results */}
                         {results.length === 0 && query && hasSearched && !isSearching && (
                              <div className="text-center text-zinc-400 mt-10">
                                 <p className="text-sm font-medium">No matching products found.</p>
                              </div>
                         )}
-
-                        {/* Case: Empty */}
                         {results.length === 0 && !query && (
                             <div className="text-center text-zinc-400 mt-20">
                                 <Search size={48} className="mx-auto mb-4 opacity-20" />

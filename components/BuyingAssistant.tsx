@@ -3,7 +3,7 @@ import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Product, UserProfile } from '../types';
 import { getBuyingDecision } from '../services/geminiService';
 import { startCheckout } from '../services/stripeService';
-import { Check, X, AlertTriangle, ShieldCheck, Zap, AlertOctagon, TrendingUp, DollarSign, Clock, ArrowRight, Lock, Sparkles, Crown, Link, ExternalLink, CloudSun, Layers, MessageCircle, ArrowLeft, ThumbsUp, ThumbsDown, HelpCircle, ChevronDown } from 'lucide-react';
+import { Check, X, AlertTriangle, ShieldCheck, Zap, AlertOctagon, TrendingUp, DollarSign, Clock, ArrowRight, Lock, Sparkles, Crown, Link, ExternalLink, CloudSun, Layers, MessageCircle, ArrowLeft, ThumbsUp, ThumbsDown, HelpCircle, ChevronDown, Eye } from 'lucide-react';
 
 interface BuyingAssistantProps {
   product: Product;
@@ -12,7 +12,11 @@ interface BuyingAssistantProps {
   onAddToShelf: () => void;
   onDiscard: () => void;
   onUnlockPremium: () => void;
+  usageCount: number;
+  onIncrementUsage: () => void;
 }
+
+const LIMIT_VIEWS = 3;
 
 // Helper to render bold text from Markdown with customizable highlight class
 const renderFormattedText = (text: string, highlightClass: string = "font-black") => {
@@ -26,7 +30,7 @@ const renderFormattedText = (text: string, highlightClass: string = "font-black"
   });
 };
 
-const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf, onAddToShelf, onDiscard, onUnlockPremium }) => {
+const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf, onAddToShelf, onDiscard, onUnlockPremium, usageCount, onIncrementUsage }) => {
   // If user is premium, unlocked by default
   const [isUnlocked, setIsUnlocked] = useState(!!user.isPremium);
   const [showDetails, setShowDetails] = useState(false);
@@ -45,6 +49,21 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
           }, 100);
       }
   }, [showDetails]);
+
+  const handleExpand = () => {
+      if (user.isPremium) {
+          setShowDetails(true);
+      } else {
+          if (usageCount < LIMIT_VIEWS) {
+              onIncrementUsage();
+              setShowDetails(true);
+          } else {
+              // Show premium wall over details
+              setShowDetails(true);
+              // But ensure locked state handles the CTA
+          }
+      }
+  };
 
   const decisionData = useMemo(() => {
     return getBuyingDecision(product, shelf, user);
@@ -132,11 +151,16 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
   };
 
   const theme = getThemeClasses();
-
+  
+  // Calculate lock status based on usage if not premium
+  const isUsageLimitReached = !user.isPremium && usageCount >= LIMIT_VIEWS;
+  // If user is premium OR hasn't expanded OR (has expanded AND is under limit), it's considered "viewable" logic-wise, 
+  // but actual content blur happens if isUsageLimitReached is true when showDetails is true.
+  
   return (
     <div className="min-h-screen pb-32 animate-in slide-in-from-bottom-8 duration-500 bg-zinc-50 font-sans">
         
-        {/* HERO HEADER (Matches Routine Builder) */}
+        {/* HERO HEADER */}
         <div 
             className="pt-12 pb-12 px-6 rounded-b-[2.5rem] relative overflow-hidden shadow-xl"
             style={{ backgroundColor: 'rgb(163, 206, 207)' }}
@@ -207,26 +231,34 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
             {/* EXPAND ACTION */}
             {!showDetails && (
                 <button 
-                    onClick={() => setShowDetails(true)}
-                    className="w-full bg-white rounded-[2rem] p-4 flex items-center justify-center gap-2 shadow-sm border border-zinc-100 text-zinc-400 font-bold text-xs uppercase tracking-widest hover:text-teal-600 hover:border-teal-100 transition-all active:scale-95 group animate-in slide-in-from-bottom-2"
+                    onClick={handleExpand}
+                    className="w-full bg-white rounded-[2rem] p-4 flex flex-col items-center justify-center gap-1 shadow-sm border border-zinc-100 text-zinc-400 font-bold text-xs uppercase tracking-widest hover:text-teal-600 hover:border-teal-100 transition-all active:scale-95 group animate-in slide-in-from-bottom-2"
                 >
-                    View Full Analysis 
-                    <ChevronDown size={16} className="group-hover:translate-y-0.5 transition-transform" />
+                    <div className="flex items-center gap-2">
+                        View Full Analysis 
+                        <ChevronDown size={16} className="group-hover:translate-y-0.5 transition-transform" />
+                    </div>
+                    {!user.isPremium && (
+                        <span className="text-[9px] text-zinc-300 font-medium bg-zinc-50 px-2 py-0.5 rounded-full">
+                            {usageCount < LIMIT_VIEWS ? `${LIMIT_VIEWS - usageCount} Free Views Left` : "Premium Required"}
+                        </span>
+                    )}
                 </button>
             )}
 
             {/* DETAILED ANALYSIS - EXPANDABLE */}
             {showDetails && (
                 <div ref={detailsRef} className="relative animate-in slide-in-from-bottom-4 duration-500 fade-in pt-2">
-                     {/* LOCKED OVERLAY */}
-                     {!isUnlocked && (
+                     
+                     {/* LOCKED OVERLAY (If Not Premium AND Usage Limit Reached) */}
+                     {isUsageLimitReached && (
                          <div className="absolute inset-x-0 top-0 bottom-0 z-30 flex flex-col items-center justify-center bg-white/80 backdrop-blur-[2px] rounded-[2rem] border border-zinc-100 shadow-sm p-6 text-center">
                              <div className="w-14 h-14 bg-zinc-100 rounded-full flex items-center justify-center mb-4">
                                  <Lock className="text-zinc-400" size={24} />
                              </div>
-                             <h2 className="text-lg font-black text-zinc-900 mb-2">Deep Analysis Locked</h2>
+                             <h2 className="text-lg font-black text-zinc-900 mb-2">Detailed Report Locked</h2>
                              <p className="text-zinc-500 text-xs font-medium mb-6 max-w-[200px]">
-                                Unlock detailed ingredient risks, routine conflicts, and expert reviews.
+                                You've used your 3 free analysis views. Unlock unlimited access to see ingredient risks & conflicts.
                              </p>
                              <button 
                                 onClick={onUnlockPremium}
@@ -237,7 +269,7 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
                          </div>
                      )}
 
-                     <div className={`space-y-4 transition-all duration-700 ${!isUnlocked ? 'filter blur-md opacity-50 pointer-events-none select-none h-[400px] overflow-hidden' : ''}`}>
+                     <div className={`space-y-4 transition-all duration-700 ${isUsageLimitReached ? 'filter blur-md opacity-50 pointer-events-none select-none h-[400px] overflow-hidden' : ''}`}>
                         
                         {/* SOURCES */}
                         {product.sources && product.sources.length > 0 && (
@@ -295,37 +327,28 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
                         )}
 
                         {/* RISKS */}
-                        {(audit.warnings.length > 0 || !isUnlocked) ? (
-                            <div className="bg-white p-6 rounded-[1.5rem] border border-zinc-100 shadow-sm">
-                                <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                    <AlertOctagon size={14} className="text-rose-500" /> Risk Analysis
-                                </h3>
-                                <div className="space-y-3">
-                                    {(audit.warnings.length > 0 ? audit.warnings : [{ severity: 'CAUTION', reason: "Contains potential irritants." }]).map((w, i) => (
-                                        <div key={i} className={`flex gap-3 p-3 rounded-xl border ${w.severity === 'CRITICAL' ? 'bg-rose-50 border-rose-100' : 'bg-amber-50 border-amber-100'}`}>
-                                            <div className="mt-0.5">
-                                                {w.severity === 'CRITICAL' ? <AlertOctagon size={16} className="text-rose-500" /> : <AlertTriangle size={16} className="text-amber-500" />}
-                                            </div>
-                                            <div>
-                                                <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded mb-1 inline-block ${w.severity === 'CRITICAL' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
-                                                    {w.severity}
-                                                </span>
-                                                <p className={`text-xs font-medium leading-snug ${w.severity === 'CRITICAL' ? 'text-rose-900' : 'text-amber-900'}`}>
-                                                    {w.reason}
-                                                </p>
-                                            </div>
+                        <div className="bg-white p-6 rounded-[1.5rem] border border-zinc-100 shadow-sm">
+                            <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                <AlertOctagon size={14} className="text-rose-500" /> Risk Analysis
+                            </h3>
+                            <div className="space-y-3">
+                                {(audit.warnings.length > 0 ? audit.warnings : [{ severity: 'CAUTION', reason: "Contains potential irritants." }]).map((w, i) => (
+                                    <div key={i} className={`flex gap-3 p-3 rounded-xl border ${w.severity === 'CRITICAL' ? 'bg-rose-50 border-rose-100' : 'bg-amber-50 border-amber-100'}`}>
+                                        <div className="mt-0.5">
+                                            {w.severity === 'CRITICAL' ? <AlertOctagon size={16} className="text-rose-500" /> : <AlertTriangle size={16} className="text-amber-500" />}
                                         </div>
-                                    ))}
-                                </div>
+                                        <div>
+                                            <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded mb-1 inline-block ${w.severity === 'CRITICAL' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
+                                                {w.severity}
+                                            </span>
+                                            <p className={`text-xs font-medium leading-snug ${w.severity === 'CRITICAL' ? 'text-rose-900' : 'text-amber-900'}`}>
+                                                {w.reason}
+                                            </p>
+                                        </div>
+                                    </div>
+                                ))}
                             </div>
-                        ) : (
-                            <div className="bg-white p-6 rounded-[1.5rem] border border-emerald-100 bg-emerald-50/30 shadow-sm">
-                                 <h3 className="text-xs font-bold text-emerald-700 uppercase tracking-widest mb-2 flex items-center gap-2">
-                                    <ShieldCheck size={14} /> Safety Check
-                                </h3>
-                                <p className="text-xs text-emerald-800 font-medium">Safe match. No harsh ingredients detected for your skin type.</p>
-                            </div>
-                        )}
+                        </div>
 
                         {/* CONFLICTS */}
                         {shelfConflicts.length > 0 && (
@@ -382,7 +405,7 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
         </div>
 
         {/* FIXED BOTTOM BAR - Only visible when unlocked */}
-        {isUnlocked && (
+        {(isUnlocked || !isUsageLimitReached) && (
             <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 backdrop-blur-xl border-t border-zinc-100 z-50 pb-safe animate-in slide-in-from-bottom-full duration-500">
                 <div className="flex gap-3 max-w-md mx-auto">
                     <button 

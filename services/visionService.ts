@@ -116,26 +116,28 @@ const labToRgb = (L: number, a: number, b: number) => {
     };
 };
 
-// --- ALGORITHMS ---
+// --- SCORING ALGORITHMS (High Score = Good Condition) ---
 
-// 1. ACNE: Redness + Local Darkening (Inflammation)
+// 1. ACNE: Detects Redness + Inflammation
+// High Density of Red Spots = Low Score (Bad)
 function calculateAcneScore(img: ImageData): number {
     let acnePixels = 0;
     const totalPixels = img.width * img.height;
     const data = img.data;
 
-    // Calculate baseline stats
     let sumA = 0;
     let count = 0;
-    for (let i = 0; i < data.length; i += 16) { // Sampling
+    for (let i = 0; i < data.length; i += 16) { 
         const { a } = rgbToLab(data[i], data[i+1], data[i+2]);
         sumA += a;
         count++;
     }
     const avgA = count > 0 ? sumA / count : 128;
     
-    // UPDATED: Relaxed Threshold (+18) to avoid false positives on healthy blood flow/flush
-    const rednessThreshold = avgA + 18; 
+    // SENSITIVITY FIX: Lower threshold significantly to catch more redness
+    // Previous: avgA + 18 (Too lenient, gave high scores even with acne)
+    // New: avgA + 10 (Stricter, will penalize redness more aggressively)
+    const rednessThreshold = avgA + 10; 
 
     for (let i = 0; i < data.length; i += 4) {
         const { a } = rgbToLab(data[i], data[i+1], data[i+2]);
@@ -144,13 +146,14 @@ function calculateAcneScore(img: ImageData): number {
         }
     }
 
-    // UPDATED: Relaxed Penalty Formula
     const density = acnePixels / totalPixels;
-    // New: 5% coverage (0.05) -> 100 - 50 = 50 Score (Average/Fair).
-    return Math.max(10, 100 - (density * 1000));
+    // Penalty: High density reduces score from 100.
+    // 5% coverage = 100 - 60 = 40 (Bad).
+    return Math.max(10, 100 - (density * 1200));
 }
 
-// 2. REDNESS: Global Inflammation (Erythema)
+// 2. REDNESS: Global Erythema
+// High 'a' value = Low Score (Bad)
 function calculateRednessScore(img: ImageData): number {
     const data = img.data;
     let sumA = 0;
@@ -164,14 +167,15 @@ function calculateRednessScore(img: ImageData): number {
     
     const avgA = count > 0 ? sumA / count : 15;
     
-    // Healthy skin 'a' value is usually around 15-20 in sRGB.
-    // Relaxed baseline from 14 to 18 to account for varying skin undertones.
-    if (avgA <= 18) return 95;
-    const penalty = (avgA - 18) * 3.0;
+    // Healthy range ~14-16.
+    // SENSITIVITY FIX: If avgA > 17, start penalizing immediately.
+    if (avgA <= 17) return 98;
+    const penalty = (avgA - 17) * 4.0; // Stricter penalty multiplier
     return Math.max(20, 100 - penalty);
 }
 
-// 3. TEXTURE: Laplacian Variance (Roughness/Pores)
+// 3. TEXTURE: Roughness Variance
+// High Variance = Low Score (Rough/Bad)
 function calculateTextureScore(img: ImageData): number {
     const w = img.width;
     const h = img.height;
@@ -179,12 +183,9 @@ function calculateTextureScore(img: ImageData): number {
     let varianceSum = 0;
     let pixels = 0;
 
-    // Laplacian Kernel (Edge Detection)
-    
     for (let y = 1; y < h - 1; y += 2) {
         for (let x = 1; x < w - 1; x += 2) {
             const i = (y * w + x) * 4;
-            // Convert to grayscale roughly
             const c = (data[i] + data[i+1] + data[i+2]) / 3;
             
             const up = (data[((y-1)*w+x)*4] + data[((y-1)*w+x)*4+1] + data[((y-1)*w+x)*4+2])/3;
@@ -194,8 +195,7 @@ function calculateTextureScore(img: ImageData): number {
 
             const laplacian = Math.abs(up + down + left + right - (4 * c));
             
-            // Ignore very high laplacian (edges/hair) and very low (flat)
-            if (laplacian > 5 && laplacian < 80) { // Increased upper bound slightly
+            if (laplacian > 5 && laplacian < 80) {
                 varianceSum += laplacian;
             }
             pixels++;
@@ -204,17 +204,15 @@ function calculateTextureScore(img: ImageData): number {
 
     const avgRoughness = pixels > 0 ? varianceSum / pixels : 0;
     
-    // UPDATED: Shifted baseline for typical camera noise.
-    // Average phone camera skin texture is often ~3-4 due to noise.
-    // Real "Glass Skin" ~1.5. 
-    // Shift baseline from 1.0 to 2.5 to be less punishing.
-    // Avg 4.0 -> 100 - (1.5 * 10) = 85.
-    const score = 100 - ((avgRoughness - 2.5) * 10);
+    // SENSITIVITY FIX: Tighter baseline (2.0 instead of 2.5). 
+    // Any roughness above 2.0 starts reducing score.
+    const score = 100 - ((avgRoughness - 2.0) * 12);
     
     return Math.max(10, Math.min(99, score));
 }
 
-// 4. WRINKLES: Sobel Edge Detection (Horizontal)
+// 4. WRINKLES: Edge Detection
+// High Edge Density = Low Score (Bad)
 function calculateWrinkleScore(img: ImageData): number {
     const w = img.width;
     const h = img.height;
@@ -235,19 +233,20 @@ function calculateWrinkleScore(img: ImageData): number {
 
             const sobelY = (bl + 2*b + br) - (tl + 2*t + tr);
             
-            // UPDATED: Increased threshold to 60 to ignore micro-texture/pores
-            if (Math.abs(sobelY) > 60) { 
+            // SENSITIVITY FIX: Lower threshold from 60 to 35.
+            // This detects finer lines as wrinkles, lowering the score appropriately.
+            if (Math.abs(sobelY) > 35) { 
                 edgePixels++;
             }
         }
     }
 
     const density = edgePixels / (w * h);
-    // Relaxed penalty
-    return Math.max(20, 100 - (density * 300));
+    return Math.max(20, 100 - (density * 350));
 }
 
-// 5. HYDRATION: Specular Reflection Analysis
+// 5. HYDRATION: Specular Reflection
+// Optimal Glow (High Score) vs Dull/Oily (Low Score)
 function calculateHydrationScore(img: ImageData): number {
     let glowPixels = 0;
     const total = img.data.length / 4;
@@ -260,20 +259,21 @@ function calculateHydrationScore(img: ImageData): number {
         const min = Math.min(r, g, b);
         const sat = max === 0 ? 0 : (max - min) / max;
         
-        // Slightly broadened range for highlights
-        if (l > 160 && l < 245 && sat < 0.4 && sat > 0.05) {
+        // Healthy glow range
+        if (l > 150 && l < 240 && sat < 0.4 && sat > 0.05) {
             glowPixels++;
         }
     }
     
     const glowDensity = glowPixels / total;
-    // Adjusted target to 12% highlights (realistic healthy glow)
+    // Ideal glow is ~10-15%. Deviation reduces score.
     const deviation = Math.abs(glowDensity - 0.12); 
     
-    return Math.max(20, 100 - (deviation * 200));
+    return Math.max(20, 100 - (deviation * 300)); // Increased penalty
 }
 
-// 6. DARK CIRCLES: Luma Contrast (Eye vs Cheek)
+// 6. DARK CIRCLES: Luma Contrast
+// High Contrast = Low Score (Bad)
 function calculateDarkCircleScore(eyeImg: ImageData, cheekImg: ImageData): number {
     const getAvgLuma = (d: ImageData) => {
         let s = 0;
@@ -285,8 +285,8 @@ function calculateDarkCircleScore(eyeImg: ImageData, cheekImg: ImageData): numbe
     const cheekL = getAvgLuma(cheekImg);
     
     const diff = Math.max(0, cheekL - eyeL);
-    // Relaxed penalty (shadows are natural)
-    return Math.max(30, 100 - (diff * 2.0));
+    // If difference is high (shadow), score drops.
+    return Math.max(30, 100 - (diff * 2.5));
 }
 
 /**
@@ -517,11 +517,6 @@ export const analyzeSkinFrame = (
   // 8. Oiliness (T-Zone: Forehead + Nose)
   const foreheadOil = calculateHydrationScore(foreheadData); // Shiny = Oily
   const noseOil = calculateHydrationScore(noseData);
-  // High shine (high score) means oily? 
-  // No, hydration score is based on "healthy glow". 
-  // Excessive shine saturation might be distinct. 
-  // For now, mapping high hydration to "balanced", but excessive might need penalty.
-  // Using simplified logic: 
   const oilinessScore = (foreheadOil + noseOil) / 2;
 
   // 9. Pigmentation (Global vs Local Luma Variance)

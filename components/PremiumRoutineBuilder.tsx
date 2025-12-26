@@ -17,7 +17,11 @@ interface PremiumRoutineBuilderProps {
     user: UserProfile;
     onBack: () => void;
     onUnlockPremium: () => void;
+    usageCount: number;
+    onIncrementUsage: () => void;
 }
+
+const LIMIT_ROUTINES = 1;
 
 const CATEGORIES = [
     { label: 'Cleanser', icon: Droplet },
@@ -37,7 +41,7 @@ const GOALS = [
     { label: 'Oil Control', icon: Sliders },
 ];
 
-const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onBack, onUnlockPremium }) => {
+const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onBack, onUnlockPremium, usageCount, onIncrementUsage }) => {
     // Auto-select Goal Logic
     const defaultGoal = useMemo(() => {
         const b = user.biometrics;
@@ -86,10 +90,19 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
     }, [loading]);
 
     const isPaid = !!user.isPremium; 
+    const hasFreeUsage = usageCount < LIMIT_ROUTINES;
 
     const handleGenerate = async () => {
-        if (!isPaid) return onUnlockPremium();
+        // Enforce limit
+        if (!isPaid && !hasFreeUsage) {
+            return onUnlockPremium();
+        }
         
+        // If free, increment
+        if (!isPaid) {
+            onIncrementUsage();
+        }
+
         setLoading(true);
         setResults([]);
         setHasSearched(true);
@@ -103,27 +116,6 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
             setLoading(false);
         }
     };
-
-    // If not paid, show paywall immediately
-    if (!isPaid) {
-        return (
-            <div className="min-h-screen bg-zinc-900 flex flex-col items-center justify-center p-6 text-center text-white relative overflow-hidden">
-                <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
-                <div className="w-20 h-20 bg-white/10 rounded-full flex items-center justify-center backdrop-blur-md mb-6 border border-white/20 shadow-lg">
-                    <Lock size={32} />
-                </div>
-                <h2 className="text-3xl font-black mb-4">Unlock Routine Architect</h2>
-                <p className="text-zinc-400 max-w-sm mx-auto mb-8">Get precise, budget-conscious product recommendations tailored to your skin DNA.</p>
-                <button 
-                    onClick={onUnlockPremium}
-                    className="bg-gradient-to-r from-teal-400 to-emerald-500 text-white px-8 py-4 rounded-full font-bold text-lg shadow-lg hover:scale-105 transition-transform active:scale-95 flex items-center gap-2"
-                >
-                    <Sparkles size={18} className="text-yellow-300" /> Unlock Now
-                </button>
-                <button onClick={onBack} className="mt-6 text-sm text-zinc-500 font-bold hover:text-white transition-colors">No Thanks</button>
-            </div>
-        );
-    }
 
     return (
         <div className="min-h-screen bg-zinc-50 pb-32 animate-in fade-in slide-in-from-bottom-8 duration-500 font-sans">
@@ -226,14 +218,21 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                     </div>
 
                     {/* Generate Button */}
-                    <button 
-                        onClick={handleGenerate}
-                        disabled={loading}
-                        className="w-full py-4 bg-zinc-900 text-white rounded-xl font-bold text-sm uppercase tracking-widest shadow-lg shadow-zinc-900/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
-                    >
-                        {loading ? <Loader size={18} className="animate-spin text-zinc-500" /> : <Search size={18} />}
-                        {loading ? 'Processing...' : 'Find Matches'}
-                    </button>
+                    <div className="space-y-3">
+                        <button 
+                            onClick={handleGenerate}
+                            disabled={loading}
+                            className="w-full py-4 bg-zinc-900 text-white rounded-xl font-bold text-sm uppercase tracking-widest shadow-lg shadow-zinc-900/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                        >
+                            {loading ? <Loader size={18} className="animate-spin text-zinc-500" /> : <Search size={18} />}
+                            {loading ? 'Processing...' : (!isPaid && !hasFreeUsage ? 'Unlock Full Access' : 'Find Matches')}
+                        </button>
+                        {!isPaid && (
+                            <p className="text-center text-[10px] text-zinc-400 font-bold uppercase tracking-wide">
+                                {hasFreeUsage ? '1 Free Generation Available' : 'Free Limit Reached'}
+                            </p>
+                        )}
+                    </div>
                 </div>
             </div>
 

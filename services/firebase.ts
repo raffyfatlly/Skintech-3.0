@@ -82,8 +82,6 @@ try {
   console.error("CRITICAL: Firebase Initialization Failed", e);
 }
 
-const googleProvider = new GoogleAuthProvider();
-
 export const signInWithGoogle = async () => {
     if (!isConfigured) {
         throw new Error("Firebase not configured. Please open services/firebase.ts and paste your API keys from the Firebase Console.");
@@ -92,6 +90,9 @@ export const signInWithGoogle = async () => {
         console.error("Auth object is undefined. App likely failed to initialize.");
         throw new Error("Firebase failed to initialize. Check console for errors.");
     }
+    
+    // Lazy initialize provider to prevent top-level errors
+    const googleProvider = new GoogleAuthProvider();
     
     // Directly return the promise so the caller handles the raw error object (with correct .code)
     const result = await signInWithPopup(auth, googleProvider);
