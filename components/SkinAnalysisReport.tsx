@@ -692,7 +692,7 @@ const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({ userProfile, sh
              </GroupSection>
         </div>
 
-        {/* 1. ROUTINE ARCHITECT (SEPARATED) */}
+        {/* 1. ROUTINE ARCHITECT */}
         <button 
             onClick={onOpenRoutineBuilder}
             className="w-full group relative overflow-hidden rounded-[2.5rem] p-8 text-left transition-all hover:shadow-2xl hover:scale-[1.01] active:scale-[0.99] border border-zinc-100 shadow-sm animate-in slide-in-from-bottom-8 duration-700 delay-500 bg-white"
@@ -721,47 +721,35 @@ const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({ userProfile, sh
                 </div>
         </button>
 
-        {/* 2. MEMBERSHIP PLAN (REPLACED PREMIUM HUB) */}
-        <div className="bg-gradient-to-br from-zinc-50 to-white rounded-[2.5rem] p-8 shadow-sm border border-zinc-100 relative overflow-hidden animate-in slide-in-from-bottom-8 duration-700 delay-500">
+        {/* 2. ASK SKINOS (AI CHAT) - RENAMED */}
+        <button
+            onClick={() => onConsultAI('')}
+            className="w-full relative overflow-hidden rounded-[2.5rem] p-8 text-left transition-all hover:scale-[1.01] active:scale-[0.99] shadow-xl group animate-in slide-in-from-bottom-8 duration-700 delay-500"
+            style={{ backgroundColor: 'rgb(163, 206, 207)' }}
+        >
+             <div className="absolute top-0 right-0 w-64 h-64 bg-white/20 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none mix-blend-overlay"></div>
              
-             <div className="flex items-center justify-between mb-6">
+             <div className="relative z-10 flex items-center justify-between">
                  <div>
-                     <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1 flex items-center gap-2">
-                         <Crown size={12} className={isPremiumUnlocked ? "text-amber-400 fill-amber-400" : "text-zinc-400"} /> 
-                         Your Plan
+                     <div className="flex items-center gap-2 mb-3">
+                         <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white border border-white/20 shadow-sm">
+                             <MessageCircle size={16} />
+                         </div>
+                         <span className="text-[10px] font-bold uppercase tracking-widest text-white/90">24/7 Support</span>
+                     </div>
+                     <h3 className="text-2xl font-black text-white tracking-tight leading-tight mb-2 drop-shadow-sm">
+                         Ask SkinOS
                      </h3>
-                     <h2 className="text-2xl font-black text-zinc-900 tracking-tight">
-                         {isPremiumUnlocked ? "Premium Member" : "Free Starter"}
-                     </h2>
+                     <p className="text-sm text-white/90 font-bold max-w-[240px] leading-relaxed">
+                         Your personal skin advisor. Ask about ingredients, routine conflicts, or specific concerns based on your analysis.
+                     </p>
                  </div>
-                 {!isPremiumUnlocked && (
-                     <button 
-                        onClick={onUnlockPremium}
-                        className="bg-zinc-900 text-white px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-md"
-                     >
-                         Upgrade
-                     </button>
-                 )}
-             </div>
-
-             <div className="bg-white rounded-2xl p-5 border border-zinc-100 shadow-sm mb-4">
-                 {renderUsageBar(usage.manualScans, 3, "Smart Scan & Search")}
-                 {renderUsageBar(usage.buyingAssistantViews, 3, "Buying Assistant Analysis")}
-                 {renderUsageBar(usage.routineGenerations, 1, "Routine Architect Generation")}
-             </div>
-
-             <div className="flex items-center gap-3 p-3 rounded-xl bg-indigo-50/50 border border-indigo-100/50">
-                 <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-indigo-600 shadow-sm shrink-0">
-                     <MessageCircle size={16} />
-                 </div>
-                 <div className="flex-1">
-                     <span className="text-xs font-bold text-indigo-900 block">AI Dermatologist</span>
-                     <span className="text-[10px] text-indigo-700 font-medium">
-                         Unlimited Chat Access
-                     </span>
+                 
+                 <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-300 text-teal-700">
+                     <ArrowRight size={20} />
                  </div>
              </div>
-        </div>
+        </button>
 
         {/* CLINICAL MENU SECTION */}
         <div 
@@ -858,6 +846,48 @@ const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({ userProfile, sh
                     })}
                     </div>
                 )}
+        </div>
+
+        {/* 3. MEMBERSHIP PLAN (MOVED TO BOTTOM) */}
+        <div className="bg-gradient-to-br from-zinc-50 to-white rounded-[2.5rem] p-8 shadow-sm border border-zinc-100 relative overflow-hidden animate-in slide-in-from-bottom-8 duration-700 delay-500">
+             
+             <div className="flex items-center justify-between mb-6">
+                 <div>
+                     <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1 flex items-center gap-2">
+                         <Crown size={12} className={isPremiumUnlocked ? "text-amber-400 fill-amber-400" : "text-zinc-400"} /> 
+                         Your Plan
+                     </h3>
+                     <h2 className="text-2xl font-black text-zinc-900 tracking-tight">
+                         {isPremiumUnlocked ? "Premium Member" : "Free Starter"}
+                     </h2>
+                 </div>
+                 {!isPremiumUnlocked && (
+                     <button 
+                        onClick={onUnlockPremium}
+                        className="bg-zinc-900 text-white px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-md"
+                     >
+                         Upgrade
+                     </button>
+                 )}
+             </div>
+
+             <div className="bg-white rounded-2xl p-5 border border-zinc-100 shadow-sm mb-4">
+                 {renderUsageBar(usage.manualScans, 3, "Smart Scan & Search")}
+                 {renderUsageBar(usage.buyingAssistantViews, 3, "Buying Assistant Analysis")}
+                 {renderUsageBar(usage.routineGenerations, 1, "Routine Architect Generation")}
+             </div>
+
+             <div className="flex items-center gap-3 p-3 rounded-xl bg-indigo-50/50 border border-indigo-100/50">
+                 <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-indigo-600 shadow-sm shrink-0">
+                     <MessageCircle size={16} />
+                 </div>
+                 <div className="flex-1">
+                     <span className="text-xs font-bold text-indigo-900 block">AI Dermatologist</span>
+                     <span className="text-[10px] text-indigo-700 font-medium">
+                         Unlimited Chat Access
+                     </span>
+                 </div>
+             </div>
         </div>
 
         {selectedMetric && (

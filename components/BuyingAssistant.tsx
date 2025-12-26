@@ -93,7 +93,8 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
           const primaryBenefit = relevantBenefits.length > 0 ? relevantBenefits[0] : product.benefits[0];
 
           if (primaryBenefit) {
-              return `Excellent match. This formulation is optimized to **${primaryBenefit.description.toLowerCase()}**, directly targeting your skin needs.`;
+              // Use a "Key Benefit: X" structure to avoid grammar issues with the description sentence
+              return `Excellent match. Key benefit: **${primaryBenefit.description}**.`;
           }
           return "This product aligns perfectly with your skin profile and contains no harsh irritants.";
       }
@@ -103,11 +104,10 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
           const benefit = product.benefits[0];
           const risk = product.risks[0]; // Usually the reason for 'Consider'
 
-          if (benefit && risk) {
-              return `While it can help **${benefit.description.toLowerCase()}**, it contains **${risk.ingredient}** which may cause **${risk.reason.toLowerCase()}**. Use with caution.`;
-          }
           if (risk) {
-              return `Proceed with caution. Contains **${risk.ingredient}** which can trigger **${risk.reason.toLowerCase()}**.`;
+              // Break into two sentences: "Contains [Ingredient]. [Reason]."
+              // This works whether 'Reason' is a sentence ("This clogs pores") or a phrase ("Potential irritation").
+              return `Proceed with caution. Contains **${risk.ingredient}**. **${risk.reason}**`;
           }
           return verdict.description;
       }
@@ -116,7 +116,8 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
       if (decision === 'AVOID') {
           const risk = product.risks.find(r => r.riskLevel === 'HIGH') || product.risks[0];
           if (risk) {
-              return `Not recommended. Contains **${risk.ingredient}** which is likely to exacerbate **${risk.reason.toLowerCase()}**.`;
+              // Break into two sentences: "Contains [Ingredient]. [Reason]."
+              return `Not recommended. Contains **${risk.ingredient}**. **${risk.reason}**`;
           }
           return "This product formulation conflicts with your current skin biometric profile.";
       }

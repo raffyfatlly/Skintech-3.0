@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, Product } from '../types';
 import { createDermatologistSession, isQuotaError } from '../services/geminiService';
-import { Sparkles, Send, RotateCcw, ChevronUp, ChevronDown, Lock, Crown } from 'lucide-react';
+import { Sparkles, Send, RotateCcw, X, Lock, Crown } from 'lucide-react';
 import type { Chat, GenerateContentResponse } from "@google/genai";
 
 interface AIAssistantProps {
@@ -63,9 +63,6 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, isOpen, onOpen, 
   const [session, setSession] = useState<Chat | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const processedTriggerRef = useRef<string | null>(null);
-
-  // Touch Handling for Swipe
-  const touchStartY = useRef<number | null>(null);
 
   // Unlock for all users
   const isChatEnabled = true;
@@ -143,163 +140,111 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, isOpen, onOpen, 
       setSession(newSession);
   };
 
-  // --- SWIPE LOGIC FOR TOP SHEET ---
-  const handleTouchStart = (e: React.TouchEvent) => {
-      touchStartY.current = e.touches[0].clientY;
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-      if (touchStartY.current === null) return;
-      const touchEndY = e.changedTouches[0].clientY;
-      const diff = touchEndY - touchStartY.current; // Positive = Down, Negative = Up
-
-      // 1. If Open: Swipe UP (Negative) to Close
-      if (isOpen && diff < -40) {
-          onClose();
-      }
-      // 2. If Closed: Swipe DOWN (Positive) to Open
-      else if (!isOpen && diff > 40) {
-          onOpen();
-      }
-      
-      touchStartY.current = null;
-  };
-
   return (
-    <>
-      {/* BACKDROP */}
-      <div 
-        className={`fixed inset-0 bg-black/30 backdrop-blur-sm z-40 transition-opacity duration-500 ${isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
-        onClick={onClose}
-      />
-
-      {/* TOP SHEET WRAPPER */}
-      <div 
-        className={`fixed top-0 left-0 right-0 z-50 transition-transform duration-500 cubic-bezier(0.19, 1, 0.22, 1) flex flex-col items-center pointer-events-none ${isOpen ? 'translate-y-0' : '-translate-y-full'}`}
-      >
-          {/* MAIN SHEET CONTENT */}
-          <div className="w-full h-[85vh] bg-white rounded-b-[2.5rem] shadow-2xl flex flex-col overflow-hidden relative border-b border-zinc-100 pointer-events-auto">
-              
-              {/* Header inside Sheet */}
-              <div 
-                  className="flex items-center justify-between px-6 py-4 border-b border-zinc-50 bg-white shrink-0 pt-12 pb-4 cursor-grab active:cursor-grabbing"
-                  onTouchStart={handleTouchStart}
-                  onTouchEnd={handleTouchEnd}
-              >
-                  <div className="flex items-center gap-2">
-                       <div className="w-8 h-8 rounded-full bg-teal-50 flex items-center justify-center text-teal-600">
-                           <Sparkles size={16} /> 
-                       </div>
-                       <span className="text-xs font-black text-zinc-900 uppercase tracking-widest">SkinOS AI</span>
-                  </div>
+    <div 
+        className={`fixed inset-0 z-50 bg-white transform transition-transform duration-300 ease-in-out flex flex-col ${isOpen ? 'translate-y-0' : 'translate-y-full'}`}
+    >
+          {/* Header */}
+          <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-50 bg-white shrink-0 pt-safe-top pb-4">
+              <div className="flex items-center gap-2">
+                   <div className="w-10 h-10 rounded-full bg-teal-50 flex items-center justify-center text-teal-600">
+                       <Sparkles size={20} /> 
+                   </div>
+                   <div>
+                       <span className="text-sm font-black text-zinc-900 uppercase tracking-widest block leading-none">SkinOS</span>
+                       <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">Expert Assistant</span>
+                   </div>
+              </div>
+              <div className="flex items-center gap-2">
                   {isChatEnabled && (
                       <button onClick={handleReset} className="text-zinc-400 hover:text-zinc-600 transition-colors p-2 bg-zinc-50 rounded-full" title="Reset Chat">
-                          <RotateCcw size={16} />
+                          <RotateCcw size={20} />
                       </button>
                   )}
+                  <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 transition-colors p-2 bg-zinc-50 rounded-full">
+                      <X size={20} />
+                  </button>
               </div>
+          </div>
 
-              {/* CHAT AREA */}
-              {!isChatEnabled ? (
-                  <div className="flex-1 flex flex-col items-center justify-center p-8 bg-zinc-50 text-center">
-                      <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mb-6 shadow-xl border border-zinc-100">
-                          <Lock size={32} className="text-zinc-300" />
-                      </div>
-                      <h3 className="text-2xl font-black text-zinc-900 mb-2">AI Dermatologist Locked</h3>
-                      <p className="text-sm text-zinc-500 font-medium mb-8 max-w-xs leading-relaxed">
-                          Unlock premium to chat with our AI expert about your specific skin concerns, ingredients, and routines.
-                      </p>
-                      <button 
-                          onClick={onUnlockPremium}
-                          className="px-8 py-4 bg-zinc-900 text-white rounded-full font-bold text-xs uppercase tracking-widest flex items-center gap-2 shadow-lg hover:scale-105 active:scale-95 transition-all"
-                      >
-                          <Crown size={14} className="text-amber-300" /> Unlock Now
-                      </button>
+          {/* CHAT AREA */}
+          {!isChatEnabled ? (
+              <div className="flex-1 flex flex-col items-center justify-center p-8 bg-zinc-50 text-center">
+                  <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mb-6 shadow-xl border border-zinc-100">
+                      <Lock size={32} className="text-zinc-300" />
                   </div>
-              ) : (
-                  <>
-                    <div 
-                        className="flex-1 overflow-y-auto p-6 space-y-6 bg-zinc-50/30"
-                        onTouchStart={handleTouchStart}
-                        onTouchEnd={handleTouchEnd}
-                    >
-                        {messages.map((msg, idx) => (
-                            <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                <div 
-                                className={`max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed shadow-sm animate-in fade-in slide-in-from-bottom-2 ${
-                                    msg.role === 'user' 
-                                        ? 'bg-zinc-100 text-zinc-800 rounded-tr-sm font-medium' 
-                                        : 'bg-gradient-to-br from-teal-600 to-teal-700 text-white rounded-tl-sm shadow-teal-500/20'
-                                }`}
-                                >
-                                    {msg.role === 'model' && (
-                                        <div className="flex items-center gap-2 mb-2 opacity-70 border-b border-white/20 pb-1.5">
-                                            <Sparkles size={10} />
-                                            <span className="text-[9px] font-bold uppercase tracking-widest">AI Analysis</span>
-                                        </div>
-                                    )}
-                                    {msg.role === 'user' ? (
-                                        <div>{msg.text}</div>
-                                    ) : (
-                                        <MessageContent text={msg.text} />
-                                    )}
-                                </div>
-                            </div>
-                        ))}
-                        {isTyping && (
-                            <div className="flex justify-start">
-                                <div className="bg-white border border-zinc-100 px-4 py-3 rounded-2xl rounded-tl-sm flex gap-1.5 items-center shadow-sm">
-                                    <div className="w-1.5 h-1.5 bg-teal-400 rounded-full animate-bounce" />
-                                    <div className="w-1.5 h-1.5 bg-teal-500 rounded-full animate-bounce delay-100" />
-                                    <div className="w-1.5 h-1.5 bg-teal-600 rounded-full animate-bounce delay-200" />
-                                </div>
-                            </div>
-                        )}
-                        <div ref={messagesEndRef} />
-                    </div>
-
-                    {/* INPUT AREA */}
-                    <div className="p-4 bg-white border-t border-zinc-100 shrink-0 pb-safe">
-                        <div className="relative flex items-center">
-                            <input 
-                                type="text" 
-                                value={inputText}
-                                onChange={(e) => setInputText(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                                placeholder="Ask about your routine..." 
-                                className="w-full bg-zinc-50 border border-zinc-200 rounded-full pl-6 pr-14 py-4 text-sm font-medium text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/20 transition-all shadow-inner"
-                            />
-                            <button 
-                                onClick={() => handleSend()}
-                                disabled={!inputText.trim() || isTyping}
-                                className="absolute right-2 p-2.5 bg-zinc-900 text-white rounded-full hover:bg-zinc-800 disabled:opacity-50 disabled:scale-95 transition-all shadow-md active:scale-90"
-                            >
-                                <Send size={18} />
-                            </button>
-                        </div>
-                    </div>
-                  </>
-              )}
-          </div>
-
-          {/* PULL TAB / TONGUE (Always Visible at bottom of sheet) */}
-          <div 
-             className="absolute bottom-0 translate-y-[90%] flex flex-col items-center pointer-events-auto cursor-grab active:cursor-grabbing group z-50 touch-none"
-             onClick={isOpen ? onClose : onOpen} 
-             onTouchStart={handleTouchStart}
-             onTouchEnd={handleTouchEnd}
-          >
-              <div className={`w-20 h-7 bg-white/95 backdrop-blur-md rounded-b-xl shadow-lg border-b border-x border-zinc-100 flex items-center justify-center relative z-10 transition-all duration-300 ${isOpen ? 'hover:h-9' : 'hover:h-8'} ${!isOpen ? 'shadow-teal-500/10 border-b-teal-50' : ''}`}>
-                  {isOpen ? (
-                      <ChevronUp size={16} className="text-zinc-400 group-hover:text-zinc-600 transition-colors" />
-                  ) : (
-                      /* Elegant Handle Bar */
-                      <div className="w-8 h-1 bg-zinc-300 rounded-full group-hover:bg-teal-500 transition-colors duration-300" />
-                  )}
+                  <h3 className="text-2xl font-black text-zinc-900 mb-2">AI Dermatologist Locked</h3>
+                  <p className="text-sm text-zinc-500 font-medium mb-8 max-w-xs leading-relaxed">
+                      Unlock premium to chat with our AI expert about your specific skin concerns, ingredients, and routines.
+                  </p>
+                  <button 
+                      onClick={onUnlockPremium}
+                      className="px-8 py-4 bg-zinc-900 text-white rounded-full font-bold text-xs uppercase tracking-widest flex items-center gap-2 shadow-lg hover:scale-105 active:scale-95 transition-all"
+                  >
+                      <Crown size={14} className="text-amber-300" /> Unlock Now
+                  </button>
               </div>
-          </div>
-      </div>
-    </>
+          ) : (
+              <>
+                <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-zinc-50/30">
+                    {messages.map((msg, idx) => (
+                        <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                            <div 
+                            className={`max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed shadow-sm animate-in fade-in slide-in-from-bottom-2 ${
+                                msg.role === 'user' 
+                                    ? 'bg-zinc-100 text-zinc-800 rounded-tr-sm font-medium' 
+                                    : 'bg-gradient-to-br from-teal-600 to-teal-700 text-white rounded-tl-sm shadow-teal-500/20'
+                            }`}
+                            >
+                                {msg.role === 'model' && (
+                                    <div className="flex items-center gap-2 mb-2 opacity-70 border-b border-white/20 pb-1.5">
+                                        <Sparkles size={10} />
+                                        <span className="text-[9px] font-bold uppercase tracking-widest">SkinOS Analysis</span>
+                                    </div>
+                                )}
+                                {msg.role === 'user' ? (
+                                    <div>{msg.text}</div>
+                                ) : (
+                                    <MessageContent text={msg.text} />
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                    {isTyping && (
+                        <div className="flex justify-start">
+                            <div className="bg-white border border-zinc-100 px-4 py-3 rounded-2xl rounded-tl-sm flex gap-1.5 items-center shadow-sm">
+                                <div className="w-1.5 h-1.5 bg-teal-400 rounded-full animate-bounce" />
+                                <div className="w-1.5 h-1.5 bg-teal-500 rounded-full animate-bounce delay-100" />
+                                <div className="w-1.5 h-1.5 bg-teal-600 rounded-full animate-bounce delay-200" />
+                            </div>
+                        </div>
+                    )}
+                    <div ref={messagesEndRef} />
+                </div>
+
+                {/* INPUT AREA */}
+                <div className="p-4 bg-white border-t border-zinc-100 shrink-0 pb-safe">
+                    <div className="relative flex items-center">
+                        <input 
+                            type="text" 
+                            value={inputText}
+                            onChange={(e) => setInputText(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                            placeholder="Ask about your routine..." 
+                            className="w-full bg-zinc-50 border border-zinc-200 rounded-full pl-6 pr-14 py-4 text-sm font-medium text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/20 transition-all shadow-inner"
+                        />
+                        <button 
+                            onClick={() => handleSend()}
+                            disabled={!inputText.trim() || isTyping}
+                            className="absolute right-2 p-2.5 bg-zinc-900 text-white rounded-full hover:bg-zinc-800 disabled:opacity-50 disabled:scale-95 transition-all shadow-md active:scale-90"
+                        >
+                            <Send size={18} />
+                        </button>
+                    </div>
+                </div>
+              </>
+          )}
+    </div>
   );
 };
 
