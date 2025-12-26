@@ -456,10 +456,30 @@ export const getClinicalTreatmentSuggestions = (user: UserProfile) => {
 };
 
 export const createDermatologistSession = (user: UserProfile, shelf: Product[]): Chat => {
+    // Format shelf context for the AI
+    const shelfContext = shelf.length > 0 
+        ? shelf.map(p => `- ${p.brand || 'Unknown'} ${p.name} (${p.type})`).join('\n')
+        : "No products in routine yet.";
+
     return getAi().chats.create({
         model: MODEL_FACE_SCAN, 
         config: {
-             systemInstruction: `You are SkinOS, an expert skincare assistant. Profile: ${JSON.stringify(user.biometrics)}. Keep answers concise and helpful.`
+             systemInstruction: `You are SkinOS, an expert skincare assistant.
+             
+             USER PROFILE:
+             - Skin Type: ${user.skinType}
+             - Age: ${user.age}
+             - Biometrics (0-100 score, higher is better): ${JSON.stringify(user.biometrics)}
+             
+             CURRENT ROUTINE (DIGITAL SHELF):
+             ${shelfContext}
+             
+             GUIDELINES:
+             - Keep answers concise, friendly, and practical.
+             - Use the shelf context to give personalized advice.
+             - If the user asks about products not on the shelf, you can answer generally or compare them to what they own.
+             - Focus on ingredients and scientific efficacy.
+             `
         }
     });
 };
