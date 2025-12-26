@@ -234,10 +234,16 @@ export const analyzeProductFromSearch = async (productName: string, userMetrics:
         2. Analyze the ingredients against the user profile.
         3. Output the result in the strict JSON format below.
         
-        CRITICAL: 
+        STYLE GUIDELINES:
+        - Use simple, concise prose suitable for a general audience.
+        - **CRITICAL:** If you use a technical term, immediately explain it in simple terms within brackets. 
+          Example: "Contains salicylic acid [a pore-clearing exfoliant]." or "Rich in ceramides [lipids that repair the skin barrier]."
+        
+        CRITICAL OUTPUT RULES:
         - Return ONLY JSON. 
         - Ensure "suitabilityScore" (0-100) reflects match with User Profile.
-        - "expertReview": Write an objective consensus review. Summarize what experts generally say about this formulation. DO NOT use first-person ("I", "As a chemist"). Keep it professional and third-party.
+        - "expertReview": Write an objective consensus review. Summarize what experts generally say about this formulation. DO NOT use first-person ("I", "As a chemist"). Keep it professional and third-party. Use simple language with bracketed explanations.
+        - "benefits" & "risks" descriptions: Must use simple language with bracketed explanations if needed.
         
         OUTPUT JSON SCHEMA:
         \`\`\`json
@@ -315,8 +321,13 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
         2. Analyze for risks/benefits based on user profile.
         3. RETURN A VALID JSON OBJECT matching the schema below.
         
-        CRITICAL:
-        - "expertReview": Write an objective consensus review. Summarize what experts generally say about this formulation. DO NOT use first-person ("I", "As a chemist"). Keep it professional and third-party.
+        STYLE GUIDELINES:
+        - Use simple, concise prose.
+        - **CRITICAL:** Explain any technical term immediately in brackets. Example: "Contains hyaluronic acid [a moisture magnet for hydration]."
+        
+        CRITICAL OUTPUT RULES:
+        - "expertReview": Write an objective consensus review. Summarize what experts generally say about this formulation. DO NOT use first-person ("I", "As a chemist"). Keep it professional and third-party. Use simple language with bracketed explanations.
+        - "benefits" & "risks" descriptions: Must use simple language with bracketed explanations if needed.
 
         OUTPUT JSON SCHEMA:
         \`\`\`json
