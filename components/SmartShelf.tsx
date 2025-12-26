@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import { Product, UserProfile, SkinMetrics } from '../types';
 import { Plus, Droplet, Sun, Zap, Sparkles, AlertTriangle, Layers, AlertOctagon, Target, ShieldCheck, X, FlaskConical, Clock, Ban, ArrowRightLeft, CheckCircle2, Microscope, Dna, Palette, Brush, SprayCan, Stamp, DollarSign, TrendingUp, TrendingDown, Wallet, ArrowUpRight, Edit2, Save, Info, ArrowUpCircle, Check, Award } from 'lucide-react';
@@ -200,9 +201,9 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                                         if (p) { setSelectedProduct(p); }
                                     }}
                                     className={`text-[10px] font-bold uppercase tracking-widest bg-white px-3 py-1.5 rounded-lg border transition-colors ${isCritical ? 'text-rose-600 border-rose-200 hover:bg-rose-100' : 'text-amber-600 border-amber-200 hover:bg-amber-100'}`}
-                               >
-                                   View Product
-                               </button>
+                                >
+                                    View Product
+                                </button>
                            </div>
                        </div>
                    )
@@ -666,6 +667,16 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                             const decision = getBuyingDecision(selectedProduct, products, userProfile);
                             const { verdict, audit } = decision;
                             
+                            // NORMALIZE COLORS (To match Buying Assistant)
+                            // Map 'zinc' (Consider) to 'amber' for better visibility
+                            let displayColor = 'amber'; // Default fallback
+                            if (['BUY', 'GREAT FIND', 'SWAP'].includes(verdict.decision)) {
+                                displayColor = 'emerald';
+                            } else if (verdict.decision === 'AVOID') {
+                                displayColor = 'rose';
+                            }
+                            // CONSIDER, CAUTION, PASS -> Amber
+
                             // Context Check (existing logic)
                             const otherProducts = products.filter(p => p.id !== selectedProduct.id);
                             const context = analyzeProductContext(selectedProduct, otherProducts);
@@ -675,7 +686,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                             return (
                                 <>
                                     {/* VERDICT CARD */}
-                                    <div className={`rounded-[2rem] p-5 text-white shadow-xl bg-gradient-to-br ${getVerdictGradient(verdict.color)} relative overflow-hidden`}>
+                                    <div className={`rounded-[2rem] p-5 text-white shadow-xl bg-gradient-to-br ${getVerdictGradient(displayColor)} relative overflow-hidden`}>
                                         <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-10 -mt-10 blur-2xl pointer-events-none"></div>
                                         
                                         <div className="flex items-center gap-4 relative z-10">
