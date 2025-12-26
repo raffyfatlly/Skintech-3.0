@@ -519,11 +519,12 @@ export const generateRoutineRecommendations = async (user: UserProfile): Promise
     }, null, 60000);
 }
 
-export const generateTargetedRecommendations = async (user: UserProfile, category: string, maxPrice: number, allergies: string, goal: string): Promise<any> => {
+export const generateTargetedRecommendations = async (user: UserProfile, category: string, maxPrice: number, allergies: string, goals: string[]): Promise<any> => {
     return runWithRetry<any>(async (ai) => {
+        const goalsString = goals.length > 0 ? goals.join(', ') : "General Skin Health";
         const prompt = `
         ACT AS PERSONAL SHOPPER. User Skin: ${user.skinType}, Concerns: ${JSON.stringify(user.biometrics)}.
-        CRITERIA: ${category}, Goal: ${goal}, Max RM ${maxPrice}, Avoid: ${allergies}.
+        CRITERIA: ${category}, Goals: ${goalsString}, Max RM ${maxPrice}, Avoid: ${allergies}.
         TASK: Find 3 products in Malaysia (Watsons/Guardian/Sephora).
         OUTPUT JSON: [{ "name": "...", "brand": "...", "price": "RM 45", "reason": "...", "rating": 95, "tier": "VALUE" }]
         `;

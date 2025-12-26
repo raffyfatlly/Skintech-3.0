@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { UserProfile, SkinMetrics } from '../types';
 import { generateTargetedRecommendations } from '../services/geminiService';
-import { Sparkles, ArrowLeft, DollarSign, Star, Crown, Lock, Search, Droplet, Sun, Zap, ShieldCheck, Loader, Sliders, AlertCircle, Target, CheckCircle2 } from 'lucide-react';
+import { Sparkles, ArrowLeft, DollarSign, Star, Crown, Lock, Search, Droplet, Sun, Zap, ShieldCheck, Loader, Sliders, AlertCircle, Target, CheckCircle2, Check } from 'lucide-react';
 
 interface RecommendedProduct {
     name: string;
@@ -54,7 +54,7 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
     }, [user.biometrics]);
 
     // Input State
-    const [selectedGoal, setSelectedGoal] = useState(defaultGoal);
+    const [selectedGoals, setSelectedGoals] = useState<string[]>([defaultGoal]);
     const [selectedCategory, setSelectedCategory] = useState('Cleanser');
     const [maxPrice, setMaxPrice] = useState(100);
     const [allergies, setAllergies] = useState('');
@@ -92,12 +92,23 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
     const isPaid = !!user.isPremium; 
     const hasFreeUsage = usageCount < LIMIT_ROUTINES;
 
+    const toggleGoal = (goal: string) => {
+        if (selectedGoals.includes(goal)) {
+            setSelectedGoals(selectedGoals.filter(g => g !== goal));
+        } else {
+            setSelectedGoals([...selectedGoals, goal]);
+        }
+    };
+
     const handleGenerate = async () => {
         // Enforce limit
         if (!isPaid && !hasFreeUsage) {
             return onUnlockPremium();
         }
         
+        // Ensure at least one goal
+        if (selectedGoals.length === 0) return;
+
         // If free, increment
         if (!isPaid) {
             onIncrementUsage();
@@ -108,7 +119,7 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
         setHasSearched(true);
         
         try {
-            const data = await generateTargetedRecommendations(user, selectedCategory, maxPrice, allergies, selectedGoal);
+            const data = await generateTargetedRecommendations(user, selectedCategory, maxPrice, allergies, selectedGoals);
             setResults(data);
         } catch (e) {
             console.error(e);
@@ -147,21 +158,33 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                     
                     {/* PRIMARY GOAL SELECTOR */}
                     <div className="mb-6">
-                        <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block mb-3 pl-1 flex items-center gap-2">
-                            <Target size={12} className="text-teal-500" /> Target Goal
-                        </label>
-                        <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar -mx-2 px-2 snap-x">
-                            {GOALS.map(g => (
-                                <button
-                                    key={g.label}
-                                    onClick={() => setSelectedGoal(g.label)}
-                                    className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl border transition-all snap-start ${selectedGoal === g.label ? 'bg-teal-600 border-teal-600 text-white shadow-md' : 'bg-zinc-50 border-zinc-100 text-zinc-500 hover:bg-white hover:border-zinc-200'}`}
-                                >
-                                    <g.icon size={14} strokeWidth={selectedGoal === g.label ? 2.5 : 2} />
-                                    <span className="text-[10px] font-bold uppercase tracking-wide whitespace-nowrap">{g.label}</span>
-                                </button>
-                            ))}
+                        <div className="flex justify-between items-center mb-3 px-1">
+                            <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                                <Target size={12} className="text-teal-500" /> Target Goals
+                            </label>
+                            {selectedGoals.length > 0 && (
+                                <span className="text-[9px] font-bold text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full">
+                                    {selectedGoals.length} Selected
+                                </span>
+                            )}
                         </div>
+                        <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar -mx-2 px-2 snap-x">
+                            {GOALS.map(g => {
+                                const isSelected = selectedGoals.includes(g.label);
+                                return (
+                                    <button
+                                        key={g.label}
+                                        onClick={() => toggleGoal(g.label)}
+                                        className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl border transition-all snap-start ${isSelected ? 'bg-teal-600 border-teal-600 text-white shadow-md' : 'bg-zinc-50 border-zinc-100 text-zinc-500 hover:bg-white hover:border-zinc-200'}`}
+                                    >
+                                        <g.icon size={14} strokeWidth={isSelected ? 2.5 : 2} />
+                                        <span className="text-[10px] font-bold uppercase tracking-wide whitespace-nowrap">{g.label}</span>
+                                        {isSelected && <Check size={12} strokeWidth={3} className="ml-1 text-teal-200" />}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <p className="text-[9px] text-zinc-400 font-medium px-1 mt-1">Select multiple goals to refine your search.</p>
                     </div>
 
                     {/* Categories */}
@@ -221,11 +244,11 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                     <div className="space-y-3">
                         <button 
                             onClick={handleGenerate}
-                            disabled={loading}
-                            className="w-full py-4 bg-zinc-900 text-white rounded-xl font-bold text-sm uppercase tracking-widest shadow-lg shadow-zinc-900/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2"
+                            disabled={loading || selectedGoals.length === 0}
+                            className="w-full py-4 bg-zinc-900 text-white rounded-xl font-bold text-sm uppercase tracking-widest shadow-lg shadow-zinc-900/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:scale-100"
                         >
                             {loading ? <Loader size={18} className="animate-spin text-zinc-500" /> : <Search size={18} />}
-                            {loading ? 'Processing...' : (!isPaid && !hasFreeUsage ? 'Unlock Full Access' : 'Find Matches')}
+                            {loading ? 'Processing...' : (!isPaid && !hasFreeUsage ? 'Unlock Full Access' : selectedGoals.length === 0 ? 'Select a Goal' : 'Find Matches')}
                         </button>
                         {!isPaid && (
                             <p className="text-center text-[10px] text-zinc-400 font-bold uppercase tracking-wide">
