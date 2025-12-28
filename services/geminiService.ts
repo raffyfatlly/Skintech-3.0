@@ -308,7 +308,7 @@ export const analyzeProductFromSearch = async (productName: string, userMetrics:
             type: data.type || "UNKNOWN",
             ingredients: data.ingredients || [],
             estimatedPrice: data.estimatedPrice || 0,
-            suitabilityScore: data.suitabilityScore || 50,
+            suitabilityScore: Math.min(99, data.suitabilityScore || 50), // CLAMPED MAX 99
             risks: data.risks || [],
             benefits: data.benefits || [],
             dateScanned: Date.now(),
@@ -393,7 +393,7 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
             type: data.type || "UNKNOWN",
             ingredients: data.ingredients || [],
             estimatedPrice: data.estimatedPrice || 0,
-            suitabilityScore: data.suitabilityScore || 50,
+            suitabilityScore: Math.min(99, data.suitabilityScore || 50), // CLAMPED MAX 99
             risks: data.risks || [],
             benefits: data.benefits || [],
             dateScanned: Date.now(),
@@ -425,7 +425,7 @@ export const auditProduct = (product: Product, user: UserProfile) => {
     }
     
     return {
-        adjustedScore: Math.max(0, Math.min(100, adjustedScore)),
+        adjustedScore: Math.max(0, Math.min(99, adjustedScore)), // CLAMPED MAX 99
         warnings,
         analysisReason: warnings.length > 0 ? warnings[0].reason : "Good formulation match."
     };
@@ -609,6 +609,11 @@ export const generateTargetedRecommendations = async (user: UserProfile, categor
             config: { tools: [{ googleSearch: {} }], responseMimeType: 'application/json' }
         });
         const res = parseJSONFromText(response.text || "[]");
-        return Array.isArray(res) ? res : [];
+        // Update: Clamp ratings to 99
+        const items = Array.isArray(res) ? res : [];
+        return items.map((item: any) => ({
+            ...item,
+            rating: Math.min(99, item.rating || 0)
+        }));
     }, [], 60000);
 };

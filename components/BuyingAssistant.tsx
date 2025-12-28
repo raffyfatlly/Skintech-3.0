@@ -217,14 +217,14 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
 
                 <div className="flex items-center justify-between text-xs font-bold text-zinc-500 px-1">
                     <span>Skin Match Score</span>
-                    <span className={`text-lg font-black ${theme.accent}`}>{product.suitabilityScore}%</span>
+                    <span className={`text-lg font-black ${theme.accent}`}>{Math.min(99, product.suitabilityScore)}%</span>
                 </div>
                 
                 {/* Score Bar */}
                 <div className="h-2 w-full bg-zinc-100 rounded-full mt-2 overflow-hidden">
                     <div 
                         className={`h-full rounded-full transition-all duration-1000 ${simpleVerdict.type === 'GREAT' ? 'bg-emerald-500' : simpleVerdict.type === 'AVOID' ? 'bg-rose-500' : 'bg-amber-500'}`} 
-                        style={{ width: `${product.suitabilityScore}%` }}
+                        style={{ width: `${Math.min(99, product.suitabilityScore)}%` }}
                     />
                 </div>
             </div>
