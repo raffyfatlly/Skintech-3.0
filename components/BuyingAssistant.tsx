@@ -86,40 +86,58 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
   const dynamicDescription = useMemo(() => {
       const decision = simpleVerdict.type;
       
+      const typeLabel = product.type === 'UNKNOWN' ? 'formulation' : 
+                        product.type.charAt(0).toUpperCase() + product.type.slice(1).toLowerCase();
+
+      // Helper to get nice labels for targets based on benefits
+      const getTargetLabels = () => {
+          const uniqueTargets = Array.from(new Set(product.benefits.map(b => b.target)));
+          const labels = uniqueTargets.map(t => {
+              switch(t) {
+                  case 'acneActive': return 'Acne';
+                  case 'acneScars': return 'Scarring';
+                  case 'wrinkleFine': case 'wrinkleDeep': return 'Anti-Aging';
+                  case 'pigmentation': return 'Brightening';
+                  case 'hydration': return 'Hydration';
+                  case 'redness': return 'Redness';
+                  case 'oiliness': return 'Oil Control';
+                  case 'poreSize': return 'Pores';
+                  case 'texture': return 'Texture';
+                  default: return null;
+              }
+          }).filter(Boolean);
+          
+          if (labels.length === 0) return null;
+          return Array.from(new Set(labels)).slice(0, 2).join(' & ');
+      };
+
+      const targets = getTargetLabels();
+
       // 1. GOOD MATCH
       if (decision === 'GREAT') {
-          // Find high relevance benefits first
-          const relevantBenefits = product.benefits.filter(b => b.relevance === 'HIGH');
-          const primaryBenefit = relevantBenefits.length > 0 ? relevantBenefits[0] : product.benefits[0];
-
-          if (primaryBenefit) {
-              // Use a "Key Benefit: X" structure to avoid grammar issues with the description sentence
-              return `Excellent match. Key benefit: **${primaryBenefit.description}**.`;
+          if (targets) {
+              return `This **${typeLabel}** is highly compatible. Scientifically matched to improve your **${targets}** metrics while maintaining barrier integrity.`;
           }
-          return "This product aligns perfectly with your skin profile and contains no harsh irritants.";
+          return `Excellent compatibility. This **${typeLabel}** aligns perfectly with your biometric profile and supports healthy barrier function.`;
       }
 
       // 2. CONSIDER
       if (decision === 'CONSIDER') {
-          const benefit = product.benefits[0];
-          const risk = product.risks[0]; // Usually the reason for 'Consider'
-
+          const risk = product.risks[0];
           if (risk) {
-              // Break into two sentences: "Contains [Ingredient]. [Reason]."
-              // This works whether 'Reason' is a sentence ("This clogs pores") or a phrase ("Potential irritation").
-              return `Proceed with caution. Contains **${risk.ingredient}**. **${risk.reason}**`;
+              const reason = risk.reason.replace(/\.$/, ''); 
+              return `Proceed with caution. While generally safe, **${risk.ingredient}** is flagged for potential **${reason.toLowerCase()}**.`;
           }
-          return verdict.description;
+          return `Partial match. This **${typeLabel}** is safe but lacks specific active ingredients to effectively target your ${targets || 'primary concerns'}.`;
       }
 
       // 3. AVOID
       if (decision === 'AVOID') {
           const risk = product.risks.find(r => r.riskLevel === 'HIGH') || product.risks[0];
           if (risk) {
-              // Break into two sentences: "Contains [Ingredient]. [Reason]."
-              return `Not recommended. Contains **${risk.ingredient}**. **${risk.reason}**`;
+              return `Critical mismatch. Contains **${risk.ingredient}**, which poses a high risk of irritation for your current skin state.`;
           }
-          return "This product formulation conflicts with your current skin biometric profile.";
+          return `Not recommended. The ingredient profile of this **${typeLabel}** conflicts with your sensitivity levels and may disrupt your barrier.`;
       }
 
       return verdict.description;

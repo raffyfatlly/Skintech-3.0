@@ -79,26 +79,93 @@ const runWithRetry = async <T>(fn: (ai: GenAI.GoogleGenAI) => Promise<T>, fallba
 
 // --- SHARED SCORING LOGIC ---
 // This ensures both Recommendation and Analysis use the exact same rules.
+// UPDATED: Now includes logic to reward "Hero Ingredients" that target specific deficiencies.
 const getStrictScoringRules = (user: UserProfile): string => {
     const m = user.biometrics;
-    const rules = [
-        "BASE RULE: Start with 85 points.",
-        "INGREDIENT MATCH: +5 for each ingredient directly addressing a user concern (e.g., Salicylic for Acne).",
-        "PRICE CHECK: If price is > RM 200 and product is basic (Cleanser/Moisturizer), penalty -10 points."
+    
+    // Define priorities based on low scores (Needs Improvement).
+    // A score < 75 indicates a metric that could use specific active ingredient targeting.
+    const priorities = [
+        { 
+            concern: 'ACNE', 
+            score: m.acneActive, 
+            actives: ['Salicylic Acid', 'Benzoyl Peroxide', 'Adapalene', 'Tea Tree Oil', 'Azelaic Acid', 'Sulfur', 'Retinol'] 
+        },
+        { 
+            concern: 'PIGMENTATION/DARK SPOTS', 
+            score: m.pigmentation, 
+            actives: ['Vitamin C', 'Niacinamide', 'Alpha Arbutin', 'Tranexamic Acid', 'Kojic Acid', 'Glycolic Acid', 'Licorice Root Extract'] 
+        },
+        { 
+            concern: 'WRINKLES/AGING', 
+            score: Math.min(m.wrinkleFine, m.wrinkleDeep), 
+            actives: ['Retinol', 'Retinal', 'Peptides', 'Bakuchiol', 'Adenosine', 'Vitamin C', 'Copper Peptides'] 
+        },
+        { 
+            concern: 'HYDRATION/BARRIER', 
+            score: m.hydration, 
+            actives: ['Ceramides', 'Hyaluronic Acid', 'Glycerin', 'Panthenol', 'Squalane', 'Allantoin', 'Urea', 'Fatty Acids'] 
+        },
+        { 
+            concern: 'REDNESS/SENSITIVITY', 
+            score: m.redness, 
+            actives: ['Centella Asiatica', 'Mugwort', 'Colloidal Oatmeal', 'Aloe Vera', 'Bisabolol', 'Green Tea', 'Zinc Oxide', 'Madecassoside'] 
+        },
+        {
+            concern: 'PORES/OIL CONTROL',
+            score: Math.min(m.poreSize, m.oiliness),
+            actives: ['Niacinamide', 'Salicylic Acid', 'Kaolin Clay', 'Charcoal', 'Zinc PCA', 'Witch Hazel (Low %)']
+        }
     ];
 
+    // Filter for actual user needs (Score < 75) and sort by severity (lowest score first)
+    const userNeeds = priorities.filter(p => p.score < 75).sort((a,b) => a.score - b.score);
+    
+    // Construct the prompt rules
+    let rules = [
+        "SCORING BASELINE: Start at 60 points (Neutral).",
+        "OBJECTIVE: Reward products that fix the user's specific skin problems. Penalize products that worsen them.",
+    ];
+
+    // 1. POSITIVE MATCHING (The "Improvement" Strategy)
+    if (userNeeds.length > 0) {
+        rules.push("\n--- PRIORITY INGREDIENTS (REWARD THESE) ---");
+        // Focus on top 3 concerns
+        userNeeds.slice(0, 3).forEach(need => {
+            rules.push(`[${need.concern} is Priority (Score: ${need.score})]: If product contains ${need.actives.join(' OR ')} -> ADD 10-15 POINTS per ingredient.`);
+        });
+        rules.push("NOTE: Stack the bonuses for multiple beneficial ingredients (up to Max Score 99).");
+    } else {
+        // Maintenance mode
+        rules.push("User has healthy skin (Maintenance Mode). Reward general high-quality maintenance ingredients (Antioxidants, Gentle Hydrators) -> +5 points each.");
+    }
+
+    // 2. NEGATIVE MATCHING (The "Avoidance" Strategy)
+    rules.push("\n--- RISKS (PENALIZE THESE) ---");
+    
+    // Sensitivity Check
     if (m.redness < 60) {
-        rules.push("CRITICAL SENSITIVITY: If contains Alcohol Denat, Fragrance, Parfum, Eucalyptus, or Witch Hazel -> SCORE MUST BE < 45. NO EXCEPTIONS.");
+        rules.push("CRITICAL SENSITIVITY: If contains Alcohol Denat, Fragrance, Parfum, Essential Oils (Eucalyptus, Lemon, Peppermint, Lavender), or Witch Hazel -> DEDUCT 40 POINTS. Result MUST be < 50 (AVOID).");
     }
+    
+    // Acne Check
     if (m.acneActive < 60) {
-        rules.push("CRITICAL ACNE: If contains Coconut Oil, Shea Butter (high up), Isopropyl Myristate, or Algae Extract -> SCORE MUST BE < 50.");
+        rules.push("ACNE TRIGGER: If contains Coconut Oil, Shea Butter (high concentration/top 5), Isopropyl Myristate, Ethylhexyl Palmitate, or Algae Extract -> DEDUCT 30 POINTS.");
     }
+    
+    // Dryness Check
     if (m.hydration < 50) {
-        rules.push("DRY SKIN: If high Alcohol content -> Penalty -20. If contains Ceramides/HA -> Bonus +10.");
+        rules.push("DRYNESS RISK: If high Alcohol content or stripping sulfates (Sodium Lauryl Sulfate) -> DEDUCT 20 POINTS.");
     }
+
+    // Oily Check (Low score means unbalanced/oily)
     if (m.oiliness < 50) {
-        rules.push("OILY SKIN: If contains heavy occlusives (Petrolatum, Mineral Oil) -> Penalty -15.");
+        rules.push("CLOGGING RISK: If contains heavy occlusives like Petrolatum, Mineral Oil, Cocoa Butter, or Lanolin -> DEDUCT 15 POINTS.");
     }
+
+    rules.push("\n--- FINAL CALCULATION ---");
+    rules.push("Final Score = 60 + Rewards - Penalties.");
+    rules.push("Clamp result between 0 and 99.");
 
     return rules.join('\n');
 };
@@ -247,10 +314,11 @@ export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, 
 };
 
 export const analyzeProductFromSearch = async (productName: string, userMetrics: SkinMetrics, consistencyScore?: number, knownBrand?: string, routineActives: string[] = []): Promise<Product> => {
-    // Construct a temporary user object for the helper
+    // Construct a temporary user object for the helper to use the new scoring logic
     const tempUser: UserProfile = { 
         name: "User", age: 25, skinType: "UNKNOWN" as any, hasScannedFace: true, biometrics: userMetrics 
     };
+    // This generates specific rules based on the user's weaknesses (acne, wrinkles, etc.)
     const scoringRules = getStrictScoringRules(tempUser);
 
     return runWithRetry<Product>(async (ai) => {
@@ -265,12 +333,13 @@ export const analyzeProductFromSearch = async (productName: string, userMetrics:
         1. Use Google Search to find the EXACT full ingredients list and current price in MYR.
         2. Analyze the ingredients against the user profile using the SCORING RULES below.
         
-        SCORING RULES (STRICT):
+        SCORING RULES (STRICT - PERSONALIZED):
         ${scoringRules}
         
         CRITICAL OUTPUT RULES:
         - Return ONLY JSON. 
-        - Ensure "suitabilityScore" (0-100) reflects the SCORING RULES exactly. If a forbidden ingredient is found, score MUST be low.
+        - Ensure "suitabilityScore" (0-100) reflects the SCORING RULES exactly. 
+        - "benefits": Identify ingredients that match the user's lowest metrics (Needs Improvement).
         - "expertReview": Write an objective consensus review. Summarize what experts generally say about this formulation. DO NOT use first-person.
         
         OUTPUT JSON SCHEMA:
@@ -338,6 +407,7 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
 
         // Step 2: Search & Deep Analysis
         const tempUser: UserProfile = { name: "User", age: 25, skinType: "UNKNOWN" as any, hasScannedFace: true, biometrics: userMetrics };
+        // Uses the personalized scoring based on user deficiencies
         const scoringRules = getStrictScoringRules(tempUser);
 
         const refinementPrompt = `
@@ -351,7 +421,7 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
         1. Search for the product's full ingredient list and reviews.
         2. Analyze for risks/benefits using the SCORING RULES below.
         
-        SCORING RULES (STRICT):
+        SCORING RULES (STRICT - PERSONALIZED):
         ${scoringRules}
         
         CRITICAL OUTPUT RULES:
@@ -562,6 +632,7 @@ export const generateRoutineRecommendations = async (user: UserProfile): Promise
 }
 
 export const generateTargetedRecommendations = async (user: UserProfile, category: string, maxPrice: number, allergies: string, goals: string[]): Promise<any> => {
+    // UPDATED: Now uses the new Hero Ingredient logic via getStrictScoringRules
     const scoringRules = getStrictScoringRules(user);
     
     return runWithRetry<any>(async (ai) => {
@@ -589,7 +660,7 @@ export const generateTargetedRecommendations = async (user: UserProfile, categor
            - If a product contains a forbidden ingredient (e.g. Fragrance for sensitive skin), DO NOT RECOMMEND IT, or give it a LOW rating.
            - Ensure the "rating" aligns with the "suitabilityScore" that would be generated by a deep chemical analysis.
         
-        SCORING RULES (STRICT):
+        SCORING RULES (STRICT - PERSONALIZED):
         ${scoringRules}
         
         OUTPUT JSON ARRAY:
