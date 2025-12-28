@@ -77,6 +77,32 @@ const runWithRetry = async <T>(fn: (ai: GenAI.GoogleGenAI) => Promise<T>, fallba
     }
 };
 
+// --- SHARED SCORING LOGIC ---
+// This ensures both Recommendation and Analysis use the exact same rules.
+const getStrictScoringRules = (user: UserProfile): string => {
+    const m = user.biometrics;
+    const rules = [
+        "BASE RULE: Start with 85 points.",
+        "INGREDIENT MATCH: +5 for each ingredient directly addressing a user concern (e.g., Salicylic for Acne).",
+        "PRICE CHECK: If price is > RM 200 and product is basic (Cleanser/Moisturizer), penalty -10 points."
+    ];
+
+    if (m.redness < 60) {
+        rules.push("CRITICAL SENSITIVITY: If contains Alcohol Denat, Fragrance, Parfum, Eucalyptus, or Witch Hazel -> SCORE MUST BE < 45. NO EXCEPTIONS.");
+    }
+    if (m.acneActive < 60) {
+        rules.push("CRITICAL ACNE: If contains Coconut Oil, Shea Butter (high up), Isopropyl Myristate, or Algae Extract -> SCORE MUST BE < 50.");
+    }
+    if (m.hydration < 50) {
+        rules.push("DRY SKIN: If high Alcohol content -> Penalty -20. If contains Ceramides/HA -> Bonus +10.");
+    }
+    if (m.oiliness < 50) {
+        rules.push("OILY SKIN: If contains heavy occlusives (Petrolatum, Mineral Oil) -> Penalty -15.");
+    }
+
+    return rules.join('\n');
+};
+
 const getFallbackProduct = (userMetrics: SkinMetrics, name: string): Product => ({
     id: Date.now().toString(),
     name: name,
@@ -221,29 +247,31 @@ export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, 
 };
 
 export const analyzeProductFromSearch = async (productName: string, userMetrics: SkinMetrics, consistencyScore?: number, knownBrand?: string, routineActives: string[] = []): Promise<Product> => {
+    // Construct a temporary user object for the helper
+    const tempUser: UserProfile = { 
+        name: "User", age: 25, skinType: "UNKNOWN" as any, hasScannedFace: true, biometrics: userMetrics 
+    };
+    const scoringRules = getStrictScoringRules(tempUser);
+
     return runWithRetry<Product>(async (ai) => {
         const prompt = `
         ACT AS AN EXPERT COSMETIC CHEMIST.
         PRODUCT: "${productName}" ${knownBrand ? `by ${knownBrand}` : ''}
         CONTEXT: User in MALAYSIA. 
-        USER PROFILE (0=Bad, 100=Good): ${JSON.stringify(userMetrics)}.
+        USER BIOMETRICS (0-100, High=Good): ${JSON.stringify(userMetrics)}.
         ROUTINE ACTIVES ALREADY USED: [${routineActives.join(', ')}].
 
         TASK: 
-        1. Use Google Search to find the ingredients list and price in MYR.
-        2. Analyze the ingredients against the user profile.
-        3. Output the result in the strict JSON format below.
+        1. Use Google Search to find the EXACT full ingredients list and current price in MYR.
+        2. Analyze the ingredients against the user profile using the SCORING RULES below.
         
-        STYLE GUIDELINES:
-        - Use simple, concise prose suitable for a general audience.
-        - **CRITICAL:** If you use a technical term, immediately explain it in simple terms within brackets. 
-          Example: "Contains salicylic acid [a pore-clearing exfoliant]." or "Rich in ceramides [lipids that repair the skin barrier]."
+        SCORING RULES (STRICT):
+        ${scoringRules}
         
         CRITICAL OUTPUT RULES:
         - Return ONLY JSON. 
-        - Ensure "suitabilityScore" (0-100) reflects match with User Profile.
-        - "expertReview": Write an objective consensus review. Summarize what experts generally say about this formulation. DO NOT use first-person ("I", "As a chemist"). Keep it professional and third-party. Use simple language with bracketed explanations.
-        - "benefits" & "risks" descriptions: Must use simple language with bracketed explanations if needed.
+        - Ensure "suitabilityScore" (0-100) reflects the SCORING RULES exactly. If a forbidden ingredient is found, score MUST be low.
+        - "expertReview": Write an objective consensus review. Summarize what experts generally say about this formulation. DO NOT use first-person.
         
         OUTPUT JSON SCHEMA:
         \`\`\`json
@@ -309,25 +337,26 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
         if (!visionData.name || visionData.name === "Unknown") throw new Error("Could not identify product.");
 
         // Step 2: Search & Deep Analysis
+        const tempUser: UserProfile = { name: "User", age: 25, skinType: "UNKNOWN" as any, hasScannedFace: true, biometrics: userMetrics };
+        const scoringRules = getStrictScoringRules(tempUser);
+
         const refinementPrompt = `
         ACT AS AN EXPERT COSMETIC CHEMIST.
         PRODUCT: "${visionData.brand} ${visionData.name}"
         CONTEXT: Malaysia.
-        USER PROFILE (0=Bad, 100=Good): ${JSON.stringify(userMetrics)}.
+        USER BIOMETRICS (0-100, High=Good): ${JSON.stringify(userMetrics)}.
         ROUTINE ACTIVES: [${routineActives.join(', ')}].
 
         TASK: 
         1. Search for the product's full ingredient list and reviews.
-        2. Analyze for risks/benefits based on user profile.
-        3. RETURN A VALID JSON OBJECT matching the schema below.
+        2. Analyze for risks/benefits using the SCORING RULES below.
         
-        STYLE GUIDELINES:
-        - Use simple, concise prose.
-        - **CRITICAL:** Explain any technical term immediately in brackets. Example: "Contains hyaluronic acid [a moisture magnet for hydration]."
+        SCORING RULES (STRICT):
+        ${scoringRules}
         
         CRITICAL OUTPUT RULES:
-        - "expertReview": Write an objective consensus review. Summarize what experts generally say about this formulation. DO NOT use first-person ("I", "As a chemist"). Keep it professional and third-party. Use simple language with bracketed explanations.
-        - "benefits" & "risks" descriptions: Must use simple language with bracketed explanations if needed.
+        - "expertReview": Write an objective consensus review. Summarize what experts generally say about this formulation. DO NOT use first-person.
+        - "suitabilityScore": MUST follow the rules.
 
         OUTPUT JSON SCHEMA:
         \`\`\`json
@@ -355,12 +384,11 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
         const data = parseJSONFromText(finalResponse.text || "{}");
         const sources = extractSources(finalResponse);
         
-        // Relaxed validation: If name is missing but we have ingredients/score, assume it's the product we asked for.
         if (!data.name && !data.ingredients) throw new Error("Refinement failed: No data extracted.");
 
         return {
             id: Date.now().toString(),
-            name: data.name || visionData.name, // Fallback to vision name
+            name: data.name || visionData.name,
             brand: data.brand || visionData.brand, 
             type: data.type || "UNKNOWN",
             ingredients: data.ingredients || [],
@@ -377,13 +405,24 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
 };
 
 export const auditProduct = (product: Product, user: UserProfile) => {
+    // This function is for LOCAL re-calculation if needed, but we rely on AI score now.
+    // However, to be safe, we re-apply the redness penalty if the AI missed it.
     const warnings = product.risks.map(r => ({ 
         severity: r.riskLevel === 'HIGH' ? 'CRITICAL' : 'CAUTION', 
         reason: r.reason 
     }));
     
     let adjustedScore = product.suitabilityScore;
-    if (user.biometrics.redness < 50 && warnings.length > 0) adjustedScore -= 10;
+    
+    // Safety Net: Double Check critical mismatch even if AI gave high score
+    if (user.biometrics.redness < 50 && adjustedScore > 60) {
+        // Simple heuristic check for common irritants in the ingredient list string
+        const ingStr = product.ingredients.join(' ').toLowerCase();
+        if (ingStr.includes('alcohol denat') || ingStr.includes('fragrance') || ingStr.includes('parfum')) {
+            adjustedScore = 40; // Force downgrade
+            warnings.unshift({ severity: 'CRITICAL', reason: 'Contains fragrance/alcohol which conflicts with your high sensitivity.' });
+        }
+    }
     
     return {
         adjustedScore: Math.max(0, Math.min(100, adjustedScore)),
@@ -456,7 +495,6 @@ export const getClinicalTreatmentSuggestions = (user: UserProfile) => {
 };
 
 export const createDermatologistSession = (user: UserProfile, shelf: Product[]): Chat => {
-    // Format shelf context for the AI
     const shelfContext = shelf.length > 0 
         ? shelf.map(p => `- ${p.brand || 'Unknown'} ${p.name} (${p.type})`).join('\n')
         : "No products in routine yet.";
@@ -520,11 +558,12 @@ export const generateRoutineRecommendations = async (user: UserProfile): Promise
 }
 
 export const generateTargetedRecommendations = async (user: UserProfile, category: string, maxPrice: number, allergies: string, goals: string[]): Promise<any> => {
+    const scoringRules = getStrictScoringRules(user);
+    
     return runWithRetry<any>(async (ai) => {
         const goalsString = goals.length > 0 ? goals.join(', ') : "General Skin Health";
         
-        // ENHANCED PROMPT: We inject specific biometrics and enforce strict chemical logic
-        // to ensure the "rating" returned here matches what the deep analyzer would say.
+        // UNIFIED PROMPT: Now uses the exact same SCORING RULES as the Deep Analyzer
         const prompt = `
         ACT AS AN EXPERT COSMETIC CHEMIST AND PERSONAL SHOPPER.
         
@@ -540,12 +579,14 @@ export const generateTargetedRecommendations = async (user: UserProfile, categor
         - Region: Malaysia (Watsons/Guardian/Sephora available)
         
         TASK:
-        1. Find 3 highly effective products that match these criteria.
-        2. **CRITICAL:** Calculate a "rating" (0-100) based on ingredient safety and efficacy for THIS SPECIFIC USER PROFILE. 
-           - If the user has low redness score, avoid irritants. 
-           - If the user has acne, prioritize non-comedogenic.
-           - The rating MUST be consistent with a strict chemical analysis. Do not give 95+ easily.
-        3. Explain *why* it fits based on ingredients.
+        1. Use Google Search to find 3 highly effective products that match these criteria.
+        2. **CRITICAL:** For each product, analyze its ingredients against the STRICT SCORING RULES below.
+           - YOU MUST CHECK INGREDIENTS.
+           - If a product contains a forbidden ingredient (e.g. Fragrance for sensitive skin), DO NOT RECOMMEND IT, or give it a LOW rating.
+           - Ensure the "rating" aligns with the "suitabilityScore" that would be generated by a deep chemical analysis.
+        
+        SCORING RULES (STRICT):
+        ${scoringRules}
         
         OUTPUT JSON ARRAY:
         [{ 

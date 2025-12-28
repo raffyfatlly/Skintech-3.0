@@ -58,6 +58,26 @@ const App: React.FC = () => {
 
   useEffect(() => { viewRef.current = currentView; }, [currentView]);
 
+  // Loading Message Cycler
+  useEffect(() => {
+      let interval: ReturnType<typeof setInterval>;
+      if (isGlobalLoading && loadingMessage === "Analyzing Product...") {
+          const messages = [
+              "Analyzing Product...",
+              "Checking Ingredients...",
+              "Calculating Match Score...",
+              "Verifying Price in MYR...",
+              "Finalizing Verdict..."
+          ];
+          let i = 0;
+          interval = setInterval(() => {
+              i = (i + 1) % messages.length;
+              setLoadingMessage(messages[i]);
+          }, 2000);
+      }
+      return () => clearInterval(interval);
+  }, [isGlobalLoading]);
+
   const openAuth = (trigger: AuthTrigger) => {
       trackEvent('AUTH_OPENED', { trigger });
       setSaveModalTrigger(trigger);
