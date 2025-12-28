@@ -33,7 +33,7 @@ import BetaOfferModal from './components/BetaOfferModal';
 import GuideOverlay from './components/GuideOverlay';
 import AdminDashboard from './components/AdminDashboard';
 
-import { ScanFace, LayoutGrid, User, Search, Home, Loader, ScanBarcode, Lock } from 'lucide-react';
+import { ScanFace, LayoutGrid, User, Search, Home, Loader, ScanBarcode, Lock, Sparkles } from 'lucide-react';
 
 const LIMIT_SCANS = 3;
 
@@ -42,6 +42,7 @@ const App: React.FC = () => {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [shelf, setShelf] = useState<Product[]>([]);
   const [isGlobalLoading, setIsGlobalLoading] = useState(false);
+  const [loadingMessage, setLoadingMessage] = useState<string | null>(null);
   const viewRef = useRef<AppView>(AppView.LANDING);
   const [analyzedProduct, setAnalyzedProduct] = useState<Product | null>(null);
   const [prefillName, setPrefillName] = useState<string>('');
@@ -125,7 +126,10 @@ const App: React.FC = () => {
     const unsubscribe = auth ? onAuthStateChanged(auth, async (user) => {
         if (user) {
             const isLoginFlow = viewRef.current === AppView.LANDING || viewRef.current === AppView.ONBOARDING;
-            if (isLoginFlow) setIsGlobalLoading(true);
+            if (isLoginFlow) {
+                setLoadingMessage("Syncing Profile...");
+                setIsGlobalLoading(true);
+            }
             try {
                 await syncLocalToCloud();
                 const data = await loadUserData();
@@ -146,7 +150,7 @@ const App: React.FC = () => {
                     if (user.displayName) setPrefillName(user.displayName);
                     setCurrentView(AppView.ONBOARDING);
                 }
-            } catch (e) { console.error(e); } finally { setTimeout(() => setIsGlobalLoading(false), 500); }
+            } catch (e) { console.error(e); } finally { setTimeout(() => setIsGlobalLoading(false), 500); setLoadingMessage(null); }
         }
     }) : () => {};
     return () => unsubscribe();
@@ -195,6 +199,7 @@ const App: React.FC = () => {
   // NEW: Handle deep analysis from Routine Builder recommendation
   const handleRoutineProductSelect = async (selection: { name: string, brand: string }) => {
       if (!userProfile) return;
+      setLoadingMessage("Analyzing Product...");
       setIsGlobalLoading(true);
       
       try {
@@ -212,6 +217,7 @@ const App: React.FC = () => {
           // Fallback handled by service, or we could show error notification
       } finally {
           setIsGlobalLoading(false);
+          setLoadingMessage(null);
       }
   };
 
@@ -404,8 +410,24 @@ const App: React.FC = () => {
   return (
     <div className="bg-zinc-50 min-h-screen font-sans">
       {isGlobalLoading && (
-          <div className="fixed inset-0 z-[60] bg-white flex items-center justify-center">
-              <div className="flex flex-col items-center"><Loader size={32} className="text-teal-500 animate-spin mb-4" /><p className="text-xs font-bold text-zinc-400 uppercase tracking-widest animate-pulse">Syncing Profile...</p></div>
+          <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-300">
+              <div className="bg-white rounded-[2.5rem] p-8 shadow-2xl flex flex-col items-center max-w-xs w-full text-center relative overflow-hidden">
+                  <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-teal-400 via-emerald-500 to-teal-600 animate-[shimmer_2s_infinite]" style={{ backgroundSize: '200% 100%' }}></div>
+                  
+                  <div className="w-20 h-20 bg-zinc-50 rounded-full flex items-center justify-center mb-6 relative shadow-inner">
+                      <div className="absolute inset-0 border-4 border-zinc-100 rounded-full"></div>
+                      <div className="absolute inset-0 border-4 border-t-teal-500 border-r-teal-500/30 border-b-transparent border-l-transparent rounded-full animate-spin"></div>
+                      <Sparkles size={28} className="text-teal-600 animate-pulse" />
+                  </div>
+                  
+                  <h3 className="text-xl font-black text-zinc-900 mb-2 tracking-tight">
+                      {loadingMessage || "Syncing..."}
+                  </h3>
+                  
+                  <p className="text-xs text-zinc-500 font-medium leading-relaxed max-w-[200px]">
+                      {loadingMessage ? "Checking ingredients against your specific biometric profile..." : "Securing your data..."}
+                  </p>
+              </div>
           </div>
       )}
       {renderView()}
