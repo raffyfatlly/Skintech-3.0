@@ -33,7 +33,7 @@ import BetaOfferModal from './components/BetaOfferModal';
 import GuideOverlay from './components/GuideOverlay';
 import AdminDashboard from './components/AdminDashboard';
 
-import { ScanFace, LayoutGrid, User, Search, Home, Loader, ScanBarcode, Lock, Sparkles } from 'lucide-react';
+import { ScanFace, LayoutGrid, User, Search, Home, Loader, ScanBarcode, Lock, Sparkles, Microscope, RefreshCw } from 'lucide-react';
 
 const LIMIT_SCANS = 3;
 
@@ -61,7 +61,7 @@ const App: React.FC = () => {
   // Loading Message Cycler
   useEffect(() => {
       let interval: ReturnType<typeof setInterval>;
-      if (isGlobalLoading && loadingMessage === "Analyzing Product...") {
+      if (isGlobalLoading && loadingMessage?.includes("Analyzing")) {
           const messages = [
               "Analyzing Product...",
               "Checking Ingredients...",
@@ -70,10 +70,11 @@ const App: React.FC = () => {
               "Finalizing Verdict..."
           ];
           let i = 0;
+          setLoadingMessage(messages[0]);
           interval = setInterval(() => {
               i = (i + 1) % messages.length;
               setLoadingMessage(messages[i]);
-          }, 2000);
+          }, 1500);
       }
       return () => clearInterval(interval);
   }, [isGlobalLoading]);
@@ -427,27 +428,60 @@ const App: React.FC = () => {
       setNotification({ type: 'GENERIC', title: 'Account Synced', description: 'Your data is now saved to the cloud.', actionLabel: 'OK', onAction: () => {} });
   };
 
+  const isAnalysisLoading = loadingMessage && (
+      loadingMessage.includes("Analyzing") || 
+      loadingMessage.includes("Checking") || 
+      loadingMessage.includes("Calculating") ||
+      loadingMessage.includes("Verifying") ||
+      loadingMessage.includes("Finalizing")
+  );
+
   return (
     <div className="bg-zinc-50 min-h-screen font-sans">
       {isGlobalLoading && (
           <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-300">
-              <div className="bg-white rounded-[2.5rem] p-8 shadow-2xl flex flex-col items-center max-w-xs w-full text-center relative overflow-hidden">
-                  <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-teal-400 via-emerald-500 to-teal-600 animate-[shimmer_2s_infinite]" style={{ backgroundSize: '200% 100%' }}></div>
-                  
-                  <div className="w-20 h-20 bg-zinc-50 rounded-full flex items-center justify-center mb-6 relative shadow-inner">
-                      <div className="absolute inset-0 border-4 border-zinc-100 rounded-full"></div>
-                      <div className="absolute inset-0 border-4 border-t-teal-500 border-r-teal-500/30 border-b-transparent border-l-transparent rounded-full animate-spin"></div>
-                      <Sparkles size={28} className="text-teal-600 animate-pulse" />
+              {isAnalysisLoading ? (
+                  <div className="bg-zinc-900 rounded-[2.5rem] p-8 shadow-2xl flex flex-col items-center max-w-xs w-full text-center relative overflow-hidden border border-zinc-800">
+                      {/* Animated Background Gradient */}
+                      <div className="absolute inset-0 bg-gradient-to-tr from-teal-900/20 via-transparent to-indigo-900/20 animate-pulse"></div>
+                      
+                      {/* Progress Bar Top */}
+                      <div className="absolute top-0 left-0 right-0 h-1 bg-zinc-800">
+                          <div className="h-full bg-gradient-to-r from-teal-500 via-indigo-500 to-teal-500 animate-[shimmer_2s_infinite]" style={{ backgroundSize: '200% 100%' }}></div>
+                      </div>
+
+                      <div className="w-20 h-20 bg-black rounded-2xl flex items-center justify-center mb-6 relative shadow-lg border border-zinc-800 z-10">
+                          <div className="absolute inset-0 bg-teal-500/10 animate-ping rounded-2xl"></div>
+                          <Microscope size={32} className="text-teal-400 animate-bounce" />
+                      </div>
+                      
+                      <h3 className="text-xl font-black text-white mb-2 tracking-tight relative z-10">
+                          {loadingMessage}
+                      </h3>
+                      
+                      <p className="text-xs text-zinc-400 font-medium leading-relaxed max-w-[200px] relative z-10">
+                          Cross-referencing ingredients with your skin biometrics...
+                      </p>
                   </div>
-                  
-                  <h3 className="text-xl font-black text-zinc-900 mb-2 tracking-tight">
-                      {loadingMessage || "Syncing..."}
-                  </h3>
-                  
-                  <p className="text-xs text-zinc-500 font-medium leading-relaxed max-w-[200px]">
-                      {loadingMessage ? "Checking ingredients against your specific biometric profile..." : "Securing your data..."}
-                  </p>
-              </div>
+              ) : (
+                  <div className="bg-white rounded-[2.5rem] p-8 shadow-2xl flex flex-col items-center max-w-xs w-full text-center relative overflow-hidden">
+                      <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-teal-400 via-emerald-500 to-teal-600 animate-[shimmer_2s_infinite]" style={{ backgroundSize: '200% 100%' }}></div>
+                      
+                      <div className="w-20 h-20 bg-zinc-50 rounded-full flex items-center justify-center mb-6 relative shadow-inner">
+                          <div className="absolute inset-0 border-4 border-zinc-100 rounded-full"></div>
+                          <div className="absolute inset-0 border-4 border-t-teal-500 border-r-teal-500/30 border-b-transparent border-l-transparent rounded-full animate-spin"></div>
+                          <RefreshCw size={28} className="text-teal-600" />
+                      </div>
+                      
+                      <h3 className="text-xl font-black text-zinc-900 mb-2 tracking-tight">
+                          {loadingMessage || "Syncing Profile..."}
+                      </h3>
+                      
+                      <p className="text-xs text-zinc-500 font-medium leading-relaxed max-w-[200px]">
+                          Updating your secure dashboard...
+                      </p>
+                  </div>
+              )}
           </div>
       )}
       {renderView()}
