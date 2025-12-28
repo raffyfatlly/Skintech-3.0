@@ -522,12 +522,42 @@ export const generateRoutineRecommendations = async (user: UserProfile): Promise
 export const generateTargetedRecommendations = async (user: UserProfile, category: string, maxPrice: number, allergies: string, goals: string[]): Promise<any> => {
     return runWithRetry<any>(async (ai) => {
         const goalsString = goals.length > 0 ? goals.join(', ') : "General Skin Health";
+        
+        // ENHANCED PROMPT: We inject specific biometrics and enforce strict chemical logic
+        // to ensure the "rating" returned here matches what the deep analyzer would say.
         const prompt = `
-        ACT AS PERSONAL SHOPPER. User Skin: ${user.skinType}, Concerns: ${JSON.stringify(user.biometrics)}.
-        CRITERIA: ${category}, Goals: ${goalsString}, Max RM ${maxPrice}, Avoid: ${allergies}.
-        TASK: Find 3 products in Malaysia (Watsons/Guardian/Sephora).
-        OUTPUT JSON: [{ "name": "...", "brand": "...", "price": "RM 45", "reason": "...", "rating": 95, "tier": "VALUE" }]
+        ACT AS AN EXPERT COSMETIC CHEMIST AND PERSONAL SHOPPER.
+        
+        USER CONTEXT:
+        - Skin Type: ${user.skinType}
+        - Biometrics (0-100, High=Good): ${JSON.stringify(user.biometrics)}
+        - Allergies/Avoid: ${allergies || "None"}
+        
+        CRITERIA:
+        - Category: ${category}
+        - Goals: ${goalsString}
+        - Max Price: RM ${maxPrice}
+        - Region: Malaysia (Watsons/Guardian/Sephora available)
+        
+        TASK:
+        1. Find 3 highly effective products that match these criteria.
+        2. **CRITICAL:** Calculate a "rating" (0-100) based on ingredient safety and efficacy for THIS SPECIFIC USER PROFILE. 
+           - If the user has low redness score, avoid irritants. 
+           - If the user has acne, prioritize non-comedogenic.
+           - The rating MUST be consistent with a strict chemical analysis. Do not give 95+ easily.
+        3. Explain *why* it fits based on ingredients.
+        
+        OUTPUT JSON ARRAY:
+        [{ 
+           "name": "Exact Product Name", 
+           "brand": "Brand", 
+           "price": "RM XX", 
+           "reason": "Contains [Ingredient] which helps [Goal]...", 
+           "rating": 92, 
+           "tier": "BEST MATCH" | "VALUE PICK" | "PREMIUM" 
+        }]
         `;
+        
         const response = await ai.models.generateContent({
             model: MODEL_ROUTINE,
             contents: prompt,

@@ -13,6 +13,7 @@ import { auth } from './services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { startCheckout } from './services/stripeService';
 import { trackEvent } from './services/analyticsService';
+import { analyzeProductFromSearch } from './services/geminiService'; // Import analyzer
 
 // Components
 import LandingPage from './components/LandingPage';
@@ -191,6 +192,29 @@ const App: React.FC = () => {
       setCurrentView(AppView.BUYING_ASSISTANT);
   };
 
+  // NEW: Handle deep analysis from Routine Builder recommendation
+  const handleRoutineProductSelect = async (selection: { name: string, brand: string }) => {
+      if (!userProfile) return;
+      setIsGlobalLoading(true);
+      
+      try {
+          const shelfIngredients = shelf.flatMap(p => p.ingredients).slice(0, 50);
+          const product = await analyzeProductFromSearch(
+              selection.name,
+              userProfile.biometrics,
+              undefined,
+              selection.brand,
+              shelfIngredients
+          );
+          handleProductFound(product); // Re-use standard handler to switch views
+      } catch (err) {
+          console.error(err);
+          // Fallback handled by service, or we could show error notification
+      } finally {
+          setIsGlobalLoading(false);
+      }
+  };
+
   const handleAddToShelf = () => {
       if (!userProfile || !analyzedProduct) return;
       trackEvent('ADD_TO_SHELF', { type: analyzedProduct.type });
@@ -346,7 +370,16 @@ const App: React.FC = () => {
           case AppView.PROFILE_SETUP:
               return userProfile ? <ProfileSetup user={userProfile} shelf={shelf} onComplete={handleProfileUpdate} onBack={() => setCurrentView(AppView.DASHBOARD)} onReset={handleResetApp} onLoginRequired={(trigger) => openAuth(trigger as AuthTrigger)} /> : null;
           case AppView.ROUTINE_BUILDER:
-              return userProfile ? <PremiumRoutineBuilder user={userProfile} onBack={() => setCurrentView(AppView.DASHBOARD)} onUnlockPremium={handleUnlockPremium} usageCount={userProfile.usage?.routineGenerations || 0} onIncrementUsage={() => incrementUsage('routineGenerations')} /> : null;
+              return userProfile ? (
+                  <PremiumRoutineBuilder 
+                      user={userProfile} 
+                      onBack={() => setCurrentView(AppView.DASHBOARD)} 
+                      onUnlockPremium={handleUnlockPremium} 
+                      usageCount={userProfile.usage?.routineGenerations || 0} 
+                      onIncrementUsage={() => incrementUsage('routineGenerations')}
+                      onProductSelect={handleRoutineProductSelect}
+                  />
+              ) : null;
           default: return <LandingPage onGetStarted={() => setCurrentView(AppView.ONBOARDING)} onLogin={() => openAuth('GENERIC')} />;
       }
   };

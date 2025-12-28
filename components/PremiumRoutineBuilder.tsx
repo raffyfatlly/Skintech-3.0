@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { UserProfile, SkinMetrics } from '../types';
 import { generateTargetedRecommendations } from '../services/geminiService';
-import { Sparkles, ArrowLeft, DollarSign, Star, Crown, Lock, Search, Droplet, Sun, Zap, ShieldCheck, Loader, Sliders, AlertCircle, Target, CheckCircle2, Check } from 'lucide-react';
+import { Sparkles, ArrowLeft, DollarSign, Star, Crown, Lock, Search, Droplet, Sun, Zap, ShieldCheck, Loader, Sliders, AlertCircle, Target, CheckCircle2, Check, ArrowRight } from 'lucide-react';
 
 interface RecommendedProduct {
     name: string;
@@ -19,6 +19,7 @@ interface PremiumRoutineBuilderProps {
     onUnlockPremium: () => void;
     usageCount: number;
     onIncrementUsage: () => void;
+    onProductSelect: (product: { name: string, brand: string }) => void;
 }
 
 const LIMIT_ROUTINES = 1;
@@ -41,7 +42,7 @@ const GOALS = [
     { label: 'Oil Control', icon: Sliders },
 ];
 
-const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onBack, onUnlockPremium, usageCount, onIncrementUsage }) => {
+const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onBack, onUnlockPremium, usageCount, onIncrementUsage, onProductSelect }) => {
     // Auto-select Goal Logic
     const defaultGoal = useMemo(() => {
         const b = user.biometrics;
@@ -281,7 +282,11 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                         </h3>
                         <div className="space-y-4">
                             {results.map((prod, idx) => (
-                                <div key={idx} className="bg-white p-5 rounded-[1.5rem] shadow-sm border border-zinc-100 relative overflow-hidden group hover:border-teal-200 transition-colors">
+                                <button 
+                                    key={idx} 
+                                    onClick={() => onProductSelect({ name: prod.name, brand: prod.brand })}
+                                    className="w-full text-left bg-white p-5 rounded-[1.5rem] shadow-sm border border-zinc-100 relative overflow-hidden group hover:border-teal-200 transition-colors active:scale-[0.99]"
+                                >
                                     <div className="flex justify-between items-start mb-2">
                                         <div>
                                             <h4 className="font-bold text-zinc-900 text-lg leading-tight mb-1">{prod.name}</h4>
@@ -296,17 +301,22 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                                         {prod.reason}
                                     </p>
                                     
-                                    <div className="flex items-center gap-2">
-                                        <div className="bg-emerald-50 text-emerald-700 px-2 py-1 rounded-md text-[10px] font-bold border border-emerald-100 flex items-center gap-1">
-                                            <ShieldCheck size={10} /> {prod.rating}% Match
-                                        </div>
-                                        {prod.tier && (
-                                            <div className="bg-indigo-50 text-indigo-700 px-2 py-1 rounded-md text-[10px] font-bold border border-indigo-100 uppercase">
-                                                {prod.tier}
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <div className="bg-emerald-50 text-emerald-700 px-2 py-1 rounded-md text-[10px] font-bold border border-emerald-100 flex items-center gap-1">
+                                                <ShieldCheck size={10} /> {prod.rating}% Match
                                             </div>
-                                        )}
+                                            {prod.tier && (
+                                                <div className="bg-indigo-50 text-indigo-700 px-2 py-1 rounded-md text-[10px] font-bold border border-indigo-100 uppercase">
+                                                    {prod.tier}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <div className="text-[10px] font-bold text-zinc-400 uppercase flex items-center gap-1 group-hover:text-teal-600 transition-colors">
+                                            Analyze & Add <ArrowRight size={12} />
+                                        </div>
                                     </div>
-                                </div>
+                                </button>
                             ))}
                         </div>
                     </div>
