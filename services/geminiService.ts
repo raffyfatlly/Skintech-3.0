@@ -514,8 +514,12 @@ export const createDermatologistSession = (user: UserProfile, shelf: Product[]):
              
              GUIDELINES:
              - Keep answers concise, friendly, and practical.
-             - Use the shelf context to give personalized advice.
-             - If the user asks about products not on the shelf, you can answer generally or compare them to what they own.
+             - Use the shelf context to give personalized advice on what they ALREADY own.
+             - **CRITICAL:** If the user asks for NEW product recommendations (e.g., "What moisturizer should I buy?"):
+               1. Do NOT list specific specific products or brands.
+               2. Instead, explain the *ingredients* they need (e.g., "Look for Ceramides and Niacinamide").
+               3. TELL THEM to use the "Routine Architect" feature in this app to get a perfect, price-checked match for their skin score.
+               4. Say something like: "For the most accurate recommendation, I recommend using the Routine Architect tool on your dashboard—it cross-references your biometric data with 1000s of products."
              - Focus on ingredients and scientific efficacy.
              `
         }
