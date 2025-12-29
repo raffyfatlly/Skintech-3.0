@@ -123,23 +123,17 @@ const App: React.FC = () => {
   ) => {
       if (!userProfile) return;
 
-      // 1. Notify Start
-      setNotification({
-          type: 'TASK_START',
-          title: 'Analysis Started',
-          description: 'Deep analyzing ingredients... You can continue navigating while we work.',
-          actionLabel: undefined,
-          onAction: undefined
-      });
+      // Capture the view where the request started
+      const originatingView = viewRef.current;
 
-      // 2. Run Analysis (Non-blocking)
       try {
           const shelfIngredients = shelf.flatMap(p => p.ingredients).slice(0, 50);
           let product: Product;
 
+          // Perform Analysis (This is the long-running task)
           if (type === 'SEARCH') {
               product = await analyzeProductFromSearch(
-                  payload, // name
+                  payload, 
                   userProfile.biometrics,
                   undefined, 
                   productBrand,
@@ -147,37 +141,50 @@ const App: React.FC = () => {
               );
           } else {
               product = await analyzeProductImage(
-                  payload, // base64
+                  payload, 
                   userProfile.biometrics, 
                   shelfIngredients
               );
           }
 
-          // 3. Notify Success
           setAnalyzedProduct(product);
-          
           if (!userProfile?.isPremium) {
               incrementUsage('manualScans');
           }
           trackEvent('PRODUCT_FOUND', { name: product.name, match: product.suitabilityScore });
 
-          setNotification({
-              type: 'TASK_COMPLETE',
-              title: 'Analysis Ready',
-              description: `Verdict available for ${product.name.substring(0, 15)}...`,
-              actionLabel: 'View Results',
-              onAction: () => setCurrentView(AppView.BUYING_ASSISTANT)
-          });
+          // CONDITIONAL COMPLETION LOGIC
+          // 1. If User stayed on the screen -> Open Result Directly
+          if (viewRef.current === originatingView) {
+              setCurrentView(AppView.BUYING_ASSISTANT);
+          } 
+          // 2. If User navigated away (Background Mode) -> Show Notification
+          else {
+              setNotification({
+                  type: 'TASK_COMPLETE',
+                  title: 'Analysis Ready',
+                  description: `Verdict available for ${product.name.substring(0, 15)}...`,
+                  actionLabel: 'View Results',
+                  onAction: () => {
+                      setCurrentView(AppView.BUYING_ASSISTANT);
+                  }
+              });
+          }
 
       } catch (err) {
           console.error("Background Analysis Error", err);
-          setNotification({
-              type: 'GENERIC',
-              title: 'Analysis Failed',
-              description: 'We couldn\'t complete the analysis. Please try again.',
-              actionLabel: 'Retry',
-              onAction: () => { /* no-op for now */ }
-          });
+          
+          if (viewRef.current !== originatingView) {
+              setNotification({
+                  type: 'GENERIC',
+                  title: 'Analysis Failed',
+                  description: 'We couldn\'t complete the analysis. Please try again.',
+                  actionLabel: 'Retry',
+                  onAction: () => { /* no-op for now */ }
+              });
+          }
+          // If user is still on screen, the component handles the error display usually, 
+          // but we can add a fallback notification here too.
       }
   };
 
@@ -193,36 +200,36 @@ const App: React.FC = () => {
           incrementUsage('routineGenerations');
       }
 
-      setNotification({
-          type: 'TASK_START',
-          title: 'Building Routine',
-          description: 'Searching for top-rated products... This may take a minute. Feel free to navigate away.',
-          actionLabel: undefined,
-          onAction: undefined
-      });
+      const originatingView = viewRef.current;
 
       try {
           const data = await generateTargetedRecommendations(userProfile, category, maxPrice, allergies, goals);
           
           setRoutineResults(data);
           
-          setNotification({
-              type: 'TASK_COMPLETE',
-              title: 'Routine Ready',
-              description: `Found ${data.length} matches for ${category}.`,
-              actionLabel: 'View',
-              onAction: () => setCurrentView(AppView.ROUTINE_BUILDER)
-          });
+          // CONDITIONAL COMPLETION LOGIC
+          if (viewRef.current !== originatingView) {
+              setNotification({
+                  type: 'TASK_COMPLETE',
+                  title: 'Routine Ready',
+                  description: `Found ${data.length} matches for ${category}.`,
+                  actionLabel: 'View',
+                  onAction: () => setCurrentView(AppView.ROUTINE_BUILDER)
+              });
+          }
+          // If user stayed, the component receives the data via props/state update and renders it.
 
       } catch (e) {
           console.error("Routine Error", e);
-          setNotification({
-              type: 'GENERIC',
-              title: 'Search Failed',
-              description: 'Could not generate recommendations. Try simpler filters.',
-              actionLabel: 'Retry',
-              onAction: () => setCurrentView(AppView.ROUTINE_BUILDER)
-          });
+          if (viewRef.current !== originatingView) {
+              setNotification({
+                  type: 'GENERIC',
+                  title: 'Search Failed',
+                  description: 'Could not generate recommendations. Try simpler filters.',
+                  actionLabel: 'Retry',
+                  onAction: () => setCurrentView(AppView.ROUTINE_BUILDER)
+              });
+          }
       }
   };
 
@@ -452,13 +459,14 @@ const App: React.FC = () => {
                   <ProductScanner 
                      userProfile={userProfile}
                      shelf={shelf}
-                     // Delegate background processing
                      onStartAnalysis={(base64) => {
                          handleBackgroundAnalysis('IMAGE', base64);
-                         // Close Scanner and return to previous view or dashboard
-                         if (userProfile.hasScannedFace) setCurrentView(AppView.SMART_SHELF); else setCurrentView(AppView.DASHBOARD);
                      }}
-                     onCancel={() => { if (userProfile.hasScannedFace) setCurrentView(AppView.SMART_SHELF); else setCurrentView(AppView.DASHBOARD); }}
+                     // Passing App Navigation control for "Run in Background" behavior
+                     onCancel={() => { 
+                         if (userProfile.hasScannedFace) setCurrentView(AppView.SMART_SHELF); 
+                         else setCurrentView(AppView.DASHBOARD); 
+                     }}
                      usageCount={userProfile.usage?.manualScans || 0}
                      limit={LIMIT_SCANS}
                      isPremium={!!userProfile.isPremium}
@@ -470,10 +478,8 @@ const App: React.FC = () => {
                   <ProductSearch 
                      userProfile={userProfile}
                      shelf={shelf}
-                     // Delegate background processing
                      onStartAnalysis={(name, brand) => {
                          handleBackgroundAnalysis('SEARCH', name, brand);
-                         setCurrentView(AppView.SMART_SHELF);
                      }}
                      onCancel={() => setCurrentView(AppView.SMART_SHELF)}
                      usageCount={userProfile.usage?.manualScans || 0}
@@ -495,13 +501,12 @@ const App: React.FC = () => {
                       usageCount={userProfile.usage?.routineGenerations || 0} 
                       onIncrementUsage={() => incrementUsage('routineGenerations')}
                       
-                      // Handle "Analyze & Add" from routine list using background task
+                      // Handle "Analyze & Add" from routine list
                       onProductSelect={(prod) => {
                           handleBackgroundAnalysis('SEARCH', prod.name, prod.brand);
-                          // Don't change view immediately, just notify
                       }}
                       
-                      // Handle "Find Matches" using background task
+                      // Handle "Find Matches"
                       onGenerateBackground={(category, price, allergies, goals) => {
                           handleBackgroundRoutine(category, price, allergies, goals);
                       }}

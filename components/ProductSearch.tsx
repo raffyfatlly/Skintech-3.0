@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Search, X, Loader, AlertCircle, ArrowRight, Lock, Crown } from 'lucide-react';
+import { Search, X, Loader, AlertCircle, ArrowRight, Lock, Crown, Minimize2 } from 'lucide-react';
 import { Product, UserProfile } from '../types';
 import { searchProducts } from '../services/geminiService';
 
@@ -25,6 +25,7 @@ const ProductSearch: React.FC<ProductSearchProps> = ({ userProfile, shelf, onSta
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<SearchResult[]>([]);
     const [isSearching, setIsSearching] = useState(false);
+    const [isAnalyzing, setIsAnalyzing] = useState(false); // NEW
     const [hasSearched, setHasSearched] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -62,7 +63,7 @@ const ProductSearch: React.FC<ProductSearchProps> = ({ userProfile, shelf, onSta
             onUnlockPremium();
             return;
         }
-        // Immediately delegate to parent for background processing
+        setIsAnalyzing(true);
         onStartAnalysis(item.name, item.brand);
     };
 
@@ -88,6 +89,39 @@ const ProductSearch: React.FC<ProductSearchProps> = ({ userProfile, shelf, onSta
                         className="w-full py-3.5 text-zinc-500 font-bold text-xs uppercase tracking-widest hover:text-zinc-800"
                     >
                         Close
+                    </button>
+                </div>
+            </div>
+        )
+    }
+
+    // LOADING OVERLAY
+    if (isAnalyzing) {
+        return (
+            <div className="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center p-6 text-center animate-in fade-in">
+                <div className="w-24 h-24 bg-zinc-50 rounded-full flex items-center justify-center mb-8 relative shadow-lg">
+                    <div className="absolute inset-0 border-4 border-zinc-100 rounded-full"></div>
+                    <div className="absolute inset-0 border-4 border-t-teal-500 border-r-teal-500/30 border-b-transparent border-l-transparent rounded-full animate-spin"></div>
+                    <Search size={32} className="text-teal-600 animate-pulse" />
+                </div>
+                
+                <h2 className="text-2xl font-black text-zinc-900 mb-2">Searching & Analyzing...</h2>
+                <p className="text-sm text-zinc-500 font-medium mb-10 max-w-xs leading-relaxed">
+                    We're auditing the ingredient list. You can wait here or check back later.
+                </p>
+
+                <div className="w-full max-w-xs space-y-4">
+                    <button 
+                        disabled className="w-full py-4 bg-zinc-900 text-white rounded-xl font-bold text-xs uppercase tracking-widest opacity-80 cursor-wait flex items-center justify-center gap-2"
+                    >
+                        <Loader size={14} className="animate-spin" /> Please Wait
+                    </button>
+                    
+                    <button 
+                        onClick={onCancel} 
+                        className="w-full py-4 text-zinc-400 font-bold text-xs uppercase tracking-widest hover:text-teal-600 transition-colors flex items-center justify-center gap-2"
+                    >
+                        <Minimize2 size={14} /> Run in Background
                     </button>
                 </div>
             </div>

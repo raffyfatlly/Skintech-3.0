@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { Camera, RefreshCw, Check, X, AlertOctagon, ScanLine, Image as ImageIcon, Upload, ZoomIn, ZoomOut, Zap, ZapOff, Search, ChevronRight, Lock, Crown } from 'lucide-react';
+import { Camera, RefreshCw, Check, X, AlertOctagon, ScanLine, Image as ImageIcon, Upload, ZoomIn, ZoomOut, Zap, ZapOff, Search, ChevronRight, Lock, Crown, Minimize2, Loader } from 'lucide-react';
 import { Product, UserProfile } from '../types';
 
 interface ProductScannerProps {
@@ -26,6 +26,9 @@ const ProductScanner: React.FC<ProductScannerProps> = ({ userProfile, shelf, onS
   const [maxZoom, setMaxZoom] = useState(1);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
+  
+  // NEW: Internal processing state for UI feedback
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const isLimitReached = !isPremium && usageCount >= limit;
 
@@ -113,6 +116,7 @@ const ProductScanner: React.FC<ProductScannerProps> = ({ userProfile, shelf, onS
          track.applyConstraints({ advanced: [{ torch: false }] as any }).catch(() => {});
     }
     
+    setIsProcessing(true);
     onStartAnalysis(base64);
   };
 
@@ -122,6 +126,7 @@ const ProductScanner: React.FC<ProductScannerProps> = ({ userProfile, shelf, onS
       const reader = new FileReader();
       reader.onloadend = () => {
           const base64 = reader.result as string;
+          setIsProcessing(true);
           onStartAnalysis(base64);
       };
       reader.readAsDataURL(file);
@@ -150,6 +155,39 @@ const ProductScanner: React.FC<ProductScannerProps> = ({ userProfile, shelf, onS
                       className="w-full py-4 bg-zinc-900 text-zinc-500 rounded-xl font-bold text-sm uppercase tracking-widest hover:text-white transition-colors"
                   >
                       Go Back
+                  </button>
+              </div>
+          </div>
+      )
+  }
+
+  // PROCESSING UI
+  if (isProcessing) {
+      return (
+          <div className="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center p-6 text-center animate-in fade-in">
+              <div className="w-24 h-24 bg-zinc-50 rounded-full flex items-center justify-center mb-8 relative shadow-lg">
+                  <div className="absolute inset-0 border-4 border-zinc-100 rounded-full"></div>
+                  <div className="absolute inset-0 border-4 border-t-teal-500 border-r-teal-500/30 border-b-transparent border-l-transparent rounded-full animate-spin"></div>
+                  <ScanLine size={32} className="text-teal-600 animate-pulse" />
+              </div>
+              
+              <h2 className="text-2xl font-black text-zinc-900 mb-2">Deep Scanning...</h2>
+              <p className="text-sm text-zinc-500 font-medium mb-10 max-w-xs leading-relaxed">
+                  Analyzing ingredients against your skin profile. This deep audit may take up to 30 seconds.
+              </p>
+
+              <div className="w-full max-w-xs space-y-4">
+                  <button 
+                      disabled className="w-full py-4 bg-zinc-900 text-white rounded-xl font-bold text-xs uppercase tracking-widest opacity-80 cursor-wait flex items-center justify-center gap-2"
+                  >
+                      <Loader size={14} className="animate-spin" /> Please Wait
+                  </button>
+                  
+                  <button 
+                      onClick={onCancel} 
+                      className="w-full py-4 text-zinc-400 font-bold text-xs uppercase tracking-widest hover:text-teal-600 transition-colors flex items-center justify-center gap-2"
+                  >
+                      <Minimize2 size={14} /> Run in Background
                   </button>
               </div>
           </div>

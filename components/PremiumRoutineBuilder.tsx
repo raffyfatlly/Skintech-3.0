@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { UserProfile, SkinMetrics, RecommendedProduct } from '../types';
-import { Sparkles, ArrowLeft, DollarSign, Star, Crown, Lock, Search, Droplet, Sun, Zap, ShieldCheck, Loader, Sliders, AlertCircle, Target, CheckCircle2, Check, ArrowRight } from 'lucide-react';
+import { Sparkles, ArrowLeft, DollarSign, Star, Crown, Lock, Search, Droplet, Sun, Zap, ShieldCheck, Loader, Sliders, AlertCircle, Target, CheckCircle2, Check, ArrowRight, Minimize2 } from 'lucide-react';
 
 interface PremiumRoutineBuilderProps {
     user: UserProfile;
@@ -55,13 +55,37 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
     
     // UI State
     const [results, setResults] = useState<RecommendedProduct[]>(savedResults);
-    
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [loadingText, setLoadingText] = useState("Initializing Architect...");
+
     // Sync external results
     useEffect(() => {
         if (savedResults.length > 0) {
             setResults(savedResults);
+            setIsGenerating(false); // Stop loading if results arrived
         }
     }, [savedResults]);
+
+    // Cycle text
+    useEffect(() => {
+        let interval: ReturnType<typeof setInterval>;
+        if (isGenerating) {
+            const messages = [
+                "Initiating holistic search...",
+                `Scanning 5 top-rated ${selectedCategory} candidates...`,
+                "Cross-referencing with your biometrics...",
+                "Filtering allergens and price...",
+                "Selecting the top 3 best matches..."
+            ];
+            let i = 0;
+            setLoadingText(messages[0]);
+            interval = setInterval(() => {
+                i = (i + 1) % messages.length;
+                setLoadingText(messages[i]);
+            }, 3000); 
+        }
+        return () => clearInterval(interval);
+    }, [isGenerating, selectedCategory]);
 
     const isPaid = !!user.isPremium; 
     const hasFreeUsage = usageCount < LIMIT_ROUTINES;
@@ -83,6 +107,7 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
         // Ensure at least one goal
         if (selectedGoals.length === 0) return;
 
+        setIsGenerating(true);
         // Trigger background task
         onGenerateBackground(selectedCategory, maxPrice, allergies, selectedGoals);
     };
@@ -203,11 +228,11 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                     <div className="space-y-3">
                         <button 
                             onClick={handleGenerate}
-                            disabled={selectedGoals.length === 0}
+                            disabled={isGenerating || selectedGoals.length === 0}
                             className="w-full py-4 bg-zinc-900 text-white rounded-xl font-bold text-sm uppercase tracking-widest shadow-lg shadow-zinc-900/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:scale-100"
                         >
-                            <Search size={18} />
-                            {!isPaid && !hasFreeUsage ? 'Unlock Full Access' : selectedGoals.length === 0 ? 'Select a Goal' : 'Find Matches'}
+                            {isGenerating ? <Loader size={18} className="animate-spin text-zinc-500" /> : <Search size={18} />}
+                            {isGenerating ? 'Processing...' : (!isPaid && !hasFreeUsage ? 'Unlock Full Access' : selectedGoals.length === 0 ? 'Select a Goal' : 'Find Matches')}
                         </button>
                         {!isPaid && (
                             <p className="text-center text-[10px] text-zinc-400 font-bold uppercase tracking-wide">
@@ -220,8 +245,28 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
 
             {/* RESULTS AREA */}
             <div className="px-6 mt-8 space-y-4">
-                
-                {results.length > 0 ? (
+                {/* LOADING STATE - Now with affirmations */}
+                {isGenerating && (
+                    <div className="py-12 flex flex-col items-center justify-center text-center animate-in fade-in slide-in-from-bottom-2">
+                        <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-6 relative shadow-md">
+                             <div className="absolute inset-0 border-4 border-zinc-100 rounded-full"></div>
+                             <div className="absolute inset-0 border-4 border-t-teal-500 border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin"></div>
+                             <Sparkles className="text-teal-600 animate-pulse" size={24} />
+                        </div>
+                        <h3 className="text-lg font-black text-zinc-900 mb-2">Building Routine</h3>
+                        <p className="text-sm text-zinc-500 font-medium animate-pulse max-w-[200px] leading-relaxed mb-6">{loadingText}</p>
+                        
+                        {/* MINIMIZE BUTTON */}
+                        <button 
+                            onClick={onBack}
+                            className="px-6 py-2.5 bg-zinc-100 text-zinc-500 rounded-full font-bold text-xs uppercase tracking-widest hover:bg-zinc-200 transition-colors flex items-center gap-2"
+                        >
+                            <Minimize2 size={12} /> Run in Background
+                        </button>
+                    </div>
+                )}
+
+                {!isGenerating && results.length > 0 && (
                     <div className="animate-in slide-in-from-bottom-4 duration-500">
                         <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                             <Sparkles size={14} className="text-teal-500" /> Top Recommendations
@@ -266,7 +311,9 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                             ))}
                         </div>
                     </div>
-                ) : (
+                )}
+                
+                {!isGenerating && results.length === 0 && (
                      <div className="text-center py-10 opacity-60">
                          <p className="text-sm font-medium text-zinc-400">Results will appear here.</p>
                      </div>
