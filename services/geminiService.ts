@@ -17,8 +17,8 @@ const getAi = (): GenAI.GoogleGenAI => {
 // --- FEATURE-SPECIFIC MODEL CONFIGURATION ---
 const MODEL_FACE_SCAN = 'gemini-3-flash-preview';
 const MODEL_PRODUCT_SEARCH = 'gemini-3-flash-preview';
-const MODEL_VISION = 'gemini-2.5-flash';
-const MODEL_ROUTINE = 'gemini-3-pro-preview';
+const MODEL_VISION = 'gemini-3-flash-preview';
+const MODEL_ROUTINE = 'gemini-3-flash-preview';
 
 // Helpers
 const parseJSONFromText = (text: string): any => {
