@@ -343,17 +343,23 @@ export const analyzeProductFromSearch = async (productName: string, userMetrics:
         const response = await ai.models.generateContent({
             model: MODEL_PRODUCT_SEARCH,
             contents: prompt,
-            config: { tools: [{ googleSearch: {} }] }
+            config: { 
+                tools: [{ googleSearch: {} }],
+                responseMimeType: 'application/json' // FORCE JSON to avoid parse errors
+            }
         });
 
         const data = parseJSONFromText(response.text || "{}");
         const sources = extractSources(response);
 
-        if (!data || !data.name) throw new Error("Refinement failed: Incomplete data.");
+        // Sanity Check: If data is completely empty, throw to trigger fallback
+        if (!data || (!data.name && !data.ingredients)) {
+            throw new Error("Refinement failed: Incomplete data.");
+        }
 
         return {
             id: Date.now().toString(),
-            name: data.name,
+            name: data.name || productName,
             brand: data.brand || knownBrand || "Unknown",
             type: data.type || "UNKNOWN",
             ingredients: data.ingredients || [],
@@ -429,7 +435,10 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
         const finalResponse = await ai.models.generateContent({
             model: MODEL_PRODUCT_SEARCH,
             contents: refinementPrompt,
-            config: { tools: [{ googleSearch: {} }] }
+            config: { 
+                tools: [{ googleSearch: {} }],
+                responseMimeType: 'application/json' 
+            }
         });
 
         const data = parseJSONFromText(finalResponse.text || "{}");
