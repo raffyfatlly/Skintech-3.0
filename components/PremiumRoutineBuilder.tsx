@@ -1,17 +1,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { UserProfile, SkinMetrics } from '../types';
+import { UserProfile, SkinMetrics, RecommendedProduct } from '../types';
 import { generateTargetedRecommendations } from '../services/geminiService';
 import { Sparkles, ArrowLeft, DollarSign, Star, Crown, Lock, Search, Droplet, Sun, Zap, ShieldCheck, Loader, Sliders, AlertCircle, Target, CheckCircle2, Check, ArrowRight } from 'lucide-react';
-
-interface RecommendedProduct {
-    name: string;
-    brand: string;
-    price: string;
-    reason: string;
-    rating: number;
-    tier?: string;
-}
 
 interface PremiumRoutineBuilderProps {
     user: UserProfile;
@@ -20,6 +11,8 @@ interface PremiumRoutineBuilderProps {
     usageCount: number;
     onIncrementUsage: () => void;
     onProductSelect: (product: { name: string, brand: string }) => void;
+    savedResults: RecommendedProduct[];
+    onSaveResults: (results: RecommendedProduct[]) => void;
 }
 
 const LIMIT_ROUTINES = 1;
@@ -42,7 +35,7 @@ const GOALS = [
     { label: 'Oil Control', icon: Sliders },
 ];
 
-const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onBack, onUnlockPremium, usageCount, onIncrementUsage, onProductSelect }) => {
+const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onBack, onUnlockPremium, usageCount, onIncrementUsage, onProductSelect, savedResults, onSaveResults }) => {
     // Auto-select Goal Logic
     const defaultGoal = useMemo(() => {
         const b = user.biometrics;
@@ -60,10 +53,10 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
     const [maxPrice, setMaxPrice] = useState(100);
     const [allergies, setAllergies] = useState('');
     
-    // Result State
-    const [results, setResults] = useState<RecommendedProduct[]>([]);
+    // Result State - Initialize from SAVED results
+    const [results, setResults] = useState<RecommendedProduct[]>(savedResults);
     const [loading, setLoading] = useState(false);
-    const [hasSearched, setHasSearched] = useState(false);
+    const [hasSearched, setHasSearched] = useState(savedResults.length > 0);
     
     // Loading Animation State
     const [loadingText, setLoadingText] = useState("Initializing Architect...");
@@ -122,6 +115,7 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
         try {
             const data = await generateTargetedRecommendations(user, selectedCategory, maxPrice, allergies, selectedGoals);
             setResults(data);
+            onSaveResults(data); // Save to parent App state
         } catch (e) {
             console.error(e);
         } finally {

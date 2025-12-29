@@ -104,6 +104,15 @@ export interface Product {
   expertReview?: string; // New: Summary of expert reviews
 }
 
+export interface RecommendedProduct {
+    name: string;
+    brand: string;
+    price: string;
+    reason: string;
+    rating: number;
+    tier?: string;
+}
+
 export interface ShelfConflict {
   productA: string;
   productB: string;

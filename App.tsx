@@ -6,7 +6,8 @@ import {
   Product, 
   SkinMetrics, 
   SkinType,
-  UsageStats
+  UsageStats,
+  RecommendedProduct
 } from './types';
 import { loadUserData, saveUserData, syncLocalToCloud, clearLocalData } from './services/storageService';
 import { auth } from './services/firebase';
@@ -55,6 +56,9 @@ const App: React.FC = () => {
   const [activeGuide, setActiveGuide] = useState<'SCAN' | null>(null);
   const [notification, setNotification] = useState<{ type: NotificationType, title: string, description: string, actionLabel: string, onAction: () => void } | null>(null);
   const [aiQuery, setAiQuery] = useState<string | null>(null);
+  
+  // Persisted Routine Results State
+  const [routineResults, setRoutineResults] = useState<RecommendedProduct[]>([]);
 
   useEffect(() => { viewRef.current = currentView; }, [currentView]);
 
@@ -405,6 +409,8 @@ const App: React.FC = () => {
                       usageCount={userProfile.usage?.routineGenerations || 0} 
                       onIncrementUsage={() => incrementUsage('routineGenerations')}
                       onProductSelect={handleRoutineProductSelect}
+                      savedResults={routineResults}
+                      onSaveResults={setRoutineResults}
                   />
               ) : null;
           default: return <LandingPage onGetStarted={() => setCurrentView(AppView.ONBOARDING)} onLogin={() => openAuth('GENERIC')} />;
