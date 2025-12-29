@@ -89,6 +89,7 @@ const runWithRetry = async <T>(fn: (ai: GenAI.GoogleGenAI) => Promise<T>, fallba
 const getStrictScoringRules = (user: UserProfile): string => {
     const m = user.biometrics;
     
+    // Explicitly define "Bad" scores (Low Score = Deficit/Problem)
     const deficits = [];
     if (m.acneActive < 75) deficits.push('ACNE/CONGESTION');
     if (m.pigmentation < 75) deficits.push('HYPERPIGMENTATION');
@@ -98,26 +99,28 @@ const getStrictScoringRules = (user: UserProfile): string => {
     if (m.oiliness < 60) deficits.push('EXCESS_OIL');
 
     const userProfileString = deficits.length > 0 
-        ? `USER PRIORITIES: ${deficits.join(', ')}`
+        ? `USER PRIORITIES (AREAS NEEDING TREATMENT): ${deficits.join(', ')}`
         : "USER STATUS: Healthy/Maintenance Mode.";
 
     let rules = [
         `SCORING MODEL: Start at 60 (Neutral). Calculate Net Score = 60 + Rewards - Penalties.`,
         `CONTEXT: ${userProfileString}`,
         "CLIMATE: Malaysia (Hot & Humid).",
-        "OBJECTIVE: Reward 'Gold Standard' ingredients. Penalize conflicts. Let the math decide the final score (0-99).",
+        "OBJECTIVE: Reward 'Gold Standard' ingredients that fix the USER PRIORITIES.",
     ];
 
     rules.push("\n--- REWARDS (ADD POINTS) ---");
     rules.push("1. GOLD STANDARD MATCH (+15 PTS): If ingredient is the clinical best-in-class for a USER PRIORITY.");
-    rules.push("   - Acne: Salicylic Acid, Adapalene, Benzoyl Peroxide.");
-    rules.push("   - Aging: Retinol, Retinal, Peptides, Tretinoin.");
-    rules.push("   - Pigmentation: Vitamin C (L-Ascorbic), Tranexamic Acid, Azelaic Acid, Thiamidol.");
-    rules.push("   - Hydration: Ceramides, Urea, Squalane (Bio-identical).");
+    rules.push("   - Acne Priority: Salicylic Acid, Adapalene, Benzoyl Peroxide.");
+    rules.push("   - Aging Priority: Retinol, Retinal, Peptides, Tretinoin.");
+    rules.push("   - Pigmentation Priority: Vitamin C (L-Ascorbic), Tranexamic Acid, Azelaic Acid, Thiamidol.");
+    rules.push("   - Hydration Priority: Ceramides, Urea, Squalane (Bio-identical).");
+    rules.push("   - Redness Priority: Centella Asiatica, Panthenol, Allantoin, Mugwort.");
     rules.push("2. SECONDARY MATCH (+5 to +10 PTS): Good but generic ingredients.");
     rules.push("3. FORMULATION BONUS (+5 PTS): Soothing agents or lightweight textures.");
 
     rules.push("\n--- PENALTIES (SUBTRACT POINTS) ---");
+    // Sensitivity check: If redness score is low (meaning high redness), penalize irritants heavily
     if (m.redness < 65) rules.push("SENSITIVITY CONFLICT (-30 PTS): Alcohol Denat, High Fragrance, Menthol.");
     else rules.push("IRRITANT CAUTION (-10 PTS): High Alcohol or Fragrance.");
 
@@ -607,12 +610,33 @@ export const generateRoutineRecommendations = async (user: UserProfile): Promise
 }
 
 export const generateTargetedRecommendations = async (user: UserProfile, category: string, maxPrice: number, allergies: string, goals: string[]): Promise<any> => {
-    const scoringRules = getStrictScoringRules(user);
+    // We don't use getStrictScoringRules here directly in the prompt text as we want a cleaner "Search Intent" context first.
     
     return runWithRetry<any>(async (ai) => {
         const goalsString = goals.length > 0 ? goals.join(', ') : "General Skin Health";
-        // Explicitly constructing the search intent for the model to use with the tool
-        const userContext = `User has ${user.skinType} skin. Biometrics: ${JSON.stringify(user.biometrics)}. Goals: ${goalsString}. Allergies: ${allergies || "None"}. Location: Malaysia. Budget: RM ${maxPrice}.`;
+        
+        // 1. Interpret Biometrics for the AI
+        const bio = user.biometrics;
+        const lowScores = [];
+        if (bio.acneActive < 70) lowScores.push("ACNE/BLEMISHES (Needs Salicylic/Niacinamide)");
+        if (bio.oiliness < 60) lowScores.push("EXCESS OIL (Needs Sebum Control)");
+        if (bio.redness < 70) lowScores.push("REDNESS/INFLAMMATION (Needs Soothing)");
+        if (bio.hydration < 60) lowScores.push("DEHYDRATION (Needs Hydration)");
+        if (bio.wrinkleFine < 70) lowScores.push("SIGNS OF AGING (Needs Retinoids/Peptides)");
+        if (bio.pigmentation < 70) lowScores.push("HYPERPIGMENTATION (Needs Vit C/Brightening)");
+
+        const priorities = lowScores.length > 0 ? lowScores.join(', ') : "MAINTENANCE (Keep Barrier Healthy)";
+
+        const userContext = `
+        USER PROFILE:
+        - Skin Type: ${user.skinType}
+        - Biometrics Score Legend: HIGH (80-100) = HEALTHY/GOOD. LOW (0-60) = BAD/CONCERN.
+        - User's Specific Deficits (Low Scores): ${priorities}
+        - Goals: ${goalsString}
+        - Allergies/Avoid: ${allergies || "None"}
+        - Location: Malaysia (Tropical, Humid).
+        - Budget: Under RM ${maxPrice}.
+        `;
 
         const prompt = `
         ACT AS A DERMATOLOGICAL AI ARCHITECT.
@@ -620,15 +644,18 @@ export const generateTargetedRecommendations = async (user: UserProfile, categor
         INPUT CONTEXT:
         ${userContext}
         
-        TASK: FIND THE BEST ${category.toUpperCase()}.
+        TASK: FIND THE TOP 3 BEST ${category.toUpperCase()} PRODUCTS.
         
         EXECUTION STEPS:
-        1. **GLOBAL SEARCH**: Use Google Search to find 5 top-rated, accessible ${category} products in Malaysia that specifically target [${goalsString}].
+        1. **GLOBAL SEARCH**: Use Google Search to find 5 top-rated, accessible ${category} products in Malaysia that specifically target: ${priorities} and ${goalsString}.
         2. **FILTER & AUDIT**: 
            - Discard any products containing [${allergies}].
            - Discard products strictly incompatible with ${user.skinType} skin.
            - Ensure price is approx under RM ${maxPrice}.
-        3. **DEEP ANALYSIS**: Compare the ingredients of the remaining candidates against the user's biometrics.
+        3. **SCORING CHECK**:
+           - Does it solve the "User's Specific Deficits"? If yes, High Score.
+           - If User has "REDNESS" (Low redness score), product MUST be soothing (Aloe, Centella, etc).
+           - If User has "EXCESS OIL" (Low oiliness score), product MUST be non-comedogenic/oil-control.
         4. **FINAL SELECTION**: Return the Top 3 products.
         
         CRITICAL: 
@@ -642,8 +669,8 @@ export const generateTargetedRecommendations = async (user: UserProfile, categor
              "name": "Product Name", 
              "brand": "Brand", 
              "price": "RM XX", 
-             "reason": "Explanation...", 
-             "rating": 90, 
+             "reason": "Explicitly explain how it addresses [${lowScores[0] || 'Goals'}]...", 
+             "rating": 95, 
              "tier": "BEST MATCH" 
           }
         ]
