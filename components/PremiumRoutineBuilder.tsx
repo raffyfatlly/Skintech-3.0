@@ -116,7 +116,7 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
         }
 
         setLoading(true);
-        setResults([]);
+        // REMOVED: setResults([]); -> Keeps previous results visible
         setHasSearched(true);
         
         try {
