@@ -1,13 +1,12 @@
 
 import React, { useRef, useState, useEffect } from 'react';
 import { Camera, RefreshCw, Check, X, AlertOctagon, ScanLine, Image as ImageIcon, Upload, ZoomIn, ZoomOut, Zap, ZapOff, Search, ChevronRight, Lock, Crown } from 'lucide-react';
-import { analyzeProductImage } from '../services/geminiService';
 import { Product, UserProfile } from '../types';
 
 interface ProductScannerProps {
   userProfile: UserProfile;
   shelf: Product[];
-  onProductFound: (product: Product) => void;
+  onStartAnalysis: (base64: string) => void;
   onCancel: () => void;
   usageCount: number;
   limit: number;
@@ -15,50 +14,20 @@ interface ProductScannerProps {
   onUnlockPremium: () => void;
 }
 
-const ProductScanner: React.FC<ProductScannerProps> = ({ userProfile, shelf, onProductFound, onCancel, usageCount, limit, isPremium, onUnlockPremium }) => {
+const ProductScanner: React.FC<ProductScannerProps> = ({ userProfile, shelf, onStartAnalysis, onCancel, usageCount, limit, isPremium, onUnlockPremium }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [loadingText, setLoadingText] = useState("Initializing Vision...");
-  const [capturedImage, setCapturedImage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [useCamera, setUseCamera] = useState(true);
   const [hasTorch, setHasTorch] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [maxZoom, setMaxZoom] = useState(1);
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const isLimitReached = !isPremium && usageCount >= limit;
-
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval>;
-    if (isProcessing) {
-        const messages = [
-            "Scanning product identity...",
-            "Consulting global database...",
-            "Checking ingredient safety...",
-            "Analyzing shelf conflicts...",
-            "Calculating climate match...",
-            // Extended messages for longer wait times
-            "Verifying formulation details...",
-            "Generating expert consensus...",
-            "Taking a bit longer than usual...",
-            "Almost ready, thanks for waiting..."
-        ];
-        let i = 0;
-        setLoadingText(messages[0]);
-        interval = setInterval(() => {
-            if (i < messages.length - 1) {
-                i++;
-                setLoadingText(messages[i]);
-            }
-        }, 3000); // 3 seconds per message
-    }
-    return () => clearInterval(interval);
-  }, [isProcessing]);
 
   useEffect(() => {
     // If limit reached, don't start camera
@@ -127,30 +96,6 @@ const ProductScanner: React.FC<ProductScannerProps> = ({ userProfile, shelf, onP
       try { await track.applyConstraints({ advanced: [{ zoom: z }] as any }); } catch (err) { console.debug("Zoom failed", err); }
   };
 
-  const processImageForAnalysis = async (base64: string) => {
-      setCapturedImage(base64);
-      setIsProcessing(true);
-      setError(null);
-      if (videoRef.current) videoRef.current.pause();
-
-      try {
-        if (torchOn && stream) {
-             const track = stream.getVideoTracks()[0];
-             track.applyConstraints({ advanced: [{ torch: false }] as any }).catch(() => {});
-             setTorchOn(false);
-        }
-        const shelfIngredients = shelf.flatMap(p => p.ingredients).slice(0, 50);
-        const product = await analyzeProductImage(base64, userProfile.biometrics, shelfIngredients);
-        onProductFound(product);
-      } catch (err) {
-        console.error(err);
-        setError("Could not identify product. Try moving closer or typing the name.");
-        setIsProcessing(false);
-        setCapturedImage(null);
-        if (videoRef.current) videoRef.current.play();
-      }
-  };
-
   const captureFromCamera = () => {
     if (!videoRef.current || !canvasRef.current) return;
     const video = videoRef.current;
@@ -161,7 +106,14 @@ const ProductScanner: React.FC<ProductScannerProps> = ({ userProfile, shelf, onP
     if (!ctx) return;
     ctx.drawImage(video, 0, 0);
     const base64 = canvas.toDataURL('image/jpeg', 0.85);
-    processImageForAnalysis(base64);
+    
+    // Stop torch before leaving
+    if (torchOn && stream) {
+         const track = stream.getVideoTracks()[0];
+         track.applyConstraints({ advanced: [{ torch: false }] as any }).catch(() => {});
+    }
+    
+    onStartAnalysis(base64);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -170,8 +122,7 @@ const ProductScanner: React.FC<ProductScannerProps> = ({ userProfile, shelf, onP
       const reader = new FileReader();
       reader.onloadend = () => {
           const base64 = reader.result as string;
-          setUseCamera(false);
-          processImageForAnalysis(base64);
+          onStartAnalysis(base64);
       };
       reader.readAsDataURL(file);
   };
@@ -216,13 +167,12 @@ const ProductScanner: React.FC<ProductScannerProps> = ({ userProfile, shelf, onP
       </div>
 
       <div className="relative flex-1 bg-black overflow-hidden flex flex-col items-center justify-center">
-        {capturedImage && <div className="absolute inset-0 z-0"><img src={capturedImage} alt="Background" className="w-full h-full object-cover blur-xl scale-110 opacity-40" /></div>}
         <div className="relative z-10 w-full h-full flex items-center justify-center">
-            {capturedImage ? <img src={capturedImage} alt="Captured" className="w-full h-full object-contain animate-in fade-in zoom-in-95 duration-300 drop-shadow-2xl" /> : useCamera ? <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-zinc-500 bg-zinc-900"><ImageIcon size={64} opacity={0.2} /></div>}
+            {useCamera ? <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-zinc-500 bg-zinc-900"><ImageIcon size={64} opacity={0.2} /></div>}
         </div>
         <canvas ref={canvasRef} className="hidden" />
         <input type="file" ref={fileInputRef} accept="image/*" className="hidden" onChange={handleFileUpload} />
-        {!capturedImage && useCamera && (
+        {useCamera && (
             <div className="absolute inset-0 z-20 pointer-events-none flex flex-col items-center justify-center">
                 <div className="w-72 h-72 border border-white/30 rounded-3xl relative overflow-hidden shadow-[0_0_0_9999px_rgba(0,0,0,0.5)]">
                     <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-teal-400 rounded-tl-xl"></div>
@@ -235,15 +185,14 @@ const ProductScanner: React.FC<ProductScannerProps> = ({ userProfile, shelf, onP
                 <div className="mt-8 bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 animate-pulse"><p className="text-white text-xs font-bold uppercase tracking-widest">Center Product Name</p></div>
             </div>
         )}
-        {isProcessing && <div className="absolute inset-0 flex items-center justify-center bg-black/80 backdrop-blur-sm z-30 animate-in fade-in duration-500"><div className="text-center p-6 relative w-full max-w-xs"><div className="relative w-24 h-24 mx-auto mb-8"><div className="absolute inset-0 border-4 border-zinc-700 rounded-full"></div><div className="absolute inset-0 border-4 border-t-teal-500 border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin"></div><div className="absolute inset-0 flex items-center justify-center"><ScanLine size={32} className="text-teal-500 animate-pulse" /></div></div><h3 className="text-xl font-black text-white mb-3 tracking-tight drop-shadow-md">{loadingText}</h3><p className="text-teal-400 text-[10px] font-bold uppercase tracking-widest">Powered by Gemini Vision</p></div></div>}
       </div>
 
       <div className="bg-black/90 backdrop-blur-xl p-6 pb-10 border-t border-white/10 flex flex-col items-center gap-6 relative z-40">
         {error && <div className="absolute -top-16 left-4 right-4 text-rose-200 text-xs font-bold flex items-center justify-center gap-2 bg-rose-950/90 px-4 py-3 rounded-xl border border-rose-500/50 shadow-lg animate-in slide-in-from-bottom-2"><AlertOctagon size={16} /> {error}</div>}
-        {maxZoom > 1 && !capturedImage && <div className="flex items-center gap-4 w-full max-w-xs px-4"><ZoomOut size={16} className="text-zinc-500" /><input type="range" min="1" max={Math.min(maxZoom, 3)} step="0.1" value={zoomLevel} onChange={handleZoom} className="flex-1 h-1 bg-zinc-700 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white" /><ZoomIn size={16} className="text-white" /></div>}
+        {maxZoom > 1 && <div className="flex items-center gap-4 w-full max-w-xs px-4"><ZoomOut size={16} className="text-zinc-500" /><input type="range" min="1" max={Math.min(maxZoom, 3)} step="0.1" value={zoomLevel} onChange={handleZoom} className="flex-1 h-1 bg-zinc-700 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white" /><ZoomIn size={16} className="text-white" /></div>}
         <div className="flex w-full items-center justify-between max-w-sm px-2">
-            <button onClick={() => fileInputRef.current?.click()} disabled={isProcessing} className="flex flex-col items-center gap-2 text-zinc-400 hover:text-white transition-colors p-2"><div className="w-12 h-12 rounded-full bg-zinc-900 border border-zinc-700 flex items-center justify-center hover:bg-zinc-800 transition-colors"><ImageIcon size={20} /></div><span className="text-[9px] font-bold uppercase tracking-widest">Upload</span></button>
-            <button onClick={captureFromCamera} disabled={isProcessing || !useCamera} className="w-20 h-20 rounded-full border-4 border-white flex items-center justify-center relative group active:scale-95 transition disabled:opacity-50 disabled:scale-100 shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:shadow-[0_0_50px_rgba(255,255,255,0.4)]"><div className="w-16 h-16 bg-white rounded-full transition-transform group-active:scale-90"></div></button>
+            <button onClick={() => fileInputRef.current?.click()} className="flex flex-col items-center gap-2 text-zinc-400 hover:text-white transition-colors p-2"><div className="w-12 h-12 rounded-full bg-zinc-900 border border-zinc-700 flex items-center justify-center hover:bg-zinc-800 transition-colors"><ImageIcon size={20} /></div><span className="text-[9px] font-bold uppercase tracking-widest">Upload</span></button>
+            <button onClick={captureFromCamera} disabled={!useCamera} className="w-20 h-20 rounded-full border-4 border-white flex items-center justify-center relative group active:scale-95 transition disabled:opacity-50 disabled:scale-100 shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:shadow-[0_0_50px_rgba(255,255,255,0.4)]"><div className="w-16 h-16 bg-white rounded-full transition-transform group-active:scale-90"></div></button>
             <div className="flex flex-col items-center gap-2 text-zinc-400 p-2 opacity-0 pointer-events-none"><div className="w-12 h-12"></div><span className="text-[9px] font-bold uppercase tracking-widest">History</span></div>
         </div>
       </div>

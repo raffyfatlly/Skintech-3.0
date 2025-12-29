@@ -1,7 +1,6 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { UserProfile, SkinMetrics, RecommendedProduct } from '../types';
-import { generateTargetedRecommendations } from '../services/geminiService';
 import { Sparkles, ArrowLeft, DollarSign, Star, Crown, Lock, Search, Droplet, Sun, Zap, ShieldCheck, Loader, Sliders, AlertCircle, Target, CheckCircle2, Check, ArrowRight } from 'lucide-react';
 
 interface PremiumRoutineBuilderProps {
@@ -13,6 +12,7 @@ interface PremiumRoutineBuilderProps {
     onProductSelect: (product: { name: string, brand: string }) => void;
     savedResults: RecommendedProduct[];
     onSaveResults: (results: RecommendedProduct[]) => void;
+    onGenerateBackground: (category: string, price: number, allergies: string, goals: string[]) => void;
 }
 
 const LIMIT_ROUTINES = 1;
@@ -35,7 +35,7 @@ const GOALS = [
     { label: 'Oil Control', icon: Sliders },
 ];
 
-const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onBack, onUnlockPremium, usageCount, onIncrementUsage, onProductSelect, savedResults, onSaveResults }) => {
+const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onBack, onUnlockPremium, usageCount, onIncrementUsage, onProductSelect, savedResults, onSaveResults, onGenerateBackground }) => {
     // Auto-select Goal Logic
     const defaultGoal = useMemo(() => {
         const b = user.biometrics;
@@ -53,34 +53,15 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
     const [maxPrice, setMaxPrice] = useState(100);
     const [allergies, setAllergies] = useState('');
     
-    // Result State - Initialize from SAVED results
+    // UI State
     const [results, setResults] = useState<RecommendedProduct[]>(savedResults);
-    const [loading, setLoading] = useState(false);
-    const [hasSearched, setHasSearched] = useState(savedResults.length > 0);
     
-    // Loading Animation State
-    const [loadingText, setLoadingText] = useState("Initializing Architect...");
-
-    // Cycle through affirmations while loading
+    // Sync external results
     useEffect(() => {
-        let interval: ReturnType<typeof setInterval>;
-        if (loading) {
-            const messages = [
-                "Initiating holistic search...",
-                `Scanning 5 top-rated ${selectedCategory} candidates...`,
-                "Cross-referencing with your biometrics...",
-                "Filtering allergens and price...",
-                "Selecting the top 3 best matches..."
-            ];
-            let i = 0;
-            setLoadingText(messages[0]);
-            interval = setInterval(() => {
-                i = (i + 1) % messages.length;
-                setLoadingText(messages[i]);
-            }, 3000); // Slower updates for heavier process
+        if (savedResults.length > 0) {
+            setResults(savedResults);
         }
-        return () => clearInterval(interval);
-    }, [loading, selectedCategory]);
+    }, [savedResults]);
 
     const isPaid = !!user.isPremium; 
     const hasFreeUsage = usageCount < LIMIT_ROUTINES;
@@ -93,7 +74,7 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
         }
     };
 
-    const handleGenerate = async () => {
+    const handleGenerate = () => {
         // Enforce limit
         if (!isPaid && !hasFreeUsage) {
             return onUnlockPremium();
@@ -102,24 +83,8 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
         // Ensure at least one goal
         if (selectedGoals.length === 0) return;
 
-        // If free, increment
-        if (!isPaid) {
-            onIncrementUsage();
-        }
-
-        setLoading(true);
-        // REMOVED: setResults([]); -> Keeps previous results visible
-        setHasSearched(true);
-        
-        try {
-            const data = await generateTargetedRecommendations(user, selectedCategory, maxPrice, allergies, selectedGoals);
-            setResults(data);
-            onSaveResults(data); // Save to parent App state
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setLoading(false);
-        }
+        // Trigger background task
+        onGenerateBackground(selectedCategory, maxPrice, allergies, selectedGoals);
     };
 
     return (
@@ -238,11 +203,11 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                     <div className="space-y-3">
                         <button 
                             onClick={handleGenerate}
-                            disabled={loading || selectedGoals.length === 0}
+                            disabled={selectedGoals.length === 0}
                             className="w-full py-4 bg-zinc-900 text-white rounded-xl font-bold text-sm uppercase tracking-widest shadow-lg shadow-zinc-900/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:scale-100"
                         >
-                            {loading ? <Loader size={18} className="animate-spin text-zinc-500" /> : <Search size={18} />}
-                            {loading ? 'Processing...' : (!isPaid && !hasFreeUsage ? 'Unlock Full Access' : selectedGoals.length === 0 ? 'Select a Goal' : 'Find Matches')}
+                            <Search size={18} />
+                            {!isPaid && !hasFreeUsage ? 'Unlock Full Access' : selectedGoals.length === 0 ? 'Select a Goal' : 'Find Matches'}
                         </button>
                         {!isPaid && (
                             <p className="text-center text-[10px] text-zinc-400 font-bold uppercase tracking-wide">
@@ -255,20 +220,8 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
 
             {/* RESULTS AREA */}
             <div className="px-6 mt-8 space-y-4">
-                {/* LOADING STATE - Now with affirmations */}
-                {loading && (
-                    <div className="py-12 flex flex-col items-center justify-center text-center animate-in fade-in slide-in-from-bottom-2">
-                        <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-6 relative shadow-md">
-                             <div className="absolute inset-0 border-4 border-zinc-100 rounded-full"></div>
-                             <div className="absolute inset-0 border-4 border-t-teal-500 border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin"></div>
-                             <Sparkles className="text-teal-600 animate-pulse" size={24} />
-                        </div>
-                        <h3 className="text-lg font-black text-zinc-900 mb-2">Building Routine</h3>
-                        <p className="text-sm text-zinc-500 font-medium animate-pulse max-w-[200px] leading-relaxed">{loadingText}</p>
-                    </div>
-                )}
-
-                {hasSearched && !loading && results.length > 0 && (
+                
+                {results.length > 0 ? (
                     <div className="animate-in slide-in-from-bottom-4 duration-500">
                         <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                             <Sparkles size={14} className="text-teal-500" /> Top Recommendations
@@ -313,11 +266,9 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                             ))}
                         </div>
                     </div>
-                )}
-                
-                {hasSearched && !loading && results.length === 0 && (
+                ) : (
                      <div className="text-center py-10 opacity-60">
-                         <p className="text-sm font-medium text-zinc-400">No matches found within this budget. Try adjusting your filters.</p>
+                         <p className="text-sm font-medium text-zinc-400">Results will appear here.</p>
                      </div>
                 )}
             </div>

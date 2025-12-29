@@ -1,8 +1,8 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Search, X, Loader, AlertCircle, ArrowRight, Lock, Crown } from 'lucide-react';
 import { Product, UserProfile } from '../types';
-import { analyzeProductFromSearch, searchProducts } from '../services/geminiService';
+import { searchProducts } from '../services/geminiService';
 
 interface SearchResult {
     name: string;
@@ -13,7 +13,7 @@ interface SearchResult {
 interface ProductSearchProps {
     userProfile: UserProfile;
     shelf: Product[];
-    onProductFound: (product: Product) => void;
+    onStartAnalysis: (name: string, brand: string) => void;
     onCancel: () => void;
     usageCount: number;
     limit: number;
@@ -21,43 +21,14 @@ interface ProductSearchProps {
     onUnlockPremium: () => void;
 }
 
-const ProductSearch: React.FC<ProductSearchProps> = ({ userProfile, shelf, onProductFound, onCancel, usageCount, limit, isPremium, onUnlockPremium }) => {
+const ProductSearch: React.FC<ProductSearchProps> = ({ userProfile, shelf, onStartAnalysis, onCancel, usageCount, limit, isPremium, onUnlockPremium }) => {
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<SearchResult[]>([]);
     const [isSearching, setIsSearching] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
-    const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [error, setError] = useState<string | null>(null);
-    const [loadingText, setLoadingText] = useState("Analyzing Product...");
 
     const isLimitReached = !isPremium && usageCount >= limit;
-
-    useEffect(() => {
-        let interval: ReturnType<typeof setInterval>;
-        if (isAnalyzing) {
-            const messages = [
-                "Searching global skincare database...",
-                "Extracting full ingredient list...",
-                "Checking conflicts with your shelf...",
-                "Analyzing humidity compatibility...",
-                "Calculating final match score...",
-                // Extended messages for longer wait times
-                "Verifying formulation details...",
-                "Generating expert consensus...",
-                "Taking a bit longer than usual...",
-                "Almost ready, thanks for waiting..."
-            ];
-            let i = 0;
-            setLoadingText(messages[0]);
-            interval = setInterval(() => {
-                if (i < messages.length - 1) {
-                    i++;
-                    setLoadingText(messages[i]);
-                }
-            }, 3000); // 3 seconds per message
-        }
-        return () => clearInterval(interval);
-    }, [isAnalyzing]);
 
     const handleSearch = async () => {
         if (!query.trim()) return;
@@ -86,29 +57,14 @@ const ProductSearch: React.FC<ProductSearchProps> = ({ userProfile, shelf, onPro
         }
     };
 
-    const handleSelectProduct = async (item: SearchResult) => {
+    const handleSelectProduct = (item: SearchResult) => {
         if (isLimitReached) {
             onUnlockPremium();
             return;
         }
-        setIsAnalyzing(true);
-        setError(null);
-        try {
-          const shelfIngredients = shelf.flatMap(p => p.ingredients).slice(0, 50);
-          const product = await analyzeProductFromSearch(
-              item.name, 
-              userProfile.biometrics, 
-              item.score > 0 ? item.score : undefined, 
-              item.brand,
-              shelfIngredients
-          );
-          onProductFound(product);
-        } catch (err) {
-          console.error(err);
-          setError("Failed to analyze product details. Please try scanning the label instead.");
-          setIsAnalyzing(false);
-        }
-      };
+        // Immediately delegate to parent for background processing
+        onStartAnalysis(item.name, item.brand);
+    };
 
     if (isLimitReached) {
         return (
@@ -169,10 +125,10 @@ const ProductSearch: React.FC<ProductSearchProps> = ({ userProfile, shelf, onPro
             </div>
 
             <div className="flex-1 overflow-y-auto p-6">
-                {isSearching || isAnalyzing ? (
+                {isSearching ? (
                     <div className="flex flex-col items-center justify-center h-64 text-zinc-400 gap-4">
                         <Loader className="animate-spin" size={32} />
-                        <p className="text-xs font-bold uppercase tracking-widest">{isAnalyzing ? loadingText : "Searching Database..."}</p>
+                        <p className="text-xs font-bold uppercase tracking-widest">Searching Database...</p>
                     </div>
                 ) : error ? (
                     <div className="flex flex-col items-center justify-center h-64 text-rose-500 gap-4 text-center">
@@ -201,12 +157,6 @@ const ProductSearch: React.FC<ProductSearchProps> = ({ userProfile, shelf, onPro
                              <div className="text-center text-zinc-400 mt-10">
                                 <p className="text-sm font-medium">No matching products found.</p>
                              </div>
-                        )}
-                        {results.length === 0 && !query && (
-                            <div className="text-center text-zinc-400 mt-20">
-                                <Search size={48} className="mx-auto mb-4 opacity-20" />
-                                <p className="text-sm font-medium">Type a product name to search</p>
-                            </div>
                         )}
                     </div>
                 )}

@@ -14,7 +14,7 @@ import { auth } from './services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { startCheckout } from './services/stripeService';
 import { trackEvent } from './services/analyticsService';
-import { analyzeProductFromSearch } from './services/geminiService'; // Import analyzer
+import { analyzeProductFromSearch, analyzeProductImage, generateTargetedRecommendations } from './services/geminiService'; // Import analyzer
 
 // Components
 import LandingPage from './components/LandingPage';
@@ -54,7 +54,10 @@ const App: React.FC = () => {
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [pendingScan, setPendingScan] = useState<{metrics: SkinMetrics, image: string} | null>(null);
   const [activeGuide, setActiveGuide] = useState<'SCAN' | null>(null);
-  const [notification, setNotification] = useState<{ type: NotificationType, title: string, description: string, actionLabel: string, onAction: () => void } | null>(null);
+  
+  // Notification State
+  const [notification, setNotification] = useState<{ type: NotificationType, title: string, description: string, actionLabel?: string, onAction?: () => void } | null>(null);
+  
   const [aiQuery, setAiQuery] = useState<string | null>(null);
   
   // Persisted Routine Results State
@@ -65,13 +68,11 @@ const App: React.FC = () => {
   // Loading Message Cycler
   useEffect(() => {
       let interval: ReturnType<typeof setInterval>;
-      if (isGlobalLoading && loadingMessage?.includes("Analyzing")) {
+      if (isGlobalLoading && loadingMessage?.includes("Syncing")) {
           const messages = [
-              "Analyzing Product...",
-              "Checking Ingredients...",
-              "Calculating Match Score...",
-              "Verifying Price in MYR...",
-              "Finalizing Verdict..."
+              "Syncing Profile...",
+              "Checking Cloud...",
+              "Updating Data..."
           ];
           let i = 0;
           setLoadingMessage(messages[0]);
@@ -111,6 +112,118 @@ const App: React.FC = () => {
       const newUsage = { ...currentUsage, [type]: currentUsage[type] + 1 };
       const updatedUser = { ...userProfile, usage: newUsage };
       persistState(updatedUser, shelf);
+  };
+
+  // --- BACKGROUND TASK HANDLERS ---
+
+  const handleBackgroundAnalysis = async (
+      type: 'SEARCH' | 'IMAGE', 
+      payload: string, 
+      productBrand?: string
+  ) => {
+      if (!userProfile) return;
+
+      // 1. Notify Start
+      setNotification({
+          type: 'TASK_START',
+          title: 'Analysis Started',
+          description: 'Deep analyzing ingredients... You can continue navigating while we work.',
+          actionLabel: undefined,
+          onAction: undefined
+      });
+
+      // 2. Run Analysis (Non-blocking)
+      try {
+          const shelfIngredients = shelf.flatMap(p => p.ingredients).slice(0, 50);
+          let product: Product;
+
+          if (type === 'SEARCH') {
+              product = await analyzeProductFromSearch(
+                  payload, // name
+                  userProfile.biometrics,
+                  undefined, 
+                  productBrand,
+                  shelfIngredients
+              );
+          } else {
+              product = await analyzeProductImage(
+                  payload, // base64
+                  userProfile.biometrics, 
+                  shelfIngredients
+              );
+          }
+
+          // 3. Notify Success
+          setAnalyzedProduct(product);
+          
+          if (!userProfile?.isPremium) {
+              incrementUsage('manualScans');
+          }
+          trackEvent('PRODUCT_FOUND', { name: product.name, match: product.suitabilityScore });
+
+          setNotification({
+              type: 'TASK_COMPLETE',
+              title: 'Analysis Ready',
+              description: `Verdict available for ${product.name.substring(0, 15)}...`,
+              actionLabel: 'View Results',
+              onAction: () => setCurrentView(AppView.BUYING_ASSISTANT)
+          });
+
+      } catch (err) {
+          console.error("Background Analysis Error", err);
+          setNotification({
+              type: 'GENERIC',
+              title: 'Analysis Failed',
+              description: 'We couldn\'t complete the analysis. Please try again.',
+              actionLabel: 'Retry',
+              onAction: () => { /* no-op for now */ }
+          });
+      }
+  };
+
+  const handleBackgroundRoutine = async (
+      category: string, 
+      maxPrice: number, 
+      allergies: string, 
+      goals: string[]
+  ) => {
+      if (!userProfile) return;
+
+      if (!userProfile.isPremium) {
+          incrementUsage('routineGenerations');
+      }
+
+      setNotification({
+          type: 'TASK_START',
+          title: 'Building Routine',
+          description: 'Searching for top-rated products... This may take a minute. Feel free to navigate away.',
+          actionLabel: undefined,
+          onAction: undefined
+      });
+
+      try {
+          const data = await generateTargetedRecommendations(userProfile, category, maxPrice, allergies, goals);
+          
+          setRoutineResults(data);
+          
+          setNotification({
+              type: 'TASK_COMPLETE',
+              title: 'Routine Ready',
+              description: `Found ${data.length} matches for ${category}.`,
+              actionLabel: 'View',
+              onAction: () => setCurrentView(AppView.ROUTINE_BUILDER)
+          });
+
+      } catch (e) {
+          console.error("Routine Error", e);
+          setNotification({
+              type: 'GENERIC',
+              title: 'Search Failed',
+              description: 'Could not generate recommendations. Try simpler filters.',
+              actionLabel: 'Retry',
+              onAction: () => setCurrentView(AppView.ROUTINE_BUILDER)
+          });
+      }
   };
 
   useEffect(() => {
@@ -210,39 +323,6 @@ const App: React.FC = () => {
       persistState(updatedUser, shelf);
       setCurrentView(AppView.DASHBOARD);
       setTimeout(() => setActiveGuide('SCAN'), 5000);
-  };
-
-  const handleProductFound = (product: Product) => {
-      if (!userProfile?.isPremium) {
-          incrementUsage('manualScans');
-      }
-      trackEvent('PRODUCT_FOUND', { name: product.name, match: product.suitabilityScore });
-      setAnalyzedProduct(product);
-      setCurrentView(AppView.BUYING_ASSISTANT);
-  };
-
-  // NEW: Handle deep analysis from Routine Builder recommendation
-  const handleRoutineProductSelect = async (selection: { name: string, brand: string }) => {
-      if (!userProfile) return;
-      setLoadingMessage("Analyzing Product...");
-      setIsGlobalLoading(true);
-      
-      try {
-          const shelfIngredients = shelf.flatMap(p => p.ingredients).slice(0, 50);
-          const product = await analyzeProductFromSearch(
-              selection.name,
-              userProfile.biometrics,
-              undefined, // DO NOT PASS BIAS SCORE. Let the analyzer decide.
-              selection.brand,
-              shelfIngredients
-          );
-          handleProductFound(product); 
-      } catch (err) {
-          console.error(err);
-      } finally {
-          setIsGlobalLoading(false);
-          setLoadingMessage(null);
-      }
   };
 
   const handleAddToShelf = () => {
@@ -372,9 +452,13 @@ const App: React.FC = () => {
                   <ProductScanner 
                      userProfile={userProfile}
                      shelf={shelf}
-                     onProductFound={handleProductFound}
+                     // Delegate background processing
+                     onStartAnalysis={(base64) => {
+                         handleBackgroundAnalysis('IMAGE', base64);
+                         // Close Scanner and return to previous view or dashboard
+                         if (userProfile.hasScannedFace) setCurrentView(AppView.SMART_SHELF); else setCurrentView(AppView.DASHBOARD);
+                     }}
                      onCancel={() => { if (userProfile.hasScannedFace) setCurrentView(AppView.SMART_SHELF); else setCurrentView(AppView.DASHBOARD); }}
-                     // ENFORCE QUOTA PROPS
                      usageCount={userProfile.usage?.manualScans || 0}
                      limit={LIMIT_SCANS}
                      isPremium={!!userProfile.isPremium}
@@ -386,9 +470,12 @@ const App: React.FC = () => {
                   <ProductSearch 
                      userProfile={userProfile}
                      shelf={shelf}
-                     onProductFound={handleProductFound}
+                     // Delegate background processing
+                     onStartAnalysis={(name, brand) => {
+                         handleBackgroundAnalysis('SEARCH', name, brand);
+                         setCurrentView(AppView.SMART_SHELF);
+                     }}
                      onCancel={() => setCurrentView(AppView.SMART_SHELF)}
-                     // ENFORCE QUOTA PROPS
                      usageCount={userProfile.usage?.manualScans || 0}
                      limit={LIMIT_SCANS}
                      isPremium={!!userProfile.isPremium}
@@ -407,7 +494,18 @@ const App: React.FC = () => {
                       onUnlockPremium={handleUnlockPremium} 
                       usageCount={userProfile.usage?.routineGenerations || 0} 
                       onIncrementUsage={() => incrementUsage('routineGenerations')}
-                      onProductSelect={handleRoutineProductSelect}
+                      
+                      // Handle "Analyze & Add" from routine list using background task
+                      onProductSelect={(prod) => {
+                          handleBackgroundAnalysis('SEARCH', prod.name, prod.brand);
+                          // Don't change view immediately, just notify
+                      }}
+                      
+                      // Handle "Find Matches" using background task
+                      onGenerateBackground={(category, price, allergies, goals) => {
+                          handleBackgroundRoutine(category, price, allergies, goals);
+                      }}
+                      
                       savedResults={routineResults}
                       onSaveResults={setRoutineResults}
                   />
@@ -433,42 +531,10 @@ const App: React.FC = () => {
       setNotification({ type: 'GENERIC', title: 'Account Synced', description: 'Your data is now saved to the cloud.', actionLabel: 'OK', onAction: () => {} });
   };
 
-  const isAnalysisLoading = loadingMessage && (
-      loadingMessage.includes("Analyzing") || 
-      loadingMessage.includes("Checking") || 
-      loadingMessage.includes("Calculating") ||
-      loadingMessage.includes("Verifying") ||
-      loadingMessage.includes("Finalizing")
-  );
-
   return (
     <div className="bg-zinc-50 min-h-screen font-sans">
       {isGlobalLoading && (
           <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-300">
-              {isAnalysisLoading ? (
-                  <div className="bg-zinc-900 rounded-[2.5rem] p-8 shadow-2xl flex flex-col items-center max-w-xs w-full text-center relative overflow-hidden border border-zinc-800">
-                      {/* Animated Background Gradient */}
-                      <div className="absolute inset-0 bg-gradient-to-tr from-teal-900/20 via-transparent to-indigo-900/20 animate-pulse"></div>
-                      
-                      {/* Progress Bar Top */}
-                      <div className="absolute top-0 left-0 right-0 h-1 bg-zinc-800">
-                          <div className="h-full bg-gradient-to-r from-teal-500 via-indigo-500 to-teal-500 animate-[shimmer_2s_infinite]" style={{ backgroundSize: '200% 100%' }}></div>
-                      </div>
-
-                      <div className="w-20 h-20 bg-black rounded-2xl flex items-center justify-center mb-6 relative shadow-lg border border-zinc-800 z-10">
-                          <div className="absolute inset-0 bg-teal-500/10 animate-ping rounded-2xl"></div>
-                          <Microscope size={32} className="text-teal-400 animate-bounce" />
-                      </div>
-                      
-                      <h3 className="text-xl font-black text-white mb-2 tracking-tight relative z-10">
-                          {loadingMessage}
-                      </h3>
-                      
-                      <p className="text-xs text-zinc-400 font-medium leading-relaxed max-w-[200px] relative z-10">
-                          Cross-referencing ingredients with your skin biometrics...
-                      </p>
-                  </div>
-              ) : (
                   <div className="bg-white rounded-[2.5rem] p-8 shadow-2xl flex flex-col items-center max-w-xs w-full text-center relative overflow-hidden">
                       <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-teal-400 via-emerald-500 to-teal-600 animate-[shimmer_2s_infinite]" style={{ backgroundSize: '200% 100%' }}></div>
                       
@@ -486,7 +552,6 @@ const App: React.FC = () => {
                           Updating your secure dashboard...
                       </p>
                   </div>
-              )}
           </div>
       )}
       {renderView()}
