@@ -232,14 +232,13 @@ const App: React.FC = () => {
           const product = await analyzeProductFromSearch(
               selection.name,
               userProfile.biometrics,
-              undefined,
+              undefined, // DO NOT PASS BIAS SCORE. Let the analyzer decide.
               selection.brand,
               shelfIngredients
           );
-          handleProductFound(product); // Re-use standard handler to switch views
+          handleProductFound(product); 
       } catch (err) {
           console.error(err);
-          // Fallback handled by service, or we could show error notification
       } finally {
           setIsGlobalLoading(false);
           setLoadingMessage(null);

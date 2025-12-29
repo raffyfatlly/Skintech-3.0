@@ -1,5 +1,6 @@
 
 import * as GenAI from "@google/genai";
+import { Type } from "@google/genai";
 import type { Chat, GenerateContentResponse } from "@google/genai";
 import { SkinMetrics, Product, UserProfile, IngredientRisk, Benefit } from '../types';
 
@@ -46,7 +47,14 @@ const parseJSONFromText = (text: string): any => {
             isArray = true;
         }
 
-        if (start === -1 || end === -1) return isArray ? [] : {};
+        if (start === -1 || end === -1) {
+             // 3. Last ditch effort: Try parsing the whole text if it looks like JSON
+             try {
+                 return JSON.parse(text);
+             } catch(e) {
+                 return isArray ? [] : {};
+             }
+        }
 
         const jsonStr = text.substring(start, end + 1);
         return JSON.parse(jsonStr);
@@ -78,13 +86,9 @@ const runWithRetry = async <T>(fn: (ai: GenAI.GoogleGenAI) => Promise<T>, fallba
 };
 
 // --- SHARED SCORING LOGIC ---
-// REFACTORED: Now uses a robust Math-based (+/-) system instead of arbitrary caps.
-// This allows high-quality ingredients to outweigh minor cons, but severe risks to tank the score.
 const getStrictScoringRules = (user: UserProfile): string => {
     const m = user.biometrics;
     
-    // 1. IDENTIFY USER DEFICITS (Priorities)
-    // We categorize metrics < 75 as areas needing improvement.
     const deficits = [];
     if (m.acneActive < 75) deficits.push('ACNE/CONGESTION');
     if (m.pigmentation < 75) deficits.push('HYPERPIGMENTATION');
@@ -104,49 +108,22 @@ const getStrictScoringRules = (user: UserProfile): string => {
         "OBJECTIVE: Reward 'Gold Standard' ingredients. Penalize conflicts. Let the math decide the final score (0-99).",
     ];
 
-    // 2. THE "PLUS" (Rewards for Efficacy)
     rules.push("\n--- REWARDS (ADD POINTS) ---");
     rules.push("1. GOLD STANDARD MATCH (+15 PTS): If ingredient is the clinical best-in-class for a USER PRIORITY.");
     rules.push("   - Acne: Salicylic Acid, Adapalene, Benzoyl Peroxide.");
     rules.push("   - Aging: Retinol, Retinal, Peptides, Tretinoin.");
     rules.push("   - Pigmentation: Vitamin C (L-Ascorbic), Tranexamic Acid, Azelaic Acid, Thiamidol.");
     rules.push("   - Hydration: Ceramides, Urea, Squalane (Bio-identical).");
-    
-    rules.push("2. SECONDARY MATCH (+5 to +10 PTS): Good but generic ingredients (e.g., Tea Tree for Acne, Green Tea for Redness).");
-    
-    rules.push("3. FORMULATION BONUS (+5 PTS):");
-    rules.push("   - If product contains soothing agents (Panthenol, Allantoin, Bisabolol) to offset actives.");
-    rules.push("   - If texture is explicitly 'Gel', 'Water-Cream', or 'Serum' (Ideal for Malaysia).");
+    rules.push("2. SECONDARY MATCH (+5 to +10 PTS): Good but generic ingredients.");
+    rules.push("3. FORMULATION BONUS (+5 PTS): Soothing agents or lightweight textures.");
 
-    // 3. THE "MINUS" (Penalties for Risk)
     rules.push("\n--- PENALTIES (SUBTRACT POINTS) ---");
-    
-    // Sensitivity (The "Do No Harm" Rule)
-    if (m.redness < 65) {
-        rules.push("SENSITIVITY CONFLICT (-30 PTS): Alcohol Denat, High Fragrance, Menthol, Eucalyptus, Peppermint.");
-    } else {
-        rules.push("IRRITANT CAUTION (-10 PTS): High Alcohol or Fragrance (if not sensitive).");
-    }
+    if (m.redness < 65) rules.push("SENSITIVITY CONFLICT (-30 PTS): Alcohol Denat, High Fragrance, Menthol.");
+    else rules.push("IRRITANT CAUTION (-10 PTS): High Alcohol or Fragrance.");
 
-    // Acne (The "Comedogenic" Rule)
-    if (m.acneActive < 70) {
-        rules.push("PORE CLOGGING RISK (-30 PTS): Coconut Oil, Cocoa Butter, Isopropyl Myristate, Isopropyl Palmitate, Lauric Acid, Algae Extract.");
-        rules.push("   - NOTE: Prioritize Salicylic Acid (+15) over Lauric Acid (-30) for acne.");
-    }
-
-    // Dryness (The "Stripping" Rule)
-    if (m.hydration < 50) {
-        rules.push("DRYING RISK (-20 PTS): Sodium Lauryl Sulfate (SLS), Clay (high up), Alcohol Denat.");
-    }
-
-    // Climate (The "Sweat" Rule)
-    rules.push("CLIMATE MISMATCH (-10 PTS): Heavy Balms, thick Butters, or occlusives (Petrolatum/Mineral Oil) UNLESS user is extremely dry.");
-
-    // 4. Comparison Logic
-    rules.push("\n--- TIE-BREAKER LOGIC ---");
-    rules.push("If a product treats a concern (e.g. Acne) but harms another (e.g. Dryness), calculate the net result.");
-    rules.push("Example: Salicylic Acid (+15 for Acne) + Alcohol Denat (-20 for Dryness) = Net -5. Score drops.");
-    rules.push("Example: Salicylic Acid (+15 for Acne) + Panthenol (+5 Soothing) = Net +20. Score rises.");
+    if (m.acneActive < 70) rules.push("PORE CLOGGING RISK (-30 PTS): Coconut Oil, Cocoa Butter, Isopropyl Myristate.");
+    if (m.hydration < 50) rules.push("DRYING RISK (-20 PTS): SLS, Clay (high up), Alcohol Denat.");
+    rules.push("CLIMATE MISMATCH (-10 PTS): Heavy Balms, thick Butters.");
 
     return rules.join('\n');
 };
@@ -228,18 +205,6 @@ export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, 
     1. Calibrate the CV metrics based on visual skin analysis. TRUST YOUR EYES over the numbers.
     2. Provide a structured clinical verdict.
     
-    SCORING RUBRIC (Strictly Inverted Scale):
-    - 100 = Perfect, Flawless Skin (No Acne, No Wrinkles).
-    - 0 = Severe Condition (Severe Acne, Deep Wrinkles).
-    - Example: If you see ACNE, the 'acneActive' score must be LOW (e.g., 30).
-    - Example: If you see DEEP WRINKLES, the 'wrinkleDeep' score must be LOW (e.g., 40).
-    - If the algorithm says 90 but you see redness/pimples, OVERWRITE the score to 40.
-    
-    STYLE GUIDELINES:
-    - Use clear, simple prose suitable for a general audience.
-    - **CRITICAL:** If you use a medical term, immediately explain it in simple terms within brackets. 
-      Example: "Signs of erythema (redness) on the cheeks." or "High sebum (oil) production."
-    
     OUTPUT JSON FORMAT (Strict):
     {
       "overallScore": number,
@@ -258,19 +223,14 @@ export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, 
       "darkCircles": number,
       "skinAge": number,
       "analysisSummary": {
-        "headline": "Short, punchy 3-5 word diagnostic headline (e.g., 'Compromised Barrier & Congestion')",
-        "generalCondition": "2-3 sentences summarizing the holistic state of the skin. Connect the dots between different metrics (e.g., how oiliness might be causing the acne). Use simple language.",
+        "headline": "Diagnostic headline",
+        "generalCondition": "Holistic summary",
         "points": [
-           { "subtitle": "Holistic Concern", "content": "Explain the lowest scoring metric and how it affects the overall look. Remember to explain technical terms in brackets." },
-           { "subtitle": "Core Strength", "content": "Highlight the best feature and how it protects the skin integrity." },
-           { "subtitle": "Routine Gap", "content": "Identify a missing step or product type based on the shelf list and skin condition. Explain *why* it's needed in plain English." }
+           { "subtitle": "Concern", "content": "Details" }
         ]
       },
-      "immediateAction": "One specific, highly actionable quick tip for today (e.g., 'Double cleanse tonight' or 'Skip retinol').",
-      "observations": { 
-          "acneActive": "Specific observation...",
-          "redness": "Specific observation..."
-      }
+      "immediateAction": "Actionable tip",
+      "observations": { "acneActive": "Details" }
     }
     `;
     
@@ -294,12 +254,10 @@ export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, 
     return { ...localMetrics, ...data, observations, timestamp: Date.now() };
 };
 
-export const analyzeProductFromSearch = async (productName: string, userMetrics: SkinMetrics, consistencyScore?: number, knownBrand?: string, routineActives: string[] = []): Promise<Product> => {
-    // Construct a temporary user object for the helper to use the new scoring logic
+export const analyzeProductFromSearch = async (productName: string, userMetrics: SkinMetrics, _unusedScore?: number, knownBrand?: string, routineActives: string[] = []): Promise<Product> => {
     const tempUser: UserProfile = { 
         name: "User", age: 25, skinType: "UNKNOWN" as any, hasScannedFace: true, biometrics: userMetrics 
     };
-    // This generates specific rules based on the user's weaknesses (acne, wrinkles, etc.)
     const scoringRules = getStrictScoringRules(tempUser);
 
     return runWithRetry<Product>(async (ai) => {
@@ -307,37 +265,18 @@ export const analyzeProductFromSearch = async (productName: string, userMetrics:
         ACT AS AN EXPERT COSMETIC CHEMIST.
         PRODUCT: "${productName}" ${knownBrand ? `by ${knownBrand}` : ''}
         CONTEXT: User in MALAYSIA. 
-        USER BIOMETRICS (0-100, High=Good): ${JSON.stringify(userMetrics)}.
-        ROUTINE ACTIVES ALREADY USED: [${routineActives.join(', ')}].
+        USER BIOMETRICS: ${JSON.stringify(userMetrics)}.
+        ROUTINE ACTIVES: [${routineActives.join(', ')}].
 
         TASK: 
-        1. Use Google Search to find the EXACT full ingredients list and current price in MYR.
-        2. Analyze the ingredients against the user profile using the SCORING RULES below.
+        1. Use Google Search to find the EXACT full ingredients list and price in MYR.
+        2. Analyze using these RULES: ${scoringRules}
         
-        SCORING RULES (ROBUST MATH MODEL):
-        ${scoringRules}
+        CRITICAL: 
+        - Be OBJECTIVE. Do not inflate the suitability score. 
+        - If the product contains high-risk ingredients for this user (e.g. Alcohol for Sensitive skin), the score MUST reflect that (e.g. < 60).
         
-        CRITICAL OUTPUT RULES:
-        - Return ONLY JSON. 
-        - Ensure "suitabilityScore" (0-99) is the result of 60 + Rewards - Penalties.
-        - "benefits": Identify ingredients that match the user's lowest metrics (Needs Improvement).
-        - "expertReview": Write an objective consensus review. Summarize what experts generally say about this formulation. DO NOT use first-person.
-        
-        OUTPUT JSON SCHEMA:
-        \`\`\`json
-        {
-          "name": string,
-          "brand": string,
-          "type": "CLEANSER" | "TONER" | "SERUM" | "MOISTURIZER" | "SPF" | "TREATMENT" | "FOUNDATION" | "UNKNOWN",
-          "ingredients": string[],
-          "estimatedPrice": number,
-          "suitabilityScore": number,
-          "risks": [{ "ingredient": string, "riskLevel": "LOW"|"MEDIUM"|"HIGH", "reason": string }],
-          "benefits": [{ "ingredient": string, "target": "acneActive"|"hydration" etc, "description": string, "relevance": "HIGH"|"MAINTENANCE" }],
-          "usageTips": string,
-          "expertReview": string
-        }
-        \`\`\`
+        OUTPUT: Strict JSON Schema.
         `;
 
         const response = await ai.models.generateContent({
@@ -345,14 +284,50 @@ export const analyzeProductFromSearch = async (productName: string, userMetrics:
             contents: prompt,
             config: { 
                 tools: [{ googleSearch: {} }],
-                responseMimeType: 'application/json' // FORCE JSON to avoid parse errors
+                responseMimeType: 'application/json',
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        name: { type: Type.STRING },
+                        brand: { type: Type.STRING },
+                        type: { type: Type.STRING, enum: ["CLEANSER", "TONER", "SERUM", "MOISTURIZER", "SPF", "TREATMENT", "FOUNDATION", "UNKNOWN"] },
+                        ingredients: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        estimatedPrice: { type: Type.NUMBER },
+                        suitabilityScore: { type: Type.NUMBER },
+                        risks: { 
+                            type: Type.ARRAY, 
+                            items: { 
+                                type: Type.OBJECT, 
+                                properties: {
+                                    ingredient: { type: Type.STRING },
+                                    riskLevel: { type: Type.STRING, enum: ["LOW", "MEDIUM", "HIGH"] },
+                                    reason: { type: Type.STRING }
+                                } 
+                            } 
+                        },
+                        benefits: { 
+                            type: Type.ARRAY, 
+                            items: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    ingredient: { type: Type.STRING },
+                                    target: { type: Type.STRING },
+                                    description: { type: Type.STRING },
+                                    relevance: { type: Type.STRING, enum: ["HIGH", "MAINTENANCE"] }
+                                }
+                            }
+                        },
+                        usageTips: { type: Type.STRING },
+                        expertReview: { type: Type.STRING }
+                    },
+                    required: ["name", "brand", "type", "ingredients", "suitabilityScore", "risks", "benefits", "expertReview"]
+                }
             }
         });
 
         const data = parseJSONFromText(response.text || "{}");
         const sources = extractSources(response);
 
-        // Sanity Check: If data is completely empty, throw to trigger fallback
         if (!data || (!data.name && !data.ingredients)) {
             throw new Error("Refinement failed: Incomplete data.");
         }
@@ -372,7 +347,7 @@ export const analyzeProductFromSearch = async (productName: string, userMetrics:
             usageTips: data.usageTips,
             expertReview: data.expertReview
         };
-    }, { ...getFallbackProduct(userMetrics, productName), suitabilityScore: consistencyScore || 75, brand: knownBrand || "Unknown Brand" }, 90000); 
+    }, { ...getFallbackProduct(userMetrics, productName), suitabilityScore: 75, brand: knownBrand || "Unknown Brand" }, 90000); 
 };
 
 export const analyzeProductImage = async (base64: string, userMetrics: SkinMetrics, routineActives: string[] = []): Promise<Product> => {
@@ -394,42 +369,20 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
 
         // Step 2: Search & Deep Analysis
         const tempUser: UserProfile = { name: "User", age: 25, skinType: "UNKNOWN" as any, hasScannedFace: true, biometrics: userMetrics };
-        // Uses the personalized scoring based on user deficiencies
         const scoringRules = getStrictScoringRules(tempUser);
 
         const refinementPrompt = `
         ACT AS AN EXPERT COSMETIC CHEMIST.
         PRODUCT: "${visionData.brand} ${visionData.name}"
         CONTEXT: Malaysia.
-        USER BIOMETRICS (0-100, High=Good): ${JSON.stringify(userMetrics)}.
+        USER BIOMETRICS: ${JSON.stringify(userMetrics)}.
         ROUTINE ACTIVES: [${routineActives.join(', ')}].
 
         TASK: 
         1. Search for the product's full ingredient list and reviews.
-        2. Analyze for risks/benefits using the SCORING RULES below.
+        2. Analyze for risks/benefits using these RULES: ${scoringRules}
         
-        SCORING RULES (ROBUST MATH MODEL):
-        ${scoringRules}
-        
-        CRITICAL OUTPUT RULES:
-        - "expertReview": Write an objective consensus review. Summarize what experts generally say about this formulation. DO NOT use first-person.
-        - "suitabilityScore": Calculate 60 + Rewards - Penalties. Range 0-99.
-
-        OUTPUT JSON SCHEMA:
-        \`\`\`json
-        {
-          "name": "${visionData.name}",
-          "brand": "${visionData.brand}",
-          "type": "CLEANSER" | "TONER" | "SERUM" | "MOISTURIZER" | "SPF" | "TREATMENT" | "FOUNDATION" | "UNKNOWN",
-          "ingredients": string[],
-          "estimatedPrice": number,
-          "suitabilityScore": number,
-          "risks": [{ "ingredient": string, "riskLevel": "LOW"|"MEDIUM"|"HIGH", "reason": string }],
-          "benefits": [{ "ingredient": string, "target": "acneActive"|"hydration" etc, "description": string, "relevance": "HIGH"|"MAINTENANCE" }],
-          "usageTips": string,
-          "expertReview": string
-        }
-        \`\`\`
+        OUTPUT: Strict JSON Schema.
         `;
 
         const finalResponse = await ai.models.generateContent({
@@ -437,7 +390,44 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
             contents: refinementPrompt,
             config: { 
                 tools: [{ googleSearch: {} }],
-                responseMimeType: 'application/json' 
+                responseMimeType: 'application/json',
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        name: { type: Type.STRING },
+                        brand: { type: Type.STRING },
+                        type: { type: Type.STRING, enum: ["CLEANSER", "TONER", "SERUM", "MOISTURIZER", "SPF", "TREATMENT", "FOUNDATION", "UNKNOWN"] },
+                        ingredients: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        estimatedPrice: { type: Type.NUMBER },
+                        suitabilityScore: { type: Type.NUMBER },
+                        risks: { 
+                            type: Type.ARRAY, 
+                            items: { 
+                                type: Type.OBJECT, 
+                                properties: {
+                                    ingredient: { type: Type.STRING },
+                                    riskLevel: { type: Type.STRING, enum: ["LOW", "MEDIUM", "HIGH"] },
+                                    reason: { type: Type.STRING }
+                                } 
+                            } 
+                        },
+                        benefits: { 
+                            type: Type.ARRAY, 
+                            items: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    ingredient: { type: Type.STRING },
+                                    target: { type: Type.STRING },
+                                    description: { type: Type.STRING },
+                                    relevance: { type: Type.STRING, enum: ["HIGH", "MAINTENANCE"] }
+                                }
+                            }
+                        },
+                        usageTips: { type: Type.STRING },
+                        expertReview: { type: Type.STRING }
+                    },
+                    required: ["name", "brand", "type", "ingredients", "suitabilityScore", "risks", "benefits", "expertReview"]
+                }
             }
         });
 
@@ -575,11 +565,6 @@ export const createDermatologistSession = (user: UserProfile, shelf: Product[]):
              GUIDELINES:
              - Keep answers concise, friendly, and practical.
              - Use the shelf context to give personalized advice on what they ALREADY own.
-             - **CRITICAL:** If the user asks for NEW product recommendations (e.g., "What moisturizer should I buy?"):
-               1. Do NOT list specific specific products or brands.
-               2. Instead, explain the *ingredients* they need (e.g., "Look for Ceramides and Niacinamide").
-               3. TELL THEM to use the "Routine Architect" feature in this app to get a perfect, price-checked match for their skin score.
-               4. Say something like: "For the most accurate recommendation, I recommend using the Routine Architect tool on your dashboard—it cross-references your biometric data with 1000s of products."
              - Focus on ingredients and scientific efficacy.
              `
         }
@@ -609,28 +594,25 @@ export const generateRoutineRecommendations = async (user: UserProfile): Promise
     return runWithRetry<any>(async (ai) => {
         const prompt = `
         ACT AS DERMATOLOGIST. User: Age ${user.age}, Skin ${user.skinType}.
-        TASK: Generate AM/PM routine with Malaysian products (Watsons/Guardian).
-        OUTPUT JSON: { "am": [{ "step": "...", "products": [...] }], "pm": [...] }
+        TASK: Generate AM/PM routine.
+        OUTPUT JSON.
         `;
         const response = await ai.models.generateContent({
             model: MODEL_ROUTINE,
             contents: prompt,
-            config: { tools: [{ googleSearch: {} }] }
+            config: { tools: [{ googleSearch: {} }], responseMimeType: 'application/json' }
         });
         return parseJSONFromText(response.text || "{}");
     }, null, 60000);
 }
 
 export const generateTargetedRecommendations = async (user: UserProfile, category: string, maxPrice: number, allergies: string, goals: string[]): Promise<any> => {
-    // UPDATED: Now uses the new Hero Ingredient logic via getStrictScoringRules
     const scoringRules = getStrictScoringRules(user);
     
     return runWithRetry<any>(async (ai) => {
         const goalsString = goals.length > 0 ? goals.join(', ') : "General Skin Health";
-        
-        // UNIFIED PROMPT: Now uses the exact same SCORING RULES as the Deep Analyzer
         const prompt = `
-        ACT AS AN EXPERT COSMETIC CHEMIST AND PERSONAL SHOPPER.
+        ACT AS A RUTHLESS AUDITOR, NOT A SALESMAN.
         
         USER CONTEXT:
         - Skin Type: ${user.skinType}
@@ -645,18 +627,10 @@ export const generateTargetedRecommendations = async (user: UserProfile, categor
         
         TASK:
         1. Search for 3 distinct products available in Malaysia that act as solutions for the user's goals.
-        2. **CRITICAL:** Prioritize efficacy. If the budget is high (e.g. > RM 100), show a mix of High-End and Drugstore gems. If budget is low, focus on high-value options (e.g. The Ordinary, Simple, Hada Labo).
-        3. Analyze ingredients against the SCORING RULES below.
+        2. **CRITICAL SCORING:** You must use the SCORING RULES below. Do NOT inflate scores. If a product contains ingredients that conflict with the user's biometrics (e.g. Alcohol for Sensitive Skin), the rating MUST be low.
         
         SCORING RULES (ROBUST MATH MODEL):
         ${scoringRules}
-        
-        OUTPUT REQUIREMENTS:
-        - Return a JSON Array.
-        - "price": exact string like "RM 45.90".
-        - "rating": Calculate using the scoring rules (0-99).
-        - "tier": "BEST MATCH" (Highest Score), "VALUE PICK" (Best Score/Price ratio), "PREMIUM" (Expensive but good).
-        - If you cannot find 3 perfect matches, include the next best alternatives but rate them honestly. ALWAYS return 3 products.
         
         OUTPUT JSON SCHEMA:
         [{ 
@@ -675,7 +649,6 @@ export const generateTargetedRecommendations = async (user: UserProfile, categor
             config: { tools: [{ googleSearch: {} }], responseMimeType: 'application/json' }
         });
         const res = parseJSONFromText(response.text || "[]");
-        // Update: Clamp ratings to 99
         const items = Array.isArray(res) ? res : [];
         return items.map((item: any) => ({
             ...item,
