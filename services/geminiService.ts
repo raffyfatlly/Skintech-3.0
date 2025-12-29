@@ -611,42 +611,51 @@ export const generateTargetedRecommendations = async (user: UserProfile, categor
     
     return runWithRetry<any>(async (ai) => {
         const goalsString = goals.length > 0 ? goals.join(', ') : "General Skin Health";
+        // Explicitly constructing the search intent for the model to use with the tool
+        const userContext = `User has ${user.skinType} skin. Biometrics: ${JSON.stringify(user.biometrics)}. Goals: ${goalsString}. Allergies: ${allergies || "None"}. Location: Malaysia. Budget: RM ${maxPrice}.`;
+
         const prompt = `
-        ACT AS A RUTHLESS AUDITOR, NOT A SALESMAN.
+        ACT AS A DERMATOLOGICAL AI ARCHITECT.
         
-        USER CONTEXT:
-        - Skin Type: ${user.skinType}
-        - Biometrics (0-100, High=Good): ${JSON.stringify(user.biometrics)}
-        - Allergies/Avoid: ${allergies || "None"}
+        INPUT CONTEXT:
+        ${userContext}
         
-        SEARCH CRITERIA:
-        - Category: ${category}
-        - Target Goals: ${goalsString}
-        - Budget: Up to RM ${maxPrice}. (Look for products between RM 15 - RM ${maxPrice}).
-        - Region: Malaysia (Watsons, Guardian, Sephora, Shopee Mall, Official Stores).
+        TASK: FIND THE BEST ${category.toUpperCase()}.
         
-        TASK:
-        1. Search for 3 distinct products available in Malaysia that act as solutions for the user's goals.
-        2. **CRITICAL SCORING:** You must use the SCORING RULES below. Do NOT inflate scores. If a product contains ingredients that conflict with the user's biometrics (e.g. Alcohol for Sensitive Skin), the rating MUST be low.
+        EXECUTION STEPS:
+        1. **GLOBAL SEARCH**: Use Google Search to find 5 top-rated, accessible ${category} products in Malaysia that specifically target [${goalsString}].
+        2. **FILTER & AUDIT**: 
+           - Discard any products containing [${allergies}].
+           - Discard products strictly incompatible with ${user.skinType} skin.
+           - Ensure price is approx under RM ${maxPrice}.
+        3. **DEEP ANALYSIS**: Compare the ingredients of the remaining candidates against the user's biometrics.
+        4. **FINAL SELECTION**: Return the Top 3 products.
         
-        SCORING RULES (ROBUST MATH MODEL):
-        ${scoringRules}
-        
-        OUTPUT JSON SCHEMA:
-        [{ 
-           "name": "Exact Product Name", 
-           "brand": "Brand", 
-           "price": "RM XX", 
-           "reason": "Why it fits...", 
-           "rating": 85, 
-           "tier": "BEST MATCH" 
-        }]
+        CRITICAL: 
+        - The products MUST be real and purchasable in Malaysia.
+        - The "rating" must be a realistic prediction of the match score (0-99).
+        - "reason" should explain why it was chosen over the others.
+
+        OUTPUT JSON:
+        [
+          { 
+             "name": "Product Name", 
+             "brand": "Brand", 
+             "price": "RM XX", 
+             "reason": "Explanation...", 
+             "rating": 90, 
+             "tier": "BEST MATCH" 
+          }
+        ]
         `;
         
         const response = await ai.models.generateContent({
             model: MODEL_ROUTINE,
             contents: prompt,
-            config: { tools: [{ googleSearch: {} }], responseMimeType: 'application/json' }
+            config: { 
+                tools: [{ googleSearch: {} }], 
+                responseMimeType: 'application/json' 
+            }
         });
         const res = parseJSONFromText(response.text || "[]");
         const items = Array.isArray(res) ? res : [];
@@ -654,5 +663,5 @@ export const generateTargetedRecommendations = async (user: UserProfile, categor
             ...item,
             rating: Math.min(99, item.rating || 0)
         }));
-    }, [], 60000);
+    }, [], 90000); // 90s timeout for deep search
 };

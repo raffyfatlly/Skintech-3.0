@@ -66,11 +66,10 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
         let interval: ReturnType<typeof setInterval>;
         if (loading) {
             const messages = [
-                "Scanning locally available products...",
-                "Filtering matches for your skin type...",
-                "Checking ingredients for safety...",
-                "Optimizing for your budget...",
-                "Analyzing reviews and efficacy...",
+                "Initiating holistic search...",
+                `Scanning 5 top-rated ${selectedCategory} candidates...`,
+                "Cross-referencing with your biometrics...",
+                "Filtering allergens and price...",
                 "Selecting the top 3 best matches..."
             ];
             let i = 0;
@@ -78,10 +77,10 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
             interval = setInterval(() => {
                 i = (i + 1) % messages.length;
                 setLoadingText(messages[i]);
-            }, 2000); // Change text every 2 seconds
+            }, 3000); // Slower updates for heavier process
         }
         return () => clearInterval(interval);
-    }, [loading]);
+    }, [loading, selectedCategory]);
 
     const isPaid = !!user.isPremium; 
     const hasFreeUsage = usageCount < LIMIT_ROUTINES;
