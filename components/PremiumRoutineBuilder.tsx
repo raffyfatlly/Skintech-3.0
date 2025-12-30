@@ -34,8 +34,13 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
         const b = user.biometrics;
         if (!b) return [{ label: 'Hydration Boost', score: 0, icon: Droplet }];
 
+        // Context-Aware Labels
+        // If scar score is very low, it implies texture/pitted issues. If higher, likely just discoloration.
+        const scarLabel = b.acneScars < 60 ? 'Repair Pitted Scars' : 'Fade Dark Marks';
+        const acneLabel = b.acneActive < 60 ? 'Treat Active Acne' : 'Prevent Breakouts';
+
         const candidates = [
-            { label: 'Clear Acne', score: b.acneActive, icon: Zap },
+            { label: acneLabel, score: b.acneActive, icon: Zap },
             { label: 'Soothe Redness', score: b.redness, icon: ShieldCheck },
             { label: 'Hydration Boost', score: b.hydration, icon: Droplet },
             { label: 'Oil Control', score: b.oiliness, icon: Sliders },
@@ -44,7 +49,7 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
             { label: 'Remove Blackheads', score: b.blackheads, icon: Target },
             { label: 'Brightening', score: b.pigmentation, icon: Sun },
             { label: 'Anti-Aging', score: (b.wrinkleFine + b.wrinkleDeep + b.sagging) / 3, icon: Star },
-            { label: 'Repair Scars', score: b.acneScars, icon: Eraser },
+            { label: scarLabel, score: b.acneScars, icon: Eraser },
         ];
 
         // 1. Sort by Score Ascending (Lower score = Higher Priority)

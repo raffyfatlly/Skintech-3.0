@@ -602,11 +602,59 @@ export const generateRoutineRecommendations = async (user: UserProfile): Promise
 
 export const generateTargetedRecommendations = async (user: UserProfile, category: string, maxPrice: number, allergies: string, goals: string[]): Promise<any> => {
     return runWithTimeout<any>(async (ai) => {
+        // --- SMART CONTEXT GENERATION ---
+        const m = user.biometrics;
+        const conditions = [];
+        
+        // 1. Acne & Comedogenicity
+        // If Acne is active (Low Score) OR Oiliness is high (Low Score), block pore cloggers.
+        if (m.acneActive < 75 || m.oiliness < 70) {
+            conditions.push("User has congestion/acne-prone skin. MUST AVOID pore-clogging ingredients (e.g. Cocoa Butter, Coconut Oil, Isopropyl Myristate, high Oleic Acid oils). Prefer non-comedogenic.");
+        }
+
+        // 2. Sensitivity & Barrier
+        // If Redness is high (Low Score), block irritants.
+        if (m.redness < 75) {
+            conditions.push("User has sensitive/reactive skin. MUST AVOID drying alcohols (Alcohol Denat), strong essential oils, and synthetic fragrance. Prefer soothing ingredients (Centella, Allantoin, Panthenol).");
+        }
+
+        // 3. Scarring Nuance (User Request)
+        // If Scarring is significant (Low Score), clarify type.
+        if (m.acneScars < 70) {
+            conditions.push("User has acne scarring. Note: Prioritize texturizing/collagen-boosting agents (Retinoids, Peptides, Azelaic Acid) for pitted/atrophic scars, rather than just simple brighteners.");
+        }
+
+        // 4. Hydration
+        if (m.hydration < 60) {
+            conditions.push("User has dehydrated skin. Ensure formula provides deep hydration (HA, Glycerin, Ceramides).");
+        }
+
+        // 5. Texture
+        if (m.texture < 70 && m.redness > 70) { 
+            // Only suggest exfoliation if NOT sensitive
+            conditions.push("User has textured skin. Look for gentle resurfacing agents (AHAs/BHAs) if appropriate for product type.");
+        }
+
+        const contextStr = conditions.length > 0 
+            ? `\nCRITICAL SKIN CONTEXT:\n- ${conditions.join('\n- ')}\n`
+            : "";
+
         const prompt = `
         Find 3 ${category} products in Malaysia for ${user.skinType} skin.
-        Goals: ${goals.join(', ')}. Avoid: ${allergies}. Max Price: RM ${maxPrice}.
+        
+        USER GOALS: ${goals.join(', ')}. 
+        USER ALLERGIES/AVOID: ${allergies}.
+        MAX PRICE: RM ${maxPrice}.
+        ${contextStr}
+        
+        INSTRUCTIONS:
+        1. Recommend products that meet the User Goals but ARE SAFE given the Critical Skin Context.
+        2. If constraints conflict with goals (e.g. "Exfoliate" but "Sensitive"), prioritize safety (Barrier Support).
+        3. For "Repair Scars", prioritize collagen support if context mentions pitted scarring.
+        
         Output JSON: [{ "name": "string", "brand": "string", "price": "string", "reason": "string", "rating": number, "tier": "BEST MATCH" }]
         `;
+        
         const response = await ai.models.generateContent({
             model: MODEL_FAST,
             contents: prompt,
