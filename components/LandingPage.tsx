@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { ScanFace, Scan, TrendingUp, Sparkles, ArrowRight, ShieldCheck, Play, Lock, ChevronRight, Zap, Layers, ThumbsUp } from 'lucide-react';
 
@@ -77,7 +78,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onLogin }) => {
 
       {/* 2. SCROLLABLE FEATURES (Bento Grid Layout) - Sleek White Theme with Teal Accents */}
       <div className="relative z-30 bg-white rounded-t-[3rem] -mt-10 px-6 pt-20 pb-20 shadow-[0_-20px_40px_-15px_rgba(0,0,0,0.1)]">
-           <div className="max-w-xl mx-auto space-y-6">
+           <div className="max-w-7xl mx-auto space-y-6">
                
                <div className="text-center mb-12">
                    <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-3 flex items-center justify-center gap-2">
@@ -86,72 +87,74 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onLogin }) => {
                    <h2 className="text-3xl font-black text-zinc-900 tracking-tight">Dermatology. Digitized.</h2>
                </div>
 
-                {/* FEATURE 1: FACE ANALYSIS (Hero Card) */}
-                <div className="bg-white rounded-[2rem] p-8 border border-zinc-100 shadow-xl shadow-zinc-200/20 relative overflow-hidden group hover:border-teal-100 transition-colors">
-                    <div className="relative z-10">
-                        <div className="flex items-center justify-between mb-6">
-                            {/* Changed to Teal Badge */}
-                            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-teal-50 text-teal-700 rounded-full">
-                                <ScanFace size={14} />
-                                <span className="text-[10px] font-bold uppercase tracking-widest">Biometric Scan</span>
-                            </div>
-                        </div>
-                        
-                        {/* Softer Black Text */}
-                        <h3 className="text-4xl font-black text-zinc-900 tracking-tighter leading-[0.9] mb-4">
-                            Understand<br/>your skin.
-                        </h3>
-                        <p className="text-sm text-zinc-500 font-medium leading-relaxed max-w-xs">
-                            We measure redness, texture patterns, and hydration levels to give you a clinical score that tracks real progress over time.
-                        </p>
-
-                        <div className="mt-8 flex gap-3">
-                             <div className="px-3 py-1.5 rounded-lg border border-teal-100 bg-teal-50/50 text-teal-700 text-[10px] font-bold">Acne Map</div>
-                             <div className="px-3 py-1.5 rounded-lg border border-zinc-200 text-zinc-500 text-[10px] font-bold">Barrier Score</div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* GRID ROW */}
-                <div className="grid grid-cols-2 gap-4">
-                    {/* FEATURE 2: PRODUCT INTELLIGENCE - White Theme with Indigo Accent */}
-                    <div className="bg-white rounded-[2rem] p-6 text-zinc-900 border border-zinc-100 relative overflow-hidden flex flex-col justify-between min-h-[200px] shadow-lg shadow-zinc-200/20 hover:border-teal-100 transition-colors">
+               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {/* FEATURE 1: FACE ANALYSIS (Hero Card) */}
+                    <div className="bg-white rounded-[2rem] p-8 border border-zinc-100 shadow-xl shadow-zinc-200/20 relative overflow-hidden group hover:border-teal-100 transition-colors lg:col-span-2">
                         <div className="relative z-10">
-                            <div className="w-10 h-10 bg-indigo-50 rounded-full flex items-center justify-center mb-4 border border-indigo-100">
-                                <Scan size={20} className="text-indigo-600" />
+                            <div className="flex items-center justify-between mb-6">
+                                {/* Changed to Teal Badge */}
+                                <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-teal-50 text-teal-700 rounded-full">
+                                    <ScanFace size={14} />
+                                    <span className="text-[10px] font-bold uppercase tracking-widest">Biometric Scan</span>
+                                </div>
                             </div>
-                            <h3 className="text-lg font-bold leading-tight mb-2 text-zinc-900">Smart Scan</h3>
-                            <p className="text-xs text-zinc-500 font-medium">No barcodes needed. Just snap a photo of the bottle to decode ingredients.</p>
+                            
+                            {/* Softer Black Text */}
+                            <h3 className="text-4xl font-black text-zinc-900 tracking-tighter leading-[0.9] mb-4">
+                                Understand<br/>your skin.
+                            </h3>
+                            <p className="text-sm text-zinc-500 font-medium leading-relaxed max-w-xs">
+                                We measure redness, texture patterns, and hydration levels to give you a clinical score that tracks real progress over time.
+                            </p>
+
+                            <div className="mt-8 flex gap-3">
+                                <div className="px-3 py-1.5 rounded-lg border border-teal-100 bg-teal-50/50 text-teal-700 text-[10px] font-bold">Acne Map</div>
+                                <div className="px-3 py-1.5 rounded-lg border border-zinc-200 text-zinc-500 text-[10px] font-bold">Barrier Score</div>
+                            </div>
                         </div>
                     </div>
 
-                    {/* FEATURE 3: ROUTINE ARCHITECT - White Theme with Amber Accent */}
-                    <div className="bg-white rounded-[2rem] p-6 border border-zinc-100 relative overflow-hidden flex flex-col justify-between min-h-[200px] shadow-lg shadow-zinc-200/20 hover:border-teal-100 transition-colors">
+                    {/* GRID ROW */}
+                    <div className="grid grid-cols-2 lg:grid-cols-2 gap-4 lg:col-span-2">
+                        {/* FEATURE 2: PRODUCT INTELLIGENCE - White Theme with Indigo Accent */}
+                        <div className="bg-white rounded-[2rem] p-6 text-zinc-900 border border-zinc-100 relative overflow-hidden flex flex-col justify-between min-h-[200px] shadow-lg shadow-zinc-200/20 hover:border-teal-100 transition-colors">
+                            <div className="relative z-10">
+                                <div className="w-10 h-10 bg-indigo-50 rounded-full flex items-center justify-center mb-4 border border-indigo-100">
+                                    <Scan size={20} className="text-indigo-600" />
+                                </div>
+                                <h3 className="text-lg font-bold leading-tight mb-2 text-zinc-900">Smart Scan</h3>
+                                <p className="text-xs text-zinc-500 font-medium">No barcodes needed. Just snap a photo of the bottle to decode ingredients.</p>
+                            </div>
+                        </div>
+
+                        {/* FEATURE 3: ROUTINE ARCHITECT - White Theme with Amber Accent */}
+                        <div className="bg-white rounded-[2rem] p-6 border border-zinc-100 relative overflow-hidden flex flex-col justify-between min-h-[200px] shadow-lg shadow-zinc-200/20 hover:border-teal-100 transition-colors">
+                            <div className="relative z-10">
+                                <div className="w-10 h-10 bg-amber-50 rounded-full flex items-center justify-center mb-4 border border-amber-100">
+                                    <Layers size={20} className="text-amber-600" />
+                                </div>
+                                <h3 className="text-lg font-bold text-zinc-900 leading-tight mb-2">Routine Architect</h3>
+                                <p className="text-xs text-zinc-500 font-medium">Find the perfect products based on your skin profile & budget.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* FEATURE 4: BUYING ASSISTANT - White Theme with Emerald Accent */}
+                    <div className="bg-white rounded-[2rem] p-8 text-zinc-900 border border-zinc-100 shadow-xl shadow-zinc-200/20 relative overflow-hidden hover:border-teal-100 transition-colors lg:col-span-2">
                         <div className="relative z-10">
-                            <div className="w-10 h-10 bg-amber-50 rounded-full flex items-center justify-center mb-4 border border-amber-100">
-                                <Layers size={20} className="text-amber-600" />
+                            <div className="flex items-center gap-2 mb-4 text-emerald-600">
+                                <ShieldCheck size={16} />
+                                <span className="text-[10px] font-bold uppercase tracking-widest">Buying Assistant</span>
                             </div>
-                            <h3 className="text-lg font-bold text-zinc-900 leading-tight mb-2">Routine Architect</h3>
-                            <p className="text-xs text-zinc-500 font-medium">Find the perfect products based on your skin profile & budget.</p>
+                            <h3 className="text-2xl font-black tracking-tight leading-tight mb-4 text-zinc-900">
+                                "Great, Consider, or Avoid?"
+                            </h3>
+                            <p className="text-sm text-zinc-500 font-medium leading-relaxed">
+                                Instant verdicts on any product. We check for conflicts, allergens, and skin-type compatibility before you buy.
+                            </p>
                         </div>
                     </div>
-                </div>
-
-                {/* FEATURE 4: BUYING ASSISTANT - White Theme with Emerald Accent */}
-                <div className="bg-white rounded-[2rem] p-8 text-zinc-900 border border-zinc-100 shadow-xl shadow-zinc-200/20 relative overflow-hidden hover:border-teal-100 transition-colors">
-                    <div className="relative z-10">
-                        <div className="flex items-center gap-2 mb-4 text-emerald-600">
-                            <ShieldCheck size={16} />
-                            <span className="text-[10px] font-bold uppercase tracking-widest">Buying Assistant</span>
-                        </div>
-                        <h3 className="text-2xl font-black tracking-tight leading-tight mb-4 text-zinc-900">
-                            "Great, Consider, or Avoid?"
-                        </h3>
-                        <p className="text-sm text-zinc-500 font-medium leading-relaxed">
-                            Instant verdicts on any product. We check for conflicts, allergens, and skin-type compatibility before you buy.
-                        </p>
-                    </div>
-                </div>
+               </div>
 
                 {/* FOOTER */}
                 <div className="text-center pt-8 pb-4">

@@ -91,27 +91,29 @@ const ProductSearch: React.FC<ProductSearchProps> = ({ userProfile, shelf, onSta
 
     if (isLimitReached) {
         return (
-            <div className="fixed inset-0 bg-white z-50 flex flex-col items-center justify-center p-6 text-center animate-in fade-in">
-                <div className="w-16 h-16 bg-zinc-100 rounded-full flex items-center justify-center mb-6">
-                    <Lock size={24} className="text-zinc-400" />
-                </div>
-                <h2 className="text-xl font-black text-zinc-900 mb-2">Search Limit Reached</h2>
-                <p className="text-sm text-zinc-500 mb-8 max-w-xs">
-                    You've reached the free limit of 3 scans/searches. Upgrade to continue exploring products.
-                </p>
-                <div className="flex flex-col gap-3 w-full max-w-xs">
-                    <button 
-                        onClick={onUnlockPremium}
-                        className="w-full py-3.5 bg-zinc-900 text-white rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2"
-                    >
-                        <Crown size={14} className="text-amber-300" /> Unlock Unlimited
-                    </button>
-                    <button 
-                        onClick={onCancel}
-                        className="w-full py-3.5 text-zinc-500 font-bold text-xs uppercase tracking-widest hover:text-zinc-800"
-                    >
-                        Close
-                    </button>
+            <div className="fixed inset-0 bg-white z-50 flex flex-col items-center justify-center p-6 text-center animate-in fade-in sm:bg-black/50 sm:backdrop-blur-sm">
+                <div className="sm:bg-white sm:rounded-3xl sm:p-10 sm:max-w-md sm:shadow-2xl sm:flex sm:flex-col sm:items-center w-full h-full sm:h-auto sm:w-auto flex flex-col items-center justify-center">
+                    <div className="w-16 h-16 bg-zinc-100 rounded-full flex items-center justify-center mb-6">
+                        <Lock size={24} className="text-zinc-400" />
+                    </div>
+                    <h2 className="text-xl font-black text-zinc-900 mb-2">Search Limit Reached</h2>
+                    <p className="text-sm text-zinc-500 mb-8 max-w-xs">
+                        You've reached the free limit of 3 scans/searches. Upgrade to continue exploring products.
+                    </p>
+                    <div className="flex flex-col gap-3 w-full max-w-xs">
+                        <button 
+                            onClick={onUnlockPremium}
+                            className="w-full py-3.5 bg-zinc-900 text-white rounded-xl font-bold text-xs uppercase tracking-widest flex items-center justify-center gap-2"
+                        >
+                            <Crown size={14} className="text-amber-300" /> Unlock Unlimited
+                        </button>
+                        <button 
+                            onClick={onCancel}
+                            className="w-full py-3.5 text-zinc-500 font-bold text-xs uppercase tracking-widest hover:text-zinc-800"
+                        >
+                            Close
+                        </button>
+                    </div>
                 </div>
             </div>
         )
@@ -120,114 +122,118 @@ const ProductSearch: React.FC<ProductSearchProps> = ({ userProfile, shelf, onSta
     // PROMINENT LOADING OVERLAY
     if (isAnalyzing) {
         return (
-            <div className="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center p-6 text-center animate-in fade-in font-sans">
-                {/* Visuals */}
-                <div className="relative mb-12 w-32 h-32 flex items-center justify-center">
-                    <div className="absolute inset-0 bg-teal-50 rounded-full animate-ping opacity-75"></div>
-                    <div className="absolute inset-4 bg-white rounded-full shadow-xl border border-zinc-100 flex items-center justify-center z-10">
-                        <Database size={32} className="text-teal-600 animate-pulse" />
-                    </div>
-                    {/* Orbiting Icons */}
-                    <div className="absolute inset-0 animate-[spin_4s_linear_infinite]">
-                        <div className="absolute top-0 left-1/2 -translate-x-1/2 -mt-2 bg-white p-1.5 rounded-full shadow-md border border-zinc-50">
-                            <Globe size={12} className="text-indigo-500" />
+            <div className="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center p-6 text-center animate-in fade-in font-sans sm:bg-black/50 sm:backdrop-blur-sm">
+                <div className="sm:bg-white sm:rounded-3xl sm:p-12 sm:max-w-md sm:shadow-2xl sm:flex sm:flex-col sm:items-center w-full h-full sm:h-auto sm:w-auto flex flex-col items-center justify-center relative">
+                    {/* Visuals */}
+                    <div className="relative mb-12 w-32 h-32 flex items-center justify-center">
+                        <div className="absolute inset-0 bg-teal-50 rounded-full animate-ping opacity-75"></div>
+                        <div className="absolute inset-4 bg-white rounded-full shadow-xl border border-zinc-100 flex items-center justify-center z-10">
+                            <Database size={32} className="text-teal-600 animate-pulse" />
                         </div>
-                        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 -mb-2 bg-white p-1.5 rounded-full shadow-md border border-zinc-50">
-                            <FlaskConical size={12} className="text-rose-500" />
+                        {/* Orbiting Icons */}
+                        <div className="absolute inset-0 animate-[spin_4s_linear_infinite]">
+                            <div className="absolute top-0 left-1/2 -translate-x-1/2 -mt-2 bg-white p-1.5 rounded-full shadow-md border border-zinc-50">
+                                <Globe size={12} className="text-indigo-500" />
+                            </div>
+                            <div className="absolute bottom-0 left-1/2 -translate-x-1/2 -mb-2 bg-white p-1.5 rounded-full shadow-md border border-zinc-50">
+                                <FlaskConical size={12} className="text-rose-500" />
+                            </div>
                         </div>
                     </div>
-                </div>
-                
-                <h2 className="text-2xl font-black text-zinc-900 mb-2 tracking-tight">Auditing Product</h2>
-                <p className="text-xs font-bold text-teal-600 uppercase tracking-widest mb-10 animate-pulse">
-                    {statusText}
-                </p>
-
-                <div className="w-full max-w-xs space-y-3">
-                    <div className="w-full h-1.5 bg-zinc-100 rounded-full overflow-hidden mb-6">
-                        <div className="h-full bg-teal-500 animate-[loading_2s_ease-in-out_infinite] w-1/3 rounded-full"></div>
-                    </div>
-
-                    <button 
-                        onClick={onCancel} 
-                        className="w-full py-4 text-zinc-500 font-bold text-xs uppercase tracking-widest hover:text-zinc-900 hover:bg-zinc-50 rounded-xl transition-all flex items-center justify-center gap-2 border border-transparent hover:border-zinc-200"
-                    >
-                        <Minimize2 size={16} /> Run in Background
-                    </button>
-                    <p className="text-[10px] text-zinc-400 font-medium">
-                        This deep audit may take a few minutes.
+                    
+                    <h2 className="text-2xl font-black text-zinc-900 mb-2 tracking-tight">Auditing Product</h2>
+                    <p className="text-xs font-bold text-teal-600 uppercase tracking-widest mb-10 animate-pulse">
+                        {statusText}
                     </p>
+
+                    <div className="w-full max-w-xs space-y-3">
+                        <div className="w-full h-1.5 bg-zinc-100 rounded-full overflow-hidden mb-6">
+                            <div className="h-full bg-teal-500 animate-[loading_2s_ease-in-out_infinite] w-1/3 rounded-full"></div>
+                        </div>
+
+                        <button 
+                            onClick={onCancel} 
+                            className="w-full py-4 text-zinc-500 font-bold text-xs uppercase tracking-widest hover:text-zinc-900 hover:bg-zinc-50 rounded-xl transition-all flex items-center justify-center gap-2 border border-transparent hover:border-zinc-200"
+                        >
+                            <Minimize2 size={16} /> Run in Background
+                        </button>
+                        <p className="text-[10px] text-zinc-400 font-medium">
+                            This deep audit may take a few minutes.
+                        </p>
+                    </div>
                 </div>
             </div>
         )
     }
 
     return (
-        <div className="fixed inset-0 bg-white z-50 flex flex-col font-sans">
-            <div className="p-6 border-b border-zinc-100 flex items-center gap-4">
-                <button onClick={onCancel} className="p-2 -ml-2 text-zinc-400 hover:text-zinc-600">
-                    <X size={24} />
-                </button>
-                <div className="flex-1 relative">
-                    <input 
-                        className="w-full bg-zinc-100 rounded-full pl-10 pr-12 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-teal-500/20"
-                        placeholder="Search skincare product..."
-                        value={query}
-                        onChange={e => {
-                            setQuery(e.target.value);
-                            setHasSearched(false);
-                        }}
-                        onKeyDown={e => e.key === 'Enter' && handleSearch()}
-                        autoFocus
-                    />
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={18} />
-                    {query && (
-                        <button 
-                            onClick={handleSearch}
-                            className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 bg-zinc-900 text-white rounded-full hover:bg-zinc-700 transition-all active:scale-95 shadow-md"
-                        >
-                            {isSearching ? <Loader size={14} className="animate-spin" /> : <ArrowRight size={14} />}
-                        </button>
+        <div className="fixed inset-0 z-50 flex flex-col font-sans sm:bg-black/50 sm:backdrop-blur-sm sm:items-center sm:justify-center">
+            <div className="flex-1 bg-white sm:flex-none sm:w-full sm:max-w-2xl sm:h-[80vh] sm:rounded-3xl sm:shadow-2xl sm:overflow-hidden relative flex flex-col w-full h-full">
+                <div className="p-6 border-b border-zinc-100 flex items-center gap-4">
+                    <button onClick={onCancel} className="p-2 -ml-2 text-zinc-400 hover:text-zinc-600">
+                        <X size={24} />
+                    </button>
+                    <div className="flex-1 relative">
+                        <input 
+                            className="w-full bg-zinc-100 rounded-full pl-10 pr-12 py-3 text-sm font-bold focus:outline-none focus:ring-2 focus:ring-teal-500/20"
+                            placeholder="Search skincare product..."
+                            value={query}
+                            onChange={e => {
+                                setQuery(e.target.value);
+                                setHasSearched(false);
+                            }}
+                            onKeyDown={e => e.key === 'Enter' && handleSearch()}
+                            autoFocus
+                        />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400" size={18} />
+                        {query && (
+                            <button 
+                                onClick={handleSearch}
+                                className="absolute right-1.5 top-1/2 -translate-y-1/2 p-1.5 bg-zinc-900 text-white rounded-full hover:bg-zinc-700 transition-all active:scale-95 shadow-md"
+                            >
+                                {isSearching ? <Loader size={14} className="animate-spin" /> : <ArrowRight size={14} />}
+                            </button>
+                        )}
+                    </div>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-6">
+                    {isSearching ? (
+                        <div className="flex flex-col items-center justify-center h-64 text-zinc-400 gap-4">
+                            <Loader className="animate-spin" size={32} />
+                            <p className="text-xs font-bold uppercase tracking-widest">Searching Database...</p>
+                        </div>
+                    ) : error ? (
+                        <div className="flex flex-col items-center justify-center h-64 text-rose-500 gap-4 text-center">
+                            <AlertCircle size={32} />
+                            <p className="text-sm font-medium">{error}</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-2">
+                            {results.map((res, i) => (
+                                <button 
+                                    key={i}
+                                    onClick={() => handleSelectProduct(res)}
+                                    className="w-full p-4 text-left border border-zinc-100 rounded-2xl hover:bg-zinc-50 active:scale-[0.99] transition-all"
+                                >
+                                    <div className="font-bold text-zinc-900">{res.name}</div>
+                                    <div className="text-xs text-zinc-500 font-medium uppercase tracking-wider">{res.brand}</div>
+                                </button>
+                            ))}
+                            {results.length === 0 && query && !hasSearched && (
+                                <div className="text-center text-zinc-300 mt-20 animate-in fade-in duration-500">
+                                    <Search size={48} className="mx-auto mb-4 opacity-20" />
+                                    <p className="text-sm font-medium">Tap the arrow to search</p>
+                                </div>
+                            )}
+                            {results.length === 0 && query && hasSearched && !isSearching && (
+                                <div className="text-center text-zinc-400 mt-10">
+                                    <p className="text-sm font-medium">No matching products found.</p>
+                                </div>
+                            )}
+                        </div>
                     )}
                 </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-6">
-                {isSearching ? (
-                    <div className="flex flex-col items-center justify-center h-64 text-zinc-400 gap-4">
-                        <Loader className="animate-spin" size={32} />
-                        <p className="text-xs font-bold uppercase tracking-widest">Searching Database...</p>
-                    </div>
-                ) : error ? (
-                    <div className="flex flex-col items-center justify-center h-64 text-rose-500 gap-4 text-center">
-                        <AlertCircle size={32} />
-                        <p className="text-sm font-medium">{error}</p>
-                    </div>
-                ) : (
-                    <div className="space-y-2">
-                        {results.map((res, i) => (
-                            <button 
-                                key={i}
-                                onClick={() => handleSelectProduct(res)}
-                                className="w-full p-4 text-left border border-zinc-100 rounded-2xl hover:bg-zinc-50 active:scale-[0.99] transition-all"
-                            >
-                                <div className="font-bold text-zinc-900">{res.name}</div>
-                                <div className="text-xs text-zinc-500 font-medium uppercase tracking-wider">{res.brand}</div>
-                            </button>
-                        ))}
-                        {results.length === 0 && query && !hasSearched && (
-                             <div className="text-center text-zinc-300 mt-20 animate-in fade-in duration-500">
-                                <Search size={48} className="mx-auto mb-4 opacity-20" />
-                                <p className="text-sm font-medium">Tap the arrow to search</p>
-                             </div>
-                        )}
-                        {results.length === 0 && query && hasSearched && !isSearching && (
-                             <div className="text-center text-zinc-400 mt-10">
-                                <p className="text-sm font-medium">No matching products found.</p>
-                             </div>
-                        )}
-                    </div>
-                )}
             </div>
         </div>
     );

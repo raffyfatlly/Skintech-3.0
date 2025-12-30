@@ -20,7 +20,7 @@ import { analyzeProductFromSearch, analyzeProductImage, generateTargetedRecommen
 import LandingPage from './components/LandingPage';
 import Onboarding from './components/Onboarding';
 import FaceScanner from './components/FaceScanner';
-import SkinAnalysisReport from './components/SkinAnalysisReport';
+import { SkinAnalysisReport } from './components/SkinAnalysisReport';
 import SmartShelf from './components/SmartShelf';
 import ProductScanner from './components/ProductScanner';
 import ProductSearch from './components/ProductSearch';

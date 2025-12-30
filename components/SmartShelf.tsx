@@ -208,7 +208,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
   };
 
   return (
-    <div className="pb-32 animate-in fade-in duration-500">
+    <div className="pb-32 animate-in fade-in duration-500 max-w-7xl mx-auto">
        <div className="px-6 space-y-8">
           <div className="flex justify-between items-end pt-6">
               <div>
@@ -272,7 +272,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
        </div>
 
        {/* PRODUCT LIST */}
-       <div className="px-6 grid grid-cols-2 gap-4">
+       <div className="px-6 grid grid-cols-2 lg:grid-cols-4 gap-4">
            {displayedProducts.map((p) => {
                const audit = auditProduct(p, userProfile);
                const warning = audit.warnings.length > 0;
