@@ -48,7 +48,7 @@ const ProductSearch: React.FC<ProductSearchProps> = ({ userProfile, shelf, onSta
             interval = setInterval(() => {
                 i = (i + 1) % steps.length;
                 setStatusText(steps[i]);
-            }, 2000);
+            }, 3000);
         }
         return () => clearInterval(interval);
     }, [isAnalyzing]);
@@ -155,7 +155,7 @@ const ProductSearch: React.FC<ProductSearchProps> = ({ userProfile, shelf, onSta
                         <Minimize2 size={16} /> Run in Background
                     </button>
                     <p className="text-[10px] text-zinc-400 font-medium">
-                        You can continue browsing while we work.
+                        This deep audit may take a few minutes.
                     </p>
                 </div>
             </div>

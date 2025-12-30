@@ -75,12 +75,27 @@ const extractSources = (response: any): string[] => {
     }
 };
 
+// --- EXECUTION HELPERS ---
+
+// 1. TIMEOUT WRAPPER (Throws on error/timeout - for Deep Analysis)
+// Allows 4 minutes by default to ensure deep reasoning doesn't fail prematurely.
+const runWithTimeout = async <T>(fn: (ai: GenAI.GoogleGenAI) => Promise<T>, timeoutMs: number = 240000): Promise<T> => {
+    try {
+        const timeoutPromise = new Promise<T>((_, reject) => setTimeout(() => reject(new Error("Analysis timed out. Please check your connection.")), timeoutMs));
+        return await Promise.race([fn(getAi()), timeoutPromise]);
+    } catch (e) {
+        console.error("Deep Analysis Error:", e);
+        throw e; // Propagate error so UI can show "Failed" instead of "Fake Result"
+    }
+};
+
+// 2. RETRY WRAPPER (Returns fallback - for simple searches/UI placeholders)
 const runWithRetry = async <T>(fn: (ai: GenAI.GoogleGenAI) => Promise<T>, fallback: T, timeoutMs: number = 45000): Promise<T> => {
     try {
         const timeoutPromise = new Promise<T>((_, reject) => setTimeout(() => reject(new Error("Timeout")), timeoutMs));
         return await Promise.race([fn(getAi()), timeoutPromise]);
     } catch (e) {
-        console.error("Gemini Error:", e);
+        console.error("Gemini Error (Fallback used):", e);
         return fallback;
     }
 };
@@ -257,13 +272,14 @@ export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, 
     return { ...localMetrics, ...data, observations, timestamp: Date.now() };
 };
 
+// ** UPDATED: Uses runWithTimeout (Throws on failure) **
 export const analyzeProductFromSearch = async (productName: string, userMetrics: SkinMetrics, _unusedScore?: number, knownBrand?: string, routineActives: string[] = []): Promise<Product> => {
     const tempUser: UserProfile = { 
         name: "User", age: 25, skinType: "UNKNOWN" as any, hasScannedFace: true, biometrics: userMetrics 
     };
     const scoringRules = getStrictScoringRules(tempUser);
 
-    return runWithRetry<Product>(async (ai) => {
+    return runWithTimeout<Product>(async (ai) => {
         const prompt = `
         ACT AS AN EXPERT COSMETIC CHEMIST.
         PRODUCT: "${productName}" ${knownBrand ? `by ${knownBrand}` : ''}
@@ -350,11 +366,12 @@ export const analyzeProductFromSearch = async (productName: string, userMetrics:
             usageTips: data.usageTips,
             expertReview: data.expertReview
         };
-    }, { ...getFallbackProduct(userMetrics, productName), suitabilityScore: 75, brand: knownBrand || "Unknown Brand" }, 90000); 
+    }, 240000); // 4 Minutes
 };
 
+// ** UPDATED: Uses runWithTimeout (Throws on failure) **
 export const analyzeProductImage = async (base64: string, userMetrics: SkinMetrics, routineActives: string[] = []): Promise<Product> => {
-    return runWithRetry<Product>(async (ai) => {
+    return runWithTimeout<Product>(async (ai) => {
         // Step 1: Vision to get Text
         const visionPrompt = `Identify the skincare product in this image. Return JSON: { "brand": "Brand Name", "name": "Product Name" }. If unclear, return { "name": "Unknown" }`;
         const visionResponse = await ai.models.generateContent({
@@ -454,7 +471,7 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
             usageTips: data.usageTips,
             expertReview: data.expertReview
         };
-    }, getFallbackProduct(userMetrics, "Scanned Product"), 90000); 
+    }, 240000); // 4 Minutes
 };
 
 export const auditProduct = (product: Product, user: UserProfile) => {
@@ -609,10 +626,11 @@ export const generateRoutineRecommendations = async (user: UserProfile): Promise
     }, null, 60000);
 }
 
+// ** UPDATED: Uses runWithTimeout (Throws on failure) **
 export const generateTargetedRecommendations = async (user: UserProfile, category: string, maxPrice: number, allergies: string, goals: string[]): Promise<any> => {
     // We don't use getStrictScoringRules here directly in the prompt text as we want a cleaner "Search Intent" context first.
     
-    return runWithRetry<any>(async (ai) => {
+    return runWithTimeout<any>(async (ai) => {
         const goalsString = goals.length > 0 ? goals.join(', ') : "General Skin Health";
         
         // 1. Interpret Biometrics for the AI
@@ -690,5 +708,5 @@ export const generateTargetedRecommendations = async (user: UserProfile, categor
             ...item,
             rating: Math.min(99, item.rating || 0)
         }));
-    }, [], 90000); // 90s timeout for deep search
+    }, 240000); // 4 Minutes
 };

@@ -174,17 +174,19 @@ const App: React.FC = () => {
       } catch (err) {
           console.error("Background Analysis Error", err);
           
-          if (viewRef.current !== originatingView) {
-              setNotification({
-                  type: 'GENERIC',
-                  title: 'Analysis Failed',
-                  description: 'We couldn\'t complete the analysis. Please try again.',
-                  actionLabel: 'Retry',
-                  onAction: () => { /* no-op for now */ }
-              });
+          setNotification({
+              type: 'GENERIC',
+              title: 'Analysis Failed',
+              description: 'We encountered an issue connecting to the AI service. Please try again.',
+              actionLabel: 'OK',
+              onAction: () => {}
+          });
+
+          // If user is currently waiting on the loading screen, kick them back to shelf
+          // to prevent being stuck on "Processing..." forever
+          if (viewRef.current === AppView.PRODUCT_SCANNER || viewRef.current === AppView.PRODUCT_SEARCH) {
+              setCurrentView(AppView.SMART_SHELF);
           }
-          // If user is still on screen, the component handles the error display usually, 
-          // but we can add a fallback notification here too.
       }
   };
 
@@ -221,14 +223,23 @@ const App: React.FC = () => {
 
       } catch (e) {
           console.error("Routine Error", e);
-          if (viewRef.current !== originatingView) {
-              setNotification({
-                  type: 'GENERIC',
-                  title: 'Search Failed',
-                  description: 'Could not generate recommendations. Try simpler filters.',
-                  actionLabel: 'Retry',
-                  onAction: () => setCurrentView(AppView.ROUTINE_BUILDER)
-              });
+          
+          setNotification({
+              type: 'GENERIC',
+              title: 'Search Failed',
+              description: 'Could not generate recommendations. Try simpler filters.',
+              actionLabel: 'OK',
+              onAction: () => {}
+          });
+
+          // Reset routine builder results to empty or handle stuck state?
+          // The routine builder handles error display internally if it's mounted, 
+          // but if we navigated away, the notification is enough.
+          // If we are stuck on loading screen inside routine builder, we might want to refresh.
+          if (viewRef.current === AppView.ROUTINE_BUILDER) {
+               // Force a re-render or let user try again. 
+               // Since we rely on props, maybe just ensuring results are cleared/reset is enough.
+               setRoutineResults([]);
           }
       }
   };

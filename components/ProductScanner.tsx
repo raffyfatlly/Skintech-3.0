@@ -50,7 +50,7 @@ const ProductScanner: React.FC<ProductScannerProps> = ({ userProfile, shelf, onS
           interval = setInterval(() => {
               i = (i + 1) % steps.length;
               setStatusText(steps[i]);
-          }, 2500);
+          }, 3000);
       }
       return () => clearInterval(interval);
   }, [isProcessing]);
@@ -208,7 +208,7 @@ const ProductScanner: React.FC<ProductScannerProps> = ({ userProfile, shelf, onS
                   {statusText}
               </p>
               <p className="text-zinc-500 text-xs font-medium mb-12 max-w-xs leading-relaxed">
-                  This deep AI audit checks thousands of ingredients. It may take up to 30 seconds.
+                  This deep AI audit checks thousands of ingredients. It may take a few minutes to complete.
               </p>
 
               <div className="w-full max-w-xs space-y-4">
