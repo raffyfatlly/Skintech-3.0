@@ -78,7 +78,7 @@ const extractSources = (response: any): string[] => {
 // --- EXECUTION HELPERS ---
 
 // 1. TIMEOUT WRAPPER (Throws on error/timeout - for Deep Analysis)
-// Allows 4 minutes by default to ensure deep reasoning doesn't fail prematurely.
+// Allows 4 minutes (240,000ms) by default to ensure deep reasoning doesn't fail prematurely.
 const runWithTimeout = async <T>(fn: (ai: GenAI.GoogleGenAI) => Promise<T>, timeoutMs: number = 240000): Promise<T> => {
     try {
         const timeoutPromise = new Promise<T>((_, reject) => setTimeout(() => reject(new Error("Analysis timed out. Please check your connection.")), timeoutMs));

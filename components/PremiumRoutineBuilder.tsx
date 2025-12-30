@@ -291,10 +291,9 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                         </h3>
                         <div className="space-y-4">
                             {results.map((prod, idx) => (
-                                <button 
+                                <div 
                                     key={idx} 
-                                    onClick={() => onProductSelect({ name: prod.name, brand: prod.brand })}
-                                    className="w-full text-left bg-white p-5 rounded-[1.5rem] shadow-sm border border-zinc-100 relative overflow-hidden group hover:border-teal-200 transition-colors active:scale-[0.99]"
+                                    className="w-full text-left bg-white p-5 rounded-[1.5rem] shadow-sm border border-zinc-100 relative overflow-hidden"
                                 >
                                     <div className="flex justify-between items-start mb-2">
                                         <div>
@@ -321,11 +320,8 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                                                 </div>
                                             )}
                                         </div>
-                                        <div className="text-[10px] font-bold text-zinc-400 uppercase flex items-center gap-1 group-hover:text-teal-600 transition-colors">
-                                            Analyze & Add <ArrowRight size={12} />
-                                        </div>
                                     </div>
-                                </button>
+                                </div>
                             ))}
                         </div>
                     </div>
