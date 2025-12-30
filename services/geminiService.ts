@@ -102,11 +102,16 @@ const getStrictScoringRules = (user: UserProfile): string => {
     let rules = [
         `CONTEXT: ${userProfileString}`,
         "CLIMATE: Malaysia (Hot & Humid).",
-        "SCORING: Start at 60. Add for matches, subtract HEAVILY for risks.",
+        "SCORING SYSTEM (0-100):",
+        " - BASE: Start at 50.",
+        " - RANGE: Use the FULL range (0-100). Do not bunch scores around 60.",
+        " - PERSONALIZATION: Scores MUST be relative to USER PRIORITIES.",
+        "   - Product good for acne but bad for aging? If user has Acne, score High. If user has Aging, score Low.",
     ];
 
-    rules.push("1. REWARDS: +15 for Gold Standard ingredients matching priorities (e.g. Salicylic for Acne, Retinol for Aging).");
-    rules.push("2. PENALTIES: -30 for ANY high risk conflict (e.g. Alcohol for Sensitive/Redness). -10 for pore cloggers if Acne prone.");
+    rules.push("1. REWARDS: +20 for ingredients that DIRECTLY address a User Priority (e.g. Salicylic for Acne). +10 for Barrier Support.");
+    rules.push("2. CRITICAL PENALTIES (-40): ONLY if ingredient conflicts with a specific User Priority (e.g. Alcohol if user has SENSITIVITY).");
+    rules.push("3. GENERAL RISKS: Treat as 'Reference'. Do NOT penalize score significantly unless it affects the specific user.");
     
     return rules.join('\n');
 };
@@ -152,7 +157,7 @@ const PRODUCT_SCHEMA: SchemaShared = {
 
 // --- RECOVERY AGENTS ---
 
-// Agent 1: Ingredient Hunter (Prioritizes Incidecoder)
+// Agent 1: Ingredient Hunter (Robust Fallback Strategy)
 const recoverIngredients = async (ai: GoogleGenAI, name: string, brand: string): Promise<string[]> => {
     console.log(`[Agent] Recovering ingredients for ${brand} ${name}...`);
     try {
@@ -161,13 +166,14 @@ const recoverIngredients = async (ai: GoogleGenAI, name: string, brand: string):
             contents: `
             Find the EXACT full ingredient list for "${brand} ${name}".
             
-            SEARCH PRIORITY:
-            1. Search "Incidecoder ${brand} ${name} ingredients"
-            2. Search "Skincarisma ${brand} ${name}"
-            3. Official Brand Website
+            SEARCH STRATEGY (Execute in order):
+            1. **PRIORITY**: Search "site:incidecoder.com ${brand} ${name}". If found, use this list.
+            2. **SECONDARY**: If Incidecoder is blocked or empty, search "site:skincarisma.com ${brand} ${name}" OR "site:cosdna.com ${brand} ${name}".
+            3. **FALLBACK**: Search general retailers (Sephora, Ulta, Watsons) or the official brand site for the ingredient list.
+            4. **LAST RESORT**: Search for "ingredients in ${brand} ${name}" and synthesize the list from snippets.
             
             Return ONLY a JSON object: { "ingredients": ["Water", "Glycerin", ...] }. 
-            If completely unavailable, return { "ingredients": [] }.
+            If completely unavailable after all attempts, return { "ingredients": [] }.
             `,
             config: { 
                 tools: [{ googleSearch: {} }],
@@ -188,7 +194,17 @@ const recoverReviews = async (ai: GoogleGenAI, name: string, brand: string): Pro
     try {
         const response = await ai.models.generateContent({
             model: MODEL_FAST,
-            contents: `Search for credible reviews (Reddit, MakeupAlley, Incidecoder, Expert Blogs) for "${brand} ${name}". Summarize the consensus on efficacy and texture in 2-3 sentences. Return JSON: { "review": "summary string" }`,
+            contents: `
+            Search for credible reviews (Reddit, MakeupAlley, Incidecoder, Expert Blogs) for "${brand} ${name}". 
+            Synthesize the general consensus on efficacy, texture, and experience.
+            
+            STYLE:
+            - Objective consensus synthesis.
+            - Do NOT use first-person ("I think", "In my opinion", "As a chemist").
+            - Use phrases like "Users report...", "Consensus indicates...", "The formula is noted for...".
+            
+            Return JSON: { "review": "summary string" }
+            `,
             config: { 
                 tools: [{ googleSearch: {} }],
                 responseMimeType: 'application/json'
@@ -212,7 +228,7 @@ const assessSafety = async (ai: GoogleGenAI, ingredients: string[], userMetrics:
         const response = await ai.models.generateContent({
             model: MODEL_FAST,
             contents: `
-            ACT AS DERMATOLOGIST. Analyze this product based on its ingredients.
+            Perform a strict, personalized dermatological safety analysis for this product.
             PRODUCT: ${name} (${type})
             INGREDIENTS: ${JSON.stringify(ingredients)}
             
@@ -220,6 +236,8 @@ const assessSafety = async (ai: GoogleGenAI, ingredients: string[], userMetrics:
             ${rules}
             
             OUTPUT JSON: { "suitabilityScore": number, "risks": [], "benefits": [], "usageTips": "string" }
+            
+            NOTE: "usageTips" should be objective instructions (e.g. "Apply on damp skin"). Do not use "I advise".
             `,
             config: { responseMimeType: 'application/json' }
         });
@@ -238,15 +256,22 @@ export const analyzeProductFromSearch = async (productName: string, userMetrics:
 
         // 1. PRIMARY SEARCH (Try to get everything in one shot)
         const prompt = `
-        ACT AS COSMETIC CHEMIST.
         Target: "${productName}" ${knownBrand ? `by ${knownBrand}` : ''} available in Malaysia/Global.
         User: ${JSON.stringify(userMetrics)}
         Routine Actives: ${JSON.stringify(routineActives)}
         
+        DATA SOURCE PRIORITY (STRICT):
+        1. **Incidecoder.com**: Search "site:incidecoder.com ${productName}" FIRST for the authoritative INCI list.
+        2. **Other Databases**: Skincarisma, CosDNA if Incidecoder fails.
+        3. **General Web**: Retailers (Sephora, Watsons) or Brand Site.
+        
         TASK:
-        1. Find EXACT Ingredient List (Check Incidecoder/Watsons/Sephora).
+        1. Find EXACT Ingredient List (Following priority above).
         2. Find Price (MYR).
-        3. Summarize Expert Reviews.
+        3. Synthesize a "Consensus Review".
+           - STYLE: Objective summary of expert and user consensus.
+           - FORBIDDEN: Do NOT use "I", "me", "my", "As a chemist", or personal opinions.
+           - FOCUS: Texture, finish, and efficacy based on data.
         4. Analyze Safety using: ${rules}
         
         If ingredients aren't found in snippets, return empty ingredients array []. 
@@ -501,9 +526,23 @@ export const isQuotaError = (e: any) => e?.message?.includes('429') || e?.status
 
 export const getBuyingDecision = (product: Product, shelf: Product[], user: UserProfile) => {
     const audit = auditProduct(product, user);
+    
+    // Default Decision
     let decision = 'CONSIDER';
-    if (audit.adjustedScore > 80 && audit.warnings.length === 0) decision = 'BUY';
-    else if (audit.adjustedScore < 40) decision = 'AVOID';
+    
+    // Check for critical warnings (High Risk)
+    const hasCriticalWarnings = audit.warnings.some(w => w.severity === 'CRITICAL');
+
+    // RULES:
+    // 1. BUY: High Score AND No Critical Risks (Minor Cautions OK)
+    // 2. AVOID: Low Score OR Critical Risks
+    // 3. CONSIDER: Middle Score, No Critical Risks
+    
+    if (audit.adjustedScore >= 75 && !hasCriticalWarnings) {
+        decision = 'BUY';
+    } else if (audit.adjustedScore < 45 || hasCriticalWarnings) {
+        decision = 'AVOID';
+    }
     
     return {
         verdict: { decision, title: decision, description: audit.analysisReason, color: decision === 'BUY' ? 'emerald' : 'amber' },
