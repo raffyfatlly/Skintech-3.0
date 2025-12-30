@@ -608,10 +608,10 @@ export const generateTargetedRecommendations = async (user: UserProfile, categor
         // 1. Define Safety Constraints (MUST AVOID) based on Biometrics
         const safetyConstraints = [];
         if (m.acneActive < 75 || m.oiliness < 70) {
-            safetyConstraints.push("ACNE/OILY: STRICTLY AVOID pore-clogging ingredients (e.g., Cocoa Butter, Coconut Oil, Isopropyl Myristate, high Oleic oils). Must be Non-Comedogenic.");
+            safetyConstraints.push("ACNE/OILY CONTEXT: User has congestion. STRICTLY AVOID pore-clogging ingredients (e.g., Cocoa Butter, Coconut Oil, Isopropyl Myristate, high Oleic oils). Product MUST be Non-Comedogenic.");
         }
         if (m.redness < 75) {
-            safetyConstraints.push("SENSITIVE: STRICTLY AVOID drying alcohols (Alcohol Denat), strong essential oils, and high fragrance loads.");
+            safetyConstraints.push("SENSITIVITY CONTEXT: User has redness. STRICTLY AVOID drying alcohols (Alcohol Denat), strong essential oils, and high fragrance loads.");
         }
 
         // 2. Define "Bonus" Targets (Secondary Ranking Factors)
@@ -624,33 +624,38 @@ export const generateTargetedRecommendations = async (user: UserProfile, categor
 
         // 3. Nuance Context for Specific Goals (Clarification)
         const nuanceContext = [];
-        if (goals.some(g => g.toLowerCase().includes('scar'))) {
+        const lowerGoals = goals.map(g => g.toLowerCase());
+
+        // DISTINCT LOGIC: SCARS vs TEXTURE
+        if (lowerGoals.some(g => g.includes('scar'))) {
             if (m.acneScars < 65) {
-                nuanceContext.push("SCAR CONTEXT: User has pitted/atrophic scarring. Prioritize collagen-building actives (Peptides, Retinoids, Growth Factors) over simple brighteners.");
+                nuanceContext.push("GOAL DISTINCTION: User selected 'Repair Pitted Scars'. Prioritize collagen-building actives (Peptides, Retinoids, Growth Factors, Copper) to fill atrophic indentations. Do not just suggest simple exfoliants.");
             } else {
-                nuanceContext.push("SCAR CONTEXT: User has PIH (Dark Spots). Prioritize Tyrosinase Inhibitors (Vit C, Azelaic Acid, Niacinamide).");
+                nuanceContext.push("GOAL DISTINCTION: User selected 'Fade Dark Marks'. Prioritize Tyrosinase Inhibitors (Vitamin C, Azelaic Acid, Niacinamide, Tranexamic Acid) to reduce post-acne pigmentation.");
             }
+        }
+        
+        if (lowerGoals.some(g => g.includes('roughness') || g.includes('texture'))) {
+             nuanceContext.push("GOAL DISTINCTION: User selected 'Smooth Roughness/Texture'. Focus on surface-level smoothing via chemical exfoliation (AHAs, BHAs, Enzymes) or cell turnover (Retinol). Distinguish this from deep scar repair.");
         }
 
         const prompt = `
         TASK: Recommend 3 ${category} products available in Malaysia/Global.
         
-        1. PRIMARY FILTER (USER DEMAND): ${goals.join(', ')}.
-           - The product MUST explicitly target this goal.
+        1. PRIMARY MANDATE (THE USER'S CHOICE): ${goals.join(', ')}.
+           - The product MUST explicitly and primarily target this specific goal.
+           - ${nuanceContext.join('\n   - ')}
         
         2. SAFETY FIREWALL (STRICT EXCLUSION):
            - Skin Type: ${user.skinType}
            - Allergies to avoid: ${allergies || "None"}
            - ${safetyConstraints.join('\n   - ')}
         
-        3. NUANCE & CLARIFICATION:
-           - ${nuanceContext.join('\n   - ')}
-
-        4. SECONDARY RANKING (BONUS POINTS):
+        3. SECONDARY RANKING (BONUS POINTS):
            - Rank higher if product ALSO helps with: ${secondaryConcerns.join(', ')}.
         
         INSTRUCTIONS:
-        - Step 1: Find products that meet the PRIMARY FILTER.
+        - Step 1: Find products that meet the PRIMARY MANDATE.
         - Step 2: Discard any that violate SAFETY FIREWALL (e.g. if User has Acne, discard Coconut Oil products even if they are good for Hydration).
         - Step 3: Sort remaining products by how well they address SECONDARY RANKING.
         

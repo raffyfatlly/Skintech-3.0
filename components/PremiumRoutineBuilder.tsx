@@ -35,31 +35,37 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
         if (!b) return [{ label: 'Hydration Boost', score: 0, icon: Droplet }];
 
         // Context-Aware Labels based on severity
-        const scarLabel = b.acneScars < 65 ? 'Repair Pitted Scars' : 'Fade Dark Marks';
+        // 1. SCARS vs MARKS
+        let scarLabel = 'Fade Dark Marks';
+        if (b.acneScars < 65) scarLabel = 'Repair Pitted Scars'; 
+        
+        // 2. ACNE
         const acneLabel = b.acneActive < 60 ? 'Treat Active Acne' : 'Prevent Breakouts';
-        const textureLabel = b.poreSize < 60 ? 'Minimize Pores' : 'Refine Texture';
+        
+        // 3. TEXTURE (Distinguish from scars)
+        // Texture usually means roughness/bumps, not deep indentations.
+        const textureLabel = b.texture < 70 ? 'Smooth Roughness' : 'Refine Texture';
 
         const candidates = [
             { label: acneLabel, score: b.acneActive, icon: Zap },
             { label: 'Soothe Redness', score: b.redness, icon: ShieldCheck },
             { label: 'Hydration Boost', score: b.hydration, icon: Droplet },
             { label: 'Oil Control', score: b.oiliness, icon: Sliders },
-            { label: textureLabel, score: b.texture < b.poreSize ? b.texture : b.poreSize, icon: Scan },
-            { label: 'Remove Blackheads', score: b.blackheads, icon: Target },
-            { label: 'Brightening', score: b.pigmentation, icon: Sun },
+            { label: textureLabel, score: b.texture, icon: Activity }, 
+            { label: 'Minimize Pores', score: b.poreSize, icon: Scan },
+            { label: 'Clear Blackheads', score: b.blackheads, icon: Target },
+            { label: 'Brighten Spots', score: b.pigmentation, icon: Sun },
             { label: 'Anti-Aging', score: (b.wrinkleFine + b.wrinkleDeep + b.sagging) / 3, icon: Star },
             { label: scarLabel, score: b.acneScars, icon: Eraser },
         ];
 
-        // 1. Sort by Score Ascending (Lower score = Higher Priority/Problem Area)
+        // Sort by Score Ascending (Lower score = Higher Priority/Problem Area)
         candidates.sort((a, b) => a.score - b.score);
 
-        // 2. Filter logic:
-        // We generally want to show the top 5-6 "problems". 
-        // If everything is > 85, show maintenance goals.
+        // Filter: Keep mostly issues that are not "Perfect" (>88)
         let priorities = candidates.filter(c => c.score < 88);
 
-        // 3. Fallback: If skin is great (empty priorities), show maintenance goals
+        // Fallback for good skin
         if (priorities.length === 0) {
             return [
                 { label: 'Maintain Glow', score: 95, icon: Sparkles },
@@ -69,7 +75,7 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
             ];
         }
 
-        // 4. Limit to top 6 most critical
+        // Limit to top 6 most critical
         return priorities.slice(0, 6);
     }, [user.biometrics]);
 
@@ -255,7 +261,7 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                         </div>
                         <p className="text-[9px] text-zinc-400 mt-2 px-1 flex items-center gap-1.5">
                             <Sparkles size={10} className="text-teal-500" />
-                            Targeting your specific scan results.
+                            Based on your scan analysis.
                         </p>
                     </div>
 
