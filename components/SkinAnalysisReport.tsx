@@ -935,7 +935,8 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({ userProf
                     </div>
                 </div>
             </div>
-        </div>
+        </div> {/* CLOSE RIGHT COLUMN */}
+      </div> {/* CLOSE GRID */}
 
         {selectedMetric && (
             <MetricModal 
@@ -946,6 +947,6 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({ userProf
                 onClose={() => setSelectedMetric(null)} 
             />
         )}
-    </div>
+    </div> 
   );
 };
