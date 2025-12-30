@@ -16,10 +16,14 @@ const getAi = (): GenAI.GoogleGenAI => {
 };
 
 // --- FEATURE-SPECIFIC MODEL CONFIGURATION ---
+// Vision remains on Flash for speed in Step 1 (OCR/Recognition)
 const MODEL_FACE_SCAN = 'gemini-3-flash-preview';
-const MODEL_PRODUCT_SEARCH = 'gemini-3-flash-preview';
 const MODEL_VISION = 'gemini-3-flash-preview';
-const MODEL_ROUTINE = 'gemini-3-flash-preview';
+
+// UPGRADE: Use Pro for Deep Analysis & Tool Use (Search/Reasoning)
+// Flash sometimes fails tool calls or schema validation on complex queries.
+const MODEL_PRODUCT_SEARCH = 'gemini-3-pro-preview'; 
+const MODEL_ROUTINE = 'gemini-3-pro-preview';
 
 // Helpers
 const parseJSONFromText = (text: string): any => {
@@ -170,7 +174,7 @@ export const searchProducts = async (query: string): Promise<{ name: string, bra
         `;
         
         const response = await ai.models.generateContent({
-            model: MODEL_PRODUCT_SEARCH,
+            model: MODEL_PRODUCT_SEARCH, // Now Pro
             contents: prompt,
             config: { responseMimeType: 'application/json' }
         });
@@ -188,7 +192,7 @@ export const compareFaceIdentity = async (newImage: string, referenceImage: stri
         `;
         
         const response = await ai.models.generateContent({
-            model: MODEL_VISION, 
+            model: MODEL_VISION, // Flash is fine for visual comparison
             contents: {
                 parts: [
                     { inlineData: { mimeType: 'image/jpeg', data: referenceImage.split(',')[1] } },
@@ -272,7 +276,7 @@ export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, 
     return { ...localMetrics, ...data, observations, timestamp: Date.now() };
 };
 
-// ** UPDATED: Uses runWithTimeout (Throws on failure) **
+// ** UPDATED: Uses runWithTimeout + Pro Model + Relaxed Schema **
 export const analyzeProductFromSearch = async (productName: string, userMetrics: SkinMetrics, _unusedScore?: number, knownBrand?: string, routineActives: string[] = []): Promise<Product> => {
     const tempUser: UserProfile = { 
         name: "User", age: 25, skinType: "UNKNOWN" as any, hasScannedFace: true, biometrics: userMetrics 
@@ -292,6 +296,7 @@ export const analyzeProductFromSearch = async (productName: string, userMetrics:
         2. Analyze using these RULES: ${scoringRules}
         
         CRITICAL: 
+        - If ingredients cannot be found, return empty array [].
         - Be OBJECTIVE. Do not inflate the suitability score. 
         - If the product contains high-risk ingredients for this user (e.g. Alcohol for Sensitive skin), the score MUST reflect that (e.g. < 60).
         
@@ -299,7 +304,7 @@ export const analyzeProductFromSearch = async (productName: string, userMetrics:
         `;
 
         const response = await ai.models.generateContent({
-            model: MODEL_PRODUCT_SEARCH,
+            model: MODEL_PRODUCT_SEARCH, // Pro Model
             contents: prompt,
             config: { 
                 tools: [{ googleSearch: {} }],
@@ -339,7 +344,8 @@ export const analyzeProductFromSearch = async (productName: string, userMetrics:
                         usageTips: { type: Type.STRING },
                         expertReview: { type: Type.STRING }
                     },
-                    required: ["name", "brand", "type", "ingredients", "suitabilityScore", "risks", "benefits", "expertReview"]
+                    // RELAXED REQUIREMENTS: Removed expertReview/usageTips to prevent failure if not found
+                    required: ["name", "brand", "type", "ingredients", "suitabilityScore", "risks", "benefits"]
                 }
             }
         });
@@ -369,10 +375,10 @@ export const analyzeProductFromSearch = async (productName: string, userMetrics:
     }, 240000); // 4 Minutes
 };
 
-// ** UPDATED: Uses runWithTimeout (Throws on failure) **
+// ** UPDATED: Uses runWithTimeout + Pro Model + Relaxed Schema **
 export const analyzeProductImage = async (base64: string, userMetrics: SkinMetrics, routineActives: string[] = []): Promise<Product> => {
     return runWithTimeout<Product>(async (ai) => {
-        // Step 1: Vision to get Text
+        // Step 1: Vision to get Text (Flash is usually sufficient and faster)
         const visionPrompt = `Identify the skincare product in this image. Return JSON: { "brand": "Brand Name", "name": "Product Name" }. If unclear, return { "name": "Unknown" }`;
         const visionResponse = await ai.models.generateContent({
             model: MODEL_VISION,
@@ -387,7 +393,7 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
         const visionData = parseJSONFromText(visionResponse.text || "{}");
         if (!visionData.name || visionData.name === "Unknown") throw new Error("Could not identify product.");
 
-        // Step 2: Search & Deep Analysis
+        // Step 2: Search & Deep Analysis (Use PRO model for tools/reasoning)
         const tempUser: UserProfile = { name: "User", age: 25, skinType: "UNKNOWN" as any, hasScannedFace: true, biometrics: userMetrics };
         const scoringRules = getStrictScoringRules(tempUser);
 
@@ -406,7 +412,7 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
         `;
 
         const finalResponse = await ai.models.generateContent({
-            model: MODEL_PRODUCT_SEARCH,
+            model: MODEL_PRODUCT_SEARCH, // Pro Model
             contents: refinementPrompt,
             config: { 
                 tools: [{ googleSearch: {} }],
@@ -446,7 +452,8 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
                         usageTips: { type: Type.STRING },
                         expertReview: { type: Type.STRING }
                     },
-                    required: ["name", "brand", "type", "ingredients", "suitabilityScore", "risks", "benefits", "expertReview"]
+                    // RELAXED REQUIREMENTS
+                    required: ["name", "brand", "type", "ingredients", "suitabilityScore", "risks", "benefits"]
                 }
             }
         });
@@ -626,7 +633,7 @@ export const generateRoutineRecommendations = async (user: UserProfile): Promise
     }, null, 60000);
 }
 
-// ** UPDATED: Uses runWithTimeout (Throws on failure) **
+// ** UPDATED: Uses runWithTimeout + Pro Model **
 export const generateTargetedRecommendations = async (user: UserProfile, category: string, maxPrice: number, allergies: string, goals: string[]): Promise<any> => {
     // We don't use getStrictScoringRules here directly in the prompt text as we want a cleaner "Search Intent" context first.
     
@@ -695,7 +702,7 @@ export const generateTargetedRecommendations = async (user: UserProfile, categor
         `;
         
         const response = await ai.models.generateContent({
-            model: MODEL_ROUTINE,
+            model: MODEL_ROUTINE, // Pro Model
             contents: prompt,
             config: { 
                 tools: [{ googleSearch: {} }], 
