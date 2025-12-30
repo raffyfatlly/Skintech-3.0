@@ -620,8 +620,11 @@ export const generateTargetedRecommendations = async (user: UserProfile, categor
 
         // 3. Scarring Nuance (User Request)
         // If Scarring is significant (Low Score), clarify type.
-        if (m.acneScars < 70) {
-            conditions.push("User has acne scarring. Note: Prioritize texturizing/collagen-boosting agents (Retinoids, Peptides, Azelaic Acid) for pitted/atrophic scars, rather than just simple brighteners.");
+        // NOTE: Score < 65 indicates heavier scarring.
+        if (m.acneScars < 65) {
+            conditions.push("User has SIGNIFICANT scarring (likely pitted/atrophic). Note: Prioritize texturizing/collagen-boosting agents (Retinoids, Peptides, Azelaic Acid) for texture repair, rather than just simple brighteners.");
+        } else if (m.acneScars < 85) {
+            conditions.push("User has mild post-acne marks (PIH). Prioritize brightening agents (Niacinamide, Vitamin C, Alpha Arbutin).");
         }
 
         // 4. Hydration
@@ -650,7 +653,7 @@ export const generateTargetedRecommendations = async (user: UserProfile, categor
         INSTRUCTIONS:
         1. Recommend products that meet the User Goals but ARE SAFE given the Critical Skin Context.
         2. If constraints conflict with goals (e.g. "Exfoliate" but "Sensitive"), prioritize safety (Barrier Support).
-        3. For "Repair Scars", prioritize collagen support if context mentions pitted scarring.
+        3. For "Repair Scars", check the Context to distinguish between pitted scars (needs collagen) vs dark marks (needs brighteners).
         
         Output JSON: [{ "name": "string", "brand": "string", "price": "string", "reason": "string", "rating": number, "tier": "BEST MATCH" }]
         `;

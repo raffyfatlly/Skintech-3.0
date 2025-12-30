@@ -34,47 +34,46 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
         const b = user.biometrics;
         if (!b) return [{ label: 'Hydration Boost', score: 0, icon: Droplet }];
 
-        // Context-Aware Labels
-        // If scar score is very low, it implies texture/pitted issues. If higher, likely just discoloration.
-        const scarLabel = b.acneScars < 60 ? 'Repair Pitted Scars' : 'Fade Dark Marks';
+        // Context-Aware Labels based on severity
+        const scarLabel = b.acneScars < 65 ? 'Repair Pitted Scars' : 'Fade Dark Marks';
         const acneLabel = b.acneActive < 60 ? 'Treat Active Acne' : 'Prevent Breakouts';
+        const textureLabel = b.poreSize < 60 ? 'Minimize Pores' : 'Refine Texture';
 
         const candidates = [
             { label: acneLabel, score: b.acneActive, icon: Zap },
             { label: 'Soothe Redness', score: b.redness, icon: ShieldCheck },
             { label: 'Hydration Boost', score: b.hydration, icon: Droplet },
             { label: 'Oil Control', score: b.oiliness, icon: Sliders },
-            { label: 'Fix Texture', score: b.texture, icon: Activity },
-            { label: 'Minimize Pores', score: b.poreSize, icon: Scan },
+            { label: textureLabel, score: b.texture < b.poreSize ? b.texture : b.poreSize, icon: Scan },
             { label: 'Remove Blackheads', score: b.blackheads, icon: Target },
             { label: 'Brightening', score: b.pigmentation, icon: Sun },
             { label: 'Anti-Aging', score: (b.wrinkleFine + b.wrinkleDeep + b.sagging) / 3, icon: Star },
             { label: scarLabel, score: b.acneScars, icon: Eraser },
         ];
 
-        // 1. Sort by Score Ascending (Lower score = Higher Priority)
+        // 1. Sort by Score Ascending (Lower score = Higher Priority/Problem Area)
         candidates.sort((a, b) => a.score - b.score);
 
-        // 2. Filter critical issues (Score < 85)
-        let priorities = candidates.filter(c => c.score < 85);
+        // 2. Filter logic:
+        // We generally want to show the top 5-6 "problems". 
+        // If everything is > 85, show maintenance goals.
+        let priorities = candidates.filter(c => c.score < 88);
 
-        // 3. Fallback: If skin is great, show maintenance goals (top 3 worst scores even if high)
+        // 3. Fallback: If skin is great (empty priorities), show maintenance goals
         if (priorities.length === 0) {
-            priorities = candidates.slice(0, 3);
-            // Add a specific maintenance goal if truly perfect
-            if (priorities[0].score > 90) {
-                return [
-                    { label: 'Maintain Glow', score: 95, icon: Sparkles },
-                    { label: 'Prevention', score: 95, icon: ShieldCheck },
-                    { label: 'Hydration Boost', score: 95, icon: Droplet }
-                ];
-            }
+            return [
+                { label: 'Maintain Glow', score: 95, icon: Sparkles },
+                { label: 'Barrier Support', score: 95, icon: ShieldCheck },
+                { label: 'Hydration Boost', score: 95, icon: Droplet },
+                { label: 'Prevention', score: 95, icon: Sun }
+            ];
         }
 
-        // 4. Limit to top 6
+        // 4. Limit to top 6 most critical
         return priorities.slice(0, 6);
     }, [user.biometrics]);
 
+    // Default to the most critical goal (index 0)
     const [selectedGoals, setSelectedGoals] = useState<string[]>([displayGoals[0].label]);
     const [selectedCategory, setSelectedCategory] = useState('Cleanser');
     const [maxPrice, setMaxPrice] = useState(100);
@@ -230,7 +229,7 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                     <div className="mb-6">
                         <div className="flex justify-between items-center mb-3 px-1">
                             <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
-                                <Target size={12} className="text-teal-500" /> Priority Goals
+                                <Target size={12} className="text-teal-500" /> Priority Issues
                             </label>
                             {selectedGoals.length > 0 && (
                                 <span className="text-[9px] font-bold text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full">
@@ -245,17 +244,18 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                                     <button
                                         key={g.label}
                                         onClick={() => toggleGoal(g.label)}
-                                        className={`shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl border transition-all snap-start ${isSelected ? 'bg-teal-600 border-teal-600 text-white shadow-md' : 'bg-zinc-50 border-zinc-100 text-zinc-500 hover:bg-white hover:border-zinc-200'}`}
+                                        className={`shrink-0 flex items-center gap-2 px-4 py-3 rounded-xl border transition-all snap-start ${isSelected ? 'bg-teal-600 border-teal-600 text-white shadow-md' : 'bg-zinc-50 border-zinc-100 text-zinc-500 hover:bg-white hover:border-zinc-200'}`}
                                     >
-                                        <g.icon size={14} strokeWidth={isSelected ? 2.5 : 2} />
-                                        <span className="text-[10px] font-bold uppercase tracking-wide whitespace-nowrap">{g.label}</span>
+                                        <g.icon size={16} strokeWidth={isSelected ? 2.5 : 2} />
+                                        <span className="text-[11px] font-bold uppercase tracking-wide whitespace-nowrap">{g.label}</span>
                                         {isSelected && <Check size={12} strokeWidth={3} className="ml-1 text-teal-200" />}
                                     </button>
                                 );
                             })}
                         </div>
-                        <p className="text-[9px] text-zinc-400 mt-2 px-1">
-                            * Prioritized based on your recent scan metrics.
+                        <p className="text-[9px] text-zinc-400 mt-2 px-1 flex items-center gap-1.5">
+                            <Sparkles size={10} className="text-teal-500" />
+                            Targeting your specific scan results.
                         </p>
                     </div>
 
