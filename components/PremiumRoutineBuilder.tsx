@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { UserProfile, SkinMetrics, RecommendedProduct, Product } from '../types';
-import { Sparkles, ArrowLeft, DollarSign, Star, Crown, Lock, Search, Droplet, Sun, Zap, ShieldCheck, Loader, Sliders, AlertCircle, Target, CheckCircle2, Check, ArrowRight, Minimize2, Dna, Heart, StarHalf, Activity, Layers, Scan } from 'lucide-react';
+import { Sparkles, ArrowLeft, DollarSign, Star, Crown, Lock, Search, Droplet, Sun, Zap, ShieldCheck, Loader, Sliders, AlertCircle, Target, CheckCircle2, Check, ArrowRight, Minimize2, Dna, Heart, StarHalf, Activity, Layers, Scan, Eraser } from 'lucide-react';
 
 interface PremiumRoutineBuilderProps {
     user: UserProfile;
@@ -29,8 +29,10 @@ const CATEGORIES = [
 
 const GOALS = [
     { label: 'Clear Acne', icon: Zap },
-    { label: 'Fix Texture', icon: Activity }, // Covers Scarring/Roughness
+    { label: 'Repair Scars', icon: Eraser }, // Changed from Fade -> Repair (Targets Box/Icepick)
+    { label: 'Fix Texture', icon: Activity }, 
     { label: 'Minimize Pores', icon: Scan },
+    { label: 'Remove Blackheads', icon: Target }, 
     { label: 'Hydration Boost', icon: Droplet },
     { label: 'Anti-Aging', icon: Star }, 
     { label: 'Brightening', icon: Sun },
@@ -45,10 +47,14 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
         // Prioritize critical low scores
         if (b.acneActive < 60) return 'Clear Acne';
         if (b.redness < 60) return 'Soothe Redness';
+        
         // Texture & Scarring Logic
-        if (b.acneScars < 65 || b.texture < 65) return 'Fix Texture';
+        if (b.acneScars < 65) return 'Repair Scars';
+        if (b.blackheads < 65) return 'Remove Blackheads';
+        if (b.texture < 65) return 'Fix Texture';
         if (b.poreSize < 60) return 'Minimize Pores';
         
+        // Health & Aging
         if (b.hydration < 50) return 'Barrier Repair';
         if (b.wrinkleFine < 70) return 'Anti-Aging';
         if (b.pigmentation < 70) return 'Brightening';
