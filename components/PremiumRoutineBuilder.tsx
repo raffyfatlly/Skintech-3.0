@@ -120,6 +120,7 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
     const hasFreeUsage = usageCount < LIMIT_ROUTINES;
 
     const toggleGoal = (goal: string) => {
+        if (isGenerating) return; // Locked during generation
         if (selectedGoals.includes(goal)) {
             setSelectedGoals(selectedGoals.filter(g => g !== goal));
         } else {
@@ -180,9 +181,9 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
     return (
         <div className="min-h-screen bg-zinc-50 pb-32 animate-in fade-in slide-in-from-bottom-8 duration-500 font-sans relative">
             
-            {/* LOADING */}
+            {/* LOADING OVERLAY */}
             {isGenerating && (
-                <div className="fixed inset-0 z-50 bg-gradient-to-br from-teal-900 to-zinc-900 flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-500 font-sans">
+                <div className="fixed inset-0 z-[60] bg-gradient-to-br from-teal-900 to-zinc-900 flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-500 font-sans">
                     <div className="relative mb-10">
                         <div className="w-24 h-24 rounded-full border-2 border-teal-500/30 flex items-center justify-center animate-[spin_10s_linear_infinite]">
                             <div className="w-16 h-16 rounded-full border-2 border-teal-400/50"></div>
@@ -229,8 +230,8 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
             </div>
 
             <div className="px-6 -mt-6 relative z-20">
-                {/* FILTER CARD */}
-                <div className="bg-white rounded-[2rem] p-6 shadow-xl shadow-zinc-200/50 border border-zinc-100">
+                {/* FILTER CARD - LOCKED WHEN GENERATING */}
+                <div className={`bg-white rounded-[2rem] p-6 shadow-xl shadow-zinc-200/50 border border-zinc-100 transition-opacity duration-300 ${isGenerating ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
                     {/* Goals */}
                     <div className="mb-6">
                         <div className="flex justify-between items-center mb-3 px-1">
@@ -250,6 +251,7 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                                     <button
                                         key={g.label}
                                         onClick={() => toggleGoal(g.label)}
+                                        disabled={isGenerating}
                                         className={`shrink-0 flex items-center gap-2 px-4 py-3 rounded-xl border transition-all snap-start ${isSelected ? 'bg-teal-600 border-teal-600 text-white shadow-md' : 'bg-zinc-50 border-zinc-100 text-zinc-500 hover:bg-white hover:border-zinc-200'}`}
                                     >
                                         <g.icon size={16} strokeWidth={isSelected ? 2.5 : 2} />
@@ -273,6 +275,7 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                                 <button
                                     key={cat.label}
                                     onClick={() => setSelectedCategory(cat.label)}
+                                    disabled={isGenerating}
                                     className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${selectedCategory === cat.label ? 'bg-teal-50 border-teal-500 text-teal-700 shadow-inner' : 'bg-zinc-50 border-zinc-100 text-zinc-500 hover:bg-white hover:border-zinc-200'}`}
                                 >
                                     <cat.icon size={18} className="mb-1.5" strokeWidth={selectedCategory === cat.label ? 2.5 : 2} />
@@ -294,8 +297,9 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                             max="500" 
                             step="10" 
                             value={maxPrice} 
+                            disabled={isGenerating}
                             onChange={(e) => setMaxPrice(parseInt(e.target.value))}
-                            className="w-full h-2 bg-zinc-100 rounded-lg appearance-none cursor-pointer accent-teal-600"
+                            className="w-full h-2 bg-zinc-100 rounded-lg appearance-none cursor-pointer accent-teal-600 disabled:cursor-not-allowed"
                         />
                     </div>
 
@@ -307,7 +311,7 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                             className="w-full py-4 bg-zinc-900 text-white rounded-xl font-bold text-sm uppercase tracking-widest shadow-lg shadow-zinc-900/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:scale-100"
                         >
                             <Search size={18} />
-                            {!isPaid && !hasFreeUsage ? 'Unlock Full Access' : selectedGoals.length === 0 ? 'Select a Goal' : 'Find Matches'}
+                            {!isPaid && !hasFreeUsage ? 'Unlock Full Access' : selectedGoals.length === 0 ? 'Select a Goal' : isGenerating ? 'Processing...' : 'Find Matches'}
                         </button>
                     </div>
                 </div>

@@ -626,17 +626,17 @@ export const generateTargetedRecommendations = async (user: UserProfile, categor
         const nuanceContext = [];
         const lowerGoals = goals.map(g => g.toLowerCase());
 
-        // DISTINCT LOGIC: SCARS vs TEXTURE
+        // DISTINCT LOGIC: SCARS vs TEXTURE vs PIGMENTATION
         if (lowerGoals.some(g => g.includes('scar'))) {
             if (m.acneScars < 65) {
-                nuanceContext.push("GOAL DISTINCTION: User selected 'Repair Pitted Scars'. Prioritize collagen-building actives (Peptides, Retinoids, Growth Factors, Copper) to fill atrophic indentations. Do not just suggest simple exfoliants.");
+                nuanceContext.push("GOAL DISTINCTION: User selected 'Repair Pitted Scars'. This refers to Atrophic Scarring. Prioritize collagen-building actives (Peptides, Retinoids, Growth Factors, Copper) to fill indentations. Do not suggest simple exfoliants or brighteners unless they have dual action.");
             } else {
-                nuanceContext.push("GOAL DISTINCTION: User selected 'Fade Dark Marks'. Prioritize Tyrosinase Inhibitors (Vitamin C, Azelaic Acid, Niacinamide, Tranexamic Acid) to reduce post-acne pigmentation.");
+                nuanceContext.push("GOAL DISTINCTION: User selected 'Fade Dark Marks'. This refers to PIH. Prioritize Tyrosinase Inhibitors (Vitamin C, Azelaic Acid, Niacinamide, Tranexamic Acid) to reduce pigmentation.");
             }
         }
         
         if (lowerGoals.some(g => g.includes('roughness') || g.includes('texture'))) {
-             nuanceContext.push("GOAL DISTINCTION: User selected 'Smooth Roughness/Texture'. Focus on surface-level smoothing via chemical exfoliation (AHAs, BHAs, Enzymes) or cell turnover (Retinol). Distinguish this from deep scar repair.");
+             nuanceContext.push("GOAL DISTINCTION: User selected 'Smooth Roughness/Texture'. Focus on surface-level smoothing via chemical exfoliation (AHAs, BHAs, Enzymes, Urea).");
         }
 
         const prompt = `
@@ -646,18 +646,25 @@ export const generateTargetedRecommendations = async (user: UserProfile, categor
            - The product MUST explicitly and primarily target this specific goal.
            - ${nuanceContext.join('\n   - ')}
         
-        2. SAFETY FIREWALL (STRICT EXCLUSION):
+        2. PRICE STRATEGY (BUDGET: RM ${maxPrice}):
+           - Strict Limit: Product must be under RM ${maxPrice}.
+           - **MAXIMIZE QUALITY:** Use the user's price limit as a guideline for quality tier. 
+             - If the user sets a high budget (e.g., RM 200), prefer high-efficacy, clinical-grade, or premium formulations (closer to the limit) rather than suggesting cheap basics, UNLESS the basic option is scientifically superior.
+             - Don't just find the cheapest match. Find the BEST match that fits the budget.
+
+        3. SAFETY FIREWALL (STRICT EXCLUSION):
            - Skin Type: ${user.skinType}
            - Allergies to avoid: ${allergies || "None"}
            - ${safetyConstraints.join('\n   - ')}
         
-        3. SECONDARY RANKING (BONUS POINTS):
+        4. SECONDARY RANKING (BONUS POINTS):
            - Rank higher if product ALSO helps with: ${secondaryConcerns.join(', ')}.
         
         INSTRUCTIONS:
         - Step 1: Find products that meet the PRIMARY MANDATE.
-        - Step 2: Discard any that violate SAFETY FIREWALL (e.g. if User has Acne, discard Coconut Oil products even if they are good for Hydration).
-        - Step 3: Sort remaining products by how well they address SECONDARY RANKING.
+        - Step 2: Filter by Price <= ${maxPrice}. Prioritize higher efficacy within this range.
+        - Step 3: Discard any that violate SAFETY FIREWALL (e.g. if User has Acne, discard Coconut Oil products even if they are good for Hydration).
+        - Step 4: Sort remaining products by how well they address SECONDARY RANKING.
         
         Output JSON: [{ "name": "string", "brand": "string", "price": "string", "reason": "string", "rating": number, "tier": "BEST MATCH" }]
         
