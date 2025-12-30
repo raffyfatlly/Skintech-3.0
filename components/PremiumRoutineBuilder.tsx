@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { UserProfile, SkinMetrics, RecommendedProduct, Product } from '../types';
-import { Sparkles, ArrowLeft, DollarSign, Star, Crown, Lock, Search, Droplet, Sun, Zap, ShieldCheck, Loader, Sliders, AlertCircle, Target, CheckCircle2, Check, ArrowRight, Minimize2, Dna, Heart } from 'lucide-react';
+import { Sparkles, ArrowLeft, DollarSign, Star, Crown, Lock, Search, Droplet, Sun, Zap, ShieldCheck, Loader, Sliders, AlertCircle, Target, CheckCircle2, Check, ArrowRight, Minimize2, Dna, Heart, StarHalf, Activity, Layers, Scan } from 'lucide-react';
 
 interface PremiumRoutineBuilderProps {
     user: UserProfile;
@@ -29,21 +29,31 @@ const CATEGORIES = [
 
 const GOALS = [
     { label: 'Clear Acne', icon: Zap },
+    { label: 'Fix Texture', icon: Activity }, // Covers Scarring/Roughness
+    { label: 'Minimize Pores', icon: Scan },
     { label: 'Hydration Boost', icon: Droplet },
     { label: 'Anti-Aging', icon: Star }, 
     { label: 'Brightening', icon: Sun },
     { label: 'Soothe Redness', icon: ShieldCheck },
     { label: 'Oil Control', icon: Sliders },
+    { label: 'Barrier Repair', icon: Layers },
 ];
 
 const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onBack, onUnlockPremium, usageCount, onIncrementUsage, onProductSelect, savedResults, onSaveResults, onGenerateBackground, onAddToWishlist }) => {
     const defaultGoal = useMemo(() => {
         const b = user.biometrics;
-        if (b.acneActive < 65) return 'Clear Acne';
-        if (b.redness < 65) return 'Soothe Redness';
-        if (b.hydration < 50) return 'Hydration Boost';
+        // Prioritize critical low scores
+        if (b.acneActive < 60) return 'Clear Acne';
+        if (b.redness < 60) return 'Soothe Redness';
+        // Texture & Scarring Logic
+        if (b.acneScars < 65 || b.texture < 65) return 'Fix Texture';
+        if (b.poreSize < 60) return 'Minimize Pores';
+        
+        if (b.hydration < 50) return 'Barrier Repair';
         if (b.wrinkleFine < 70) return 'Anti-Aging';
         if (b.pigmentation < 70) return 'Brightening';
+        if (b.oiliness < 60) return 'Oil Control';
+        
         return 'Hydration Boost';
     }, [user.biometrics]);
 
@@ -122,6 +132,27 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
             onAddToWishlist(product);
             setSavedIds([...savedIds, rec.name]);
         }
+    };
+
+    const renderStars = (rating: number) => {
+        // Normalize 0-100 to 0-5 if needed
+        const score = rating > 5 ? rating / 20 : rating;
+        const fullStars = Math.floor(score);
+        const hasHalfStar = score % 1 >= 0.5;
+        const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+
+        return (
+            <div className="flex items-center gap-0.5">
+                {[...Array(fullStars)].map((_, i) => (
+                    <Star key={`full-${i}`} size={12} className="fill-amber-400 text-amber-400" />
+                ))}
+                {hasHalfStar && <StarHalf size={12} className="fill-amber-400 text-amber-400" />}
+                {[...Array(emptyStars)].map((_, i) => (
+                    <Star key={`empty-${i}`} size={12} className="text-zinc-200" />
+                ))}
+                <span className="ml-1.5 text-xs font-bold text-zinc-700">{score.toFixed(1)}</span>
+            </div>
+        );
     };
 
     return (
@@ -289,10 +320,9 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                                             {prod.reason}
                                         </p>
                                         
-                                        <div className="flex items-center gap-2">
-                                            <div className="bg-emerald-50 text-emerald-700 px-2 py-1 rounded-md text-[10px] font-bold border border-emerald-100 flex items-center gap-1">
-                                                <ShieldCheck size={10} /> {prod.rating}% Match
-                                            </div>
+                                        <div className="flex items-center gap-3">
+                                            {renderStars(prod.rating)}
+                                            <div className="w-px h-3 bg-zinc-200"></div>
                                             <span className="text-xs font-bold text-zinc-900">{prod.price}</span>
                                         </div>
                                     </div>
