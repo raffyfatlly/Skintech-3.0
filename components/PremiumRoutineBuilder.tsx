@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { UserProfile, SkinMetrics, RecommendedProduct } from '../types';
-import { Sparkles, ArrowLeft, DollarSign, Star, Crown, Lock, Search, Droplet, Sun, Zap, ShieldCheck, Loader, Sliders, AlertCircle, Target, CheckCircle2, Check, ArrowRight, Minimize2 } from 'lucide-react';
+import { Sparkles, ArrowLeft, DollarSign, Star, Crown, Lock, Search, Droplet, Sun, Zap, ShieldCheck, Loader, Sliders, AlertCircle, Target, CheckCircle2, Check, ArrowRight, Minimize2, Dna } from 'lucide-react';
 
 interface PremiumRoutineBuilderProps {
     user: UserProfile;
@@ -72,9 +72,9 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
         if (isGenerating) {
             const messages = [
                 "Initiating holistic search...",
-                `Scanning 5 top-rated ${selectedCategory} candidates...`,
-                "Cross-referencing with your biometrics...",
-                "Filtering allergens and price...",
+                `Scanning top-rated ${selectedCategory} candidates...`,
+                "Filtering by price and availability...",
+                "Checking for allergen conflicts...",
                 "Selecting the top 3 best matches..."
             ];
             let i = 0;
@@ -113,7 +113,46 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
     };
 
     return (
-        <div className="min-h-screen bg-zinc-50 pb-32 animate-in fade-in slide-in-from-bottom-8 duration-500 font-sans">
+        <div className="min-h-screen bg-zinc-50 pb-32 animate-in fade-in slide-in-from-bottom-8 duration-500 font-sans relative">
+            
+            {/* FULL SCREEN LOADING OVERLAY */}
+            {isGenerating && (
+                <div className="fixed inset-0 z-50 bg-gradient-to-br from-teal-900 to-zinc-900 flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-500 font-sans">
+                    <div className="relative mb-10">
+                        <div className="w-24 h-24 rounded-full border-2 border-teal-500/30 flex items-center justify-center animate-[spin_10s_linear_infinite]">
+                            <div className="w-16 h-16 rounded-full border-2 border-teal-400/50"></div>
+                        </div>
+                        <div className="absolute inset-0 flex items-center justify-center">
+                            <Dna size={32} className="text-teal-400 animate-pulse" />
+                        </div>
+                        {/* Particles */}
+                        <div className="absolute -top-4 -right-4 w-2 h-2 bg-teal-400 rounded-full animate-bounce"></div>
+                        <div className="absolute -bottom-2 -left-2 w-1.5 h-1.5 bg-white rounded-full animate-bounce delay-100"></div>
+                    </div>
+
+                    <h3 className="text-2xl font-black text-white mb-2 tracking-tight">Building Routine</h3>
+                    <p className="text-sm text-teal-200 font-bold uppercase tracking-widest mb-10 animate-pulse max-w-xs leading-relaxed">
+                        {loadingText}
+                    </p>
+                    
+                    <div className="w-full max-w-xs space-y-4">
+                        <div className="flex justify-center gap-1 mb-4">
+                            <div className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-bounce"></div>
+                            <div className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-bounce delay-100"></div>
+                            <div className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-bounce delay-200"></div>
+                        </div>
+
+                        <button 
+                            onClick={onBack}
+                            className="w-full py-4 bg-white/10 backdrop-blur-md border border-white/10 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-white/20 transition-all flex items-center justify-center gap-2"
+                        >
+                            <Minimize2 size={14} /> Run in Background
+                        </button>
+                        <p className="text-[10px] text-white/50">We'll notify you when it's ready.</p>
+                    </div>
+                </div>
+            )}
+
             {/* HERO HEADER */}
             <div 
                 className="pt-12 pb-10 px-6 rounded-b-[2.5rem] relative overflow-hidden shadow-2xl"
@@ -231,8 +270,8 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                             disabled={isGenerating || selectedGoals.length === 0}
                             className="w-full py-4 bg-zinc-900 text-white rounded-xl font-bold text-sm uppercase tracking-widest shadow-lg shadow-zinc-900/20 hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:scale-100"
                         >
-                            {isGenerating ? <Loader size={18} className="animate-spin text-zinc-500" /> : <Search size={18} />}
-                            {isGenerating ? 'Processing...' : (!isPaid && !hasFreeUsage ? 'Unlock Full Access' : selectedGoals.length === 0 ? 'Select a Goal' : 'Find Matches')}
+                            <Search size={18} />
+                            {!isPaid && !hasFreeUsage ? 'Unlock Full Access' : selectedGoals.length === 0 ? 'Select a Goal' : 'Find Matches'}
                         </button>
                         {!isPaid && (
                             <p className="text-center text-[10px] text-zinc-400 font-bold uppercase tracking-wide">
@@ -245,28 +284,7 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
 
             {/* RESULTS AREA */}
             <div className="px-6 mt-8 space-y-4">
-                {/* LOADING STATE - Now with affirmations */}
-                {isGenerating && (
-                    <div className="py-12 flex flex-col items-center justify-center text-center animate-in fade-in slide-in-from-bottom-2">
-                        <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-6 relative shadow-md">
-                             <div className="absolute inset-0 border-4 border-zinc-100 rounded-full"></div>
-                             <div className="absolute inset-0 border-4 border-t-teal-500 border-r-transparent border-b-transparent border-l-transparent rounded-full animate-spin"></div>
-                             <Sparkles className="text-teal-600 animate-pulse" size={24} />
-                        </div>
-                        <h3 className="text-lg font-black text-zinc-900 mb-2">Building Routine</h3>
-                        <p className="text-sm text-zinc-500 font-medium animate-pulse max-w-[200px] leading-relaxed mb-6">{loadingText}</p>
-                        
-                        {/* MINIMIZE BUTTON */}
-                        <button 
-                            onClick={onBack}
-                            className="px-6 py-2.5 bg-zinc-100 text-zinc-500 rounded-full font-bold text-xs uppercase tracking-widest hover:bg-zinc-200 transition-colors flex items-center gap-2"
-                        >
-                            <Minimize2 size={12} /> Run in Background
-                        </button>
-                    </div>
-                )}
-
-                {!isGenerating && results.length > 0 && (
+                {results.length > 0 ? (
                     <div className="animate-in slide-in-from-bottom-4 duration-500">
                         <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest mb-4 flex items-center gap-2">
                             <Sparkles size={14} className="text-teal-500" /> Top Recommendations
@@ -311,9 +329,7 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                             ))}
                         </div>
                     </div>
-                )}
-                
-                {!isGenerating && results.length === 0 && (
+                ) : (
                      <div className="text-center py-10 opacity-60">
                          <p className="text-sm font-medium text-zinc-400">Results will appear here.</p>
                      </div>

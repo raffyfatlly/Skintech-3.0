@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { Camera, RefreshCw, Check, X, AlertOctagon, ScanLine, Image as ImageIcon, Upload, ZoomIn, ZoomOut, Zap, ZapOff, Search, ChevronRight, Lock, Crown, Minimize2, Loader } from 'lucide-react';
+import { Camera, RefreshCw, Check, X, AlertOctagon, ScanLine, Image as ImageIcon, Upload, ZoomIn, ZoomOut, Zap, ZapOff, Search, ChevronRight, Lock, Crown, Minimize2, Loader, Database, ShieldCheck } from 'lucide-react';
 import { Product, UserProfile } from '../types';
 
 interface ProductScannerProps {
@@ -29,8 +29,31 @@ const ProductScanner: React.FC<ProductScannerProps> = ({ userProfile, shelf, onS
   
   // NEW: Internal processing state for UI feedback
   const [isProcessing, setIsProcessing] = useState(false);
+  const [statusText, setStatusText] = useState("Initializing scan...");
 
   const isLimitReached = !isPremium && usageCount >= limit;
+
+  // Cycle Status Text
+  useEffect(() => {
+      let interval: ReturnType<typeof setInterval>;
+      if (isProcessing) {
+          const steps = [
+              "Extracting text from image...",
+              "Identifying brand & product name...",
+              "Retrieving ingredient list...",
+              "Cross-referencing allergies...",
+              "Analyzing skin compatibility...",
+              "Finalizing safety report..."
+          ];
+          let i = 0;
+          setStatusText(steps[0]);
+          interval = setInterval(() => {
+              i = (i + 1) % steps.length;
+              setStatusText(steps[i]);
+          }, 2500);
+      }
+      return () => clearInterval(interval);
+  }, [isProcessing]);
 
   useEffect(() => {
     // If limit reached, don't start camera
@@ -161,34 +184,50 @@ const ProductScanner: React.FC<ProductScannerProps> = ({ userProfile, shelf, onS
       )
   }
 
-  // PROCESSING UI
+  // --- PROMINENT PROCESSING UI ---
   if (isProcessing) {
       return (
-          <div className="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center p-6 text-center animate-in fade-in">
-              <div className="w-24 h-24 bg-zinc-50 rounded-full flex items-center justify-center mb-8 relative shadow-lg">
-                  <div className="absolute inset-0 border-4 border-zinc-100 rounded-full"></div>
-                  <div className="absolute inset-0 border-4 border-t-teal-500 border-r-teal-500/30 border-b-transparent border-l-transparent rounded-full animate-spin"></div>
-                  <ScanLine size={32} className="text-teal-600 animate-pulse" />
+          <div className="fixed inset-0 z-50 bg-zinc-950 flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-500 font-sans">
+              
+              {/* Animated Radar */}
+              <div className="w-48 h-48 relative mb-12 flex items-center justify-center">
+                  <div className="absolute inset-0 border-2 border-teal-500/30 rounded-full animate-[spin_4s_linear_infinite]"></div>
+                  <div className="absolute inset-4 border-2 border-teal-500/20 rounded-full animate-[spin_3s_linear_infinite_reverse]"></div>
+                  <div className="absolute inset-0 rounded-full bg-teal-500/10 blur-xl animate-pulse"></div>
+                  
+                  {/* Scanner Beam */}
+                  <div className="absolute inset-x-0 h-1 bg-teal-400/50 shadow-[0_0_15px_rgba(45,212,191,0.8)] animate-[scan_1.5s_ease-in-out_infinite]"></div>
+
+                  <div className="relative z-10 bg-zinc-900 p-6 rounded-2xl border border-zinc-800 shadow-2xl">
+                      <ScanLine size={48} className="text-teal-400" />
+                  </div>
               </div>
               
-              <h2 className="text-2xl font-black text-zinc-900 mb-2">Deep Scanning...</h2>
-              <p className="text-sm text-zinc-500 font-medium mb-10 max-w-xs leading-relaxed">
-                  Analyzing ingredients against your skin profile. This deep audit may take up to 30 seconds.
+              <h2 className="text-2xl font-black text-white mb-2 tracking-tight">Analyzing Product</h2>
+              <p className="text-sm text-teal-400 font-bold uppercase tracking-widest mb-1 animate-pulse">
+                  {statusText}
+              </p>
+              <p className="text-zinc-500 text-xs font-medium mb-12 max-w-xs leading-relaxed">
+                  This deep AI audit checks thousands of ingredients. It may take up to 30 seconds.
               </p>
 
               <div className="w-full max-w-xs space-y-4">
                   <button 
-                      disabled className="w-full py-4 bg-zinc-900 text-white rounded-xl font-bold text-xs uppercase tracking-widest opacity-80 cursor-wait flex items-center justify-center gap-2"
+                      disabled className="w-full py-4 bg-zinc-900 text-zinc-400 rounded-xl font-bold text-xs uppercase tracking-widest cursor-wait flex items-center justify-center gap-2 border border-zinc-800"
                   >
-                      <Loader size={14} className="animate-spin" /> Please Wait
+                      <Loader size={14} className="animate-spin" /> Processing...
                   </button>
                   
                   <button 
                       onClick={onCancel} 
-                      className="w-full py-4 text-zinc-400 font-bold text-xs uppercase tracking-widest hover:text-teal-600 transition-colors flex items-center justify-center gap-2"
+                      className="w-full py-4 text-zinc-500 font-bold text-xs uppercase tracking-widest hover:text-white transition-colors flex items-center justify-center gap-2 group"
                   >
-                      <Minimize2 size={14} /> Run in Background
+                      <Minimize2 size={16} className="group-hover:-translate-y-0.5 transition-transform" /> 
+                      Run in Background
                   </button>
+                  <p className="text-[10px] text-zinc-600">
+                      You'll be notified when the results are ready.
+                  </p>
               </div>
           </div>
       )

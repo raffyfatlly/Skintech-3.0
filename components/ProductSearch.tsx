@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { Search, X, Loader, AlertCircle, ArrowRight, Lock, Crown, Minimize2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Search, X, Loader, AlertCircle, ArrowRight, Lock, Crown, Minimize2, Database, Globe, FlaskConical } from 'lucide-react';
 import { Product, UserProfile } from '../types';
 import { searchProducts } from '../services/geminiService';
 
@@ -25,11 +25,33 @@ const ProductSearch: React.FC<ProductSearchProps> = ({ userProfile, shelf, onSta
     const [query, setQuery] = useState('');
     const [results, setResults] = useState<SearchResult[]>([]);
     const [isSearching, setIsSearching] = useState(false);
-    const [isAnalyzing, setIsAnalyzing] = useState(false); // NEW
+    const [isAnalyzing, setIsAnalyzing] = useState(false);
     const [hasSearched, setHasSearched] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [statusText, setStatusText] = useState("Accessing Database...");
 
     const isLimitReached = !isPremium && usageCount >= limit;
+
+    // Cycle Text
+    useEffect(() => {
+        let interval: ReturnType<typeof setInterval>;
+        if (isAnalyzing) {
+            const steps = [
+                "Locating official ingredient list...",
+                "Scanning for potential allergens...",
+                "Comparing against your biometrics...",
+                "Checking for formulation conflicts...",
+                "Generating expert verdict..."
+            ];
+            let i = 0;
+            setStatusText(steps[0]);
+            interval = setInterval(() => {
+                i = (i + 1) % steps.length;
+                setStatusText(steps[i]);
+            }, 2000);
+        }
+        return () => clearInterval(interval);
+    }, [isAnalyzing]);
 
     const handleSearch = async () => {
         if (!query.trim()) return;
@@ -95,41 +117,53 @@ const ProductSearch: React.FC<ProductSearchProps> = ({ userProfile, shelf, onSta
         )
     }
 
-    // LOADING OVERLAY
+    // PROMINENT LOADING OVERLAY
     if (isAnalyzing) {
         return (
-            <div className="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center p-6 text-center animate-in fade-in">
-                <div className="w-24 h-24 bg-zinc-50 rounded-full flex items-center justify-center mb-8 relative shadow-lg">
-                    <div className="absolute inset-0 border-4 border-zinc-100 rounded-full"></div>
-                    <div className="absolute inset-0 border-4 border-t-teal-500 border-r-teal-500/30 border-b-transparent border-l-transparent rounded-full animate-spin"></div>
-                    <Search size={32} className="text-teal-600 animate-pulse" />
+            <div className="fixed inset-0 z-50 bg-white flex flex-col items-center justify-center p-6 text-center animate-in fade-in font-sans">
+                {/* Visuals */}
+                <div className="relative mb-12 w-32 h-32 flex items-center justify-center">
+                    <div className="absolute inset-0 bg-teal-50 rounded-full animate-ping opacity-75"></div>
+                    <div className="absolute inset-4 bg-white rounded-full shadow-xl border border-zinc-100 flex items-center justify-center z-10">
+                        <Database size={32} className="text-teal-600 animate-pulse" />
+                    </div>
+                    {/* Orbiting Icons */}
+                    <div className="absolute inset-0 animate-[spin_4s_linear_infinite]">
+                        <div className="absolute top-0 left-1/2 -translate-x-1/2 -mt-2 bg-white p-1.5 rounded-full shadow-md border border-zinc-50">
+                            <Globe size={12} className="text-indigo-500" />
+                        </div>
+                        <div className="absolute bottom-0 left-1/2 -translate-x-1/2 -mb-2 bg-white p-1.5 rounded-full shadow-md border border-zinc-50">
+                            <FlaskConical size={12} className="text-rose-500" />
+                        </div>
+                    </div>
                 </div>
                 
-                <h2 className="text-2xl font-black text-zinc-900 mb-2">Searching & Analyzing...</h2>
-                <p className="text-sm text-zinc-500 font-medium mb-10 max-w-xs leading-relaxed">
-                    We're auditing the ingredient list. You can wait here or check back later.
+                <h2 className="text-2xl font-black text-zinc-900 mb-2 tracking-tight">Auditing Product</h2>
+                <p className="text-xs font-bold text-teal-600 uppercase tracking-widest mb-10 animate-pulse">
+                    {statusText}
                 </p>
 
-                <div className="w-full max-w-xs space-y-4">
-                    <button 
-                        disabled className="w-full py-4 bg-zinc-900 text-white rounded-xl font-bold text-xs uppercase tracking-widest opacity-80 cursor-wait flex items-center justify-center gap-2"
-                    >
-                        <Loader size={14} className="animate-spin" /> Please Wait
-                    </button>
-                    
+                <div className="w-full max-w-xs space-y-3">
+                    <div className="w-full h-1.5 bg-zinc-100 rounded-full overflow-hidden mb-6">
+                        <div className="h-full bg-teal-500 animate-[loading_2s_ease-in-out_infinite] w-1/3 rounded-full"></div>
+                    </div>
+
                     <button 
                         onClick={onCancel} 
-                        className="w-full py-4 text-zinc-400 font-bold text-xs uppercase tracking-widest hover:text-teal-600 transition-colors flex items-center justify-center gap-2"
+                        className="w-full py-4 text-zinc-500 font-bold text-xs uppercase tracking-widest hover:text-zinc-900 hover:bg-zinc-50 rounded-xl transition-all flex items-center justify-center gap-2 border border-transparent hover:border-zinc-200"
                     >
-                        <Minimize2 size={14} /> Run in Background
+                        <Minimize2 size={16} /> Run in Background
                     </button>
+                    <p className="text-[10px] text-zinc-400 font-medium">
+                        You can continue browsing while we work.
+                    </p>
                 </div>
             </div>
         )
     }
 
     return (
-        <div className="fixed inset-0 bg-white z-50 flex flex-col">
+        <div className="fixed inset-0 bg-white z-50 flex flex-col font-sans">
             <div className="p-6 border-b border-zinc-100 flex items-center gap-4">
                 <button onClick={onCancel} className="p-2 -ml-2 text-zinc-400 hover:text-zinc-600">
                     <X size={24} />
