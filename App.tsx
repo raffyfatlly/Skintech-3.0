@@ -65,7 +65,6 @@ const App: React.FC = () => {
 
   useEffect(() => { viewRef.current = currentView; }, [currentView]);
 
-  // Loading Message Cycler
   useEffect(() => {
       let interval: ReturnType<typeof setInterval>;
       if (isGlobalLoading && loadingMessage?.includes("Syncing")) {
@@ -114,7 +113,36 @@ const App: React.FC = () => {
       persistState(updatedUser, shelf);
   };
 
-  // --- BACKGROUND TASK HANDLERS ---
+  // --- WISH LIST LOGIC ---
+  const handleAddToWishlist = (product: Product) => {
+      if (!userProfile) return;
+      const currentWishlist = userProfile.wishlist || [];
+      // Prevent duplicates
+      if (currentWishlist.some(p => p.name === product.name)) {
+          setNotification({ type: 'GENERIC', title: 'Already Saved', description: 'This product is already in your wishlist.', onClose: () => setNotification(null) });
+          return;
+      }
+      const newWishlist = [...currentWishlist, product];
+      const updatedUser = { ...userProfile, wishlist: newWishlist };
+      persistState(updatedUser, shelf);
+      setNotification({ type: 'GENERIC', title: 'Saved!', description: 'Product added to wishlist.', onClose: () => setNotification(null) });
+  };
+
+  const handleRemoveFromWishlist = (id: string) => {
+      if (!userProfile) return;
+      const currentWishlist = userProfile.wishlist || [];
+      const newWishlist = currentWishlist.filter(p => p.id !== id);
+      const updatedUser = { ...userProfile, wishlist: newWishlist };
+      persistState(updatedUser, shelf);
+  };
+
+  const handleMoveToShelf = (product: Product) => {
+      if (!userProfile) return;
+      handleRemoveFromWishlist(product.id);
+      const newShelf = [...shelf, product];
+      persistState(userProfile, newShelf);
+      setNotification({ type: 'TASK_COMPLETE', title: 'Added to Routine', description: `${product.name} moved to shelf.`, onClose: () => setNotification(null) });
+  };
 
   const handleBackgroundAnalysis = async (
       type: 'SEARCH' | 'IMAGE', 
@@ -122,15 +150,12 @@ const App: React.FC = () => {
       productBrand?: string
   ) => {
       if (!userProfile) return;
-
-      // Capture the view where the request started
       const originatingView = viewRef.current;
 
       try {
           const shelfIngredients = shelf.flatMap(p => p.ingredients).slice(0, 50);
           let product: Product;
 
-          // Perform Analysis (This is the long-running task)
           if (type === 'SEARCH') {
               product = await analyzeProductFromSearch(
                   payload, 
@@ -153,13 +178,9 @@ const App: React.FC = () => {
           }
           trackEvent('PRODUCT_FOUND', { name: product.name, match: product.suitabilityScore });
 
-          // CONDITIONAL COMPLETION LOGIC
-          // 1. If User stayed on the screen -> Open Result Directly
           if (viewRef.current === originatingView) {
               setCurrentView(AppView.BUYING_ASSISTANT);
-          } 
-          // 2. If User navigated away (Background Mode) -> Show Notification
-          else {
+          } else {
               setNotification({
                   type: 'TASK_COMPLETE',
                   title: 'Analysis Ready',
@@ -167,7 +188,8 @@ const App: React.FC = () => {
                   actionLabel: 'View Results',
                   onAction: () => {
                       setCurrentView(AppView.BUYING_ASSISTANT);
-                  }
+                  },
+                  onClose: () => setNotification(null)
               });
           }
 
@@ -179,11 +201,10 @@ const App: React.FC = () => {
               title: 'Analysis Failed',
               description: 'We encountered an issue connecting to the AI service. Please try again.',
               actionLabel: 'OK',
-              onAction: () => {}
+              onAction: () => {},
+              onClose: () => setNotification(null)
           });
 
-          // If user is currently waiting on the loading screen, kick them back to shelf
-          // to prevent being stuck on "Processing..." forever
           if (viewRef.current === AppView.PRODUCT_SCANNER || viewRef.current === AppView.PRODUCT_SEARCH) {
               setCurrentView(AppView.SMART_SHELF);
           }
@@ -209,36 +230,28 @@ const App: React.FC = () => {
           
           setRoutineResults(data);
           
-          // CONDITIONAL COMPLETION LOGIC
           if (viewRef.current !== originatingView) {
               setNotification({
                   type: 'TASK_COMPLETE',
                   title: 'Routine Ready',
                   description: `Found ${data.length} matches for ${category}.`,
                   actionLabel: 'View',
-                  onAction: () => setCurrentView(AppView.ROUTINE_BUILDER)
+                  onAction: () => setCurrentView(AppView.ROUTINE_BUILDER),
+                  onClose: () => setNotification(null)
               });
           }
-          // If user stayed, the component receives the data via props/state update and renders it.
 
       } catch (e) {
           console.error("Routine Error", e);
-          
           setNotification({
               type: 'GENERIC',
               title: 'Search Failed',
               description: 'Could not generate recommendations. Try simpler filters.',
               actionLabel: 'OK',
-              onAction: () => {}
+              onAction: () => {},
+              onClose: () => setNotification(null)
           });
-
-          // Reset routine builder results to empty or handle stuck state?
-          // The routine builder handles error display internally if it's mounted, 
-          // but if we navigated away, the notification is enough.
-          // If we are stuck on loading screen inside routine builder, we might want to refresh.
           if (viewRef.current === AppView.ROUTINE_BUILDER) {
-               // Force a re-render or let user try again. 
-               // Since we rely on props, maybe just ensuring results are cleared/reset is enough.
                setRoutineResults([]);
           }
       }
@@ -264,7 +277,7 @@ const App: React.FC = () => {
           saveUserData(currentUser, data.shelf);
           trackEvent('PAYMENT_SUCCESS_LOCAL');
           if (!auth?.currentUser) {
-             setNotification({ type: 'GENERIC', title: 'Premium Unlocked!', description: 'You now have unlimited access.', actionLabel: 'Great', onAction: () => {} });
+             setNotification({ type: 'GENERIC', title: 'Premium Unlocked!', description: 'You now have unlimited access.', actionLabel: 'Great', onAction: () => {}, onClose: () => setNotification(null) });
              window.history.replaceState({}, document.title, window.location.pathname);
           }
       }
@@ -295,7 +308,7 @@ const App: React.FC = () => {
                      currentUser = { ...currentUser, isPremium: true };
                      await saveUserData(currentUser, data.shelf);
                      trackEvent('PAYMENT_SUCCESS_CLOUD');
-                     setNotification({ type: 'GENERIC', title: 'Premium Unlocked!', description: 'Your account has been upgraded.', actionLabel: 'Awesome', onAction: () => {} });
+                     setNotification({ type: 'GENERIC', title: 'Premium Unlocked!', description: 'Your account has been upgraded.', actionLabel: 'Awesome', onAction: () => {}, onClose: () => setNotification(null) });
                      window.history.replaceState({}, document.title, window.location.pathname);
                 }
                 if (currentUser) {
@@ -389,7 +402,7 @@ const App: React.FC = () => {
       const updatedUser = { ...userProfile, isPremium: true };
       persistState(updatedUser, shelf);
       setShowPremiumModal(false);
-      setNotification({ type: 'GENERIC', title: 'Premium Unlocked!', description: 'Access code redeemed successfully.', actionLabel: 'Awesome', onAction: () => {} });
+      setNotification({ type: 'GENERIC', title: 'Premium Unlocked!', description: 'Access code redeemed successfully.', actionLabel: 'Awesome', onAction: () => {}, onClose: () => setNotification(null) });
   };
 
   const renderNavBar = () => {
@@ -464,7 +477,18 @@ const App: React.FC = () => {
               if (userProfile && !userProfile.hasScannedFace) return <FaceScanner onScanComplete={handleFaceScanComplete} scanHistory={userProfile?.scanHistory} shelf={shelf} />;
               return userProfile ? <SkinAnalysisReport userProfile={userProfile} shelf={shelf} onRescan={() => setCurrentView(AppView.FACE_SCANNER)} onConsultAI={(q) => { setAiQuery(q); setShowAIAssistant(true); }} onViewProgress={() => setCurrentView(AppView.PROFILE_SETUP)} onOpenRoutineBuilder={() => setCurrentView(AppView.ROUTINE_BUILDER)} onLoginRequired={(reason) => openAuth(reason as AuthTrigger)} onUnlockPremium={handleUnlockPremium} /> : null;
           case AppView.SMART_SHELF:
-              return userProfile ? <SmartShelf products={shelf} userProfile={userProfile} onRemoveProduct={handleRemoveProduct} onUpdateProduct={handleUpdateProduct} onScanNew={() => { setActiveGuide(null); if (!userProfile.isPremium && (userProfile.usage?.manualScans || 0) >= LIMIT_SCANS) { handleUnlockPremium(); } else { setCurrentView(AppView.PRODUCT_SCANNER); } }} /> : null;
+              return userProfile ? (
+                  <SmartShelf 
+                      products={shelf} 
+                      userProfile={userProfile} 
+                      onRemoveProduct={handleRemoveProduct} 
+                      onUpdateProduct={handleUpdateProduct} 
+                      onScanNew={() => { setActiveGuide(null); if (!userProfile.isPremium && (userProfile.usage?.manualScans || 0) >= LIMIT_SCANS) { handleUnlockPremium(); } else { setCurrentView(AppView.PRODUCT_SCANNER); } }} 
+                      onMoveToShelf={handleMoveToShelf} 
+                      onRemoveFromWishlist={handleRemoveFromWishlist}
+                      onOpenRoutineBuilder={() => setCurrentView(AppView.ROUTINE_BUILDER)}
+                  />
+              ) : null;
           case AppView.PRODUCT_SCANNER:
               return userProfile ? (
                   <ProductScanner 
@@ -473,7 +497,6 @@ const App: React.FC = () => {
                      onStartAnalysis={(base64) => {
                          handleBackgroundAnalysis('IMAGE', base64);
                      }}
-                     // Passing App Navigation control for "Run in Background" behavior
                      onCancel={() => { 
                          if (userProfile.hasScannedFace) setCurrentView(AppView.SMART_SHELF); 
                          else setCurrentView(AppView.DASHBOARD); 
@@ -512,18 +535,15 @@ const App: React.FC = () => {
                       usageCount={userProfile.usage?.routineGenerations || 0} 
                       onIncrementUsage={() => incrementUsage('routineGenerations')}
                       
-                      // Handle "Analyze & Add" from routine list
                       onProductSelect={(prod) => {
                           handleBackgroundAnalysis('SEARCH', prod.name, prod.brand);
                       }}
-                      
-                      // Handle "Find Matches"
                       onGenerateBackground={(category, price, allergies, goals) => {
                           handleBackgroundRoutine(category, price, allergies, goals);
                       }}
-                      
                       savedResults={routineResults}
                       onSaveResults={setRoutineResults}
+                      onAddToWishlist={handleAddToWishlist}
                   />
               ) : null;
           default: return <LandingPage onGetStarted={() => setCurrentView(AppView.ONBOARDING)} onLogin={() => openAuth('GENERIC')} />;
@@ -544,7 +564,7 @@ const App: React.FC = () => {
           persistState(updatedUser, shelf);
       }
       setShowSaveModal(false);
-      setNotification({ type: 'GENERIC', title: 'Account Synced', description: 'Your data is now saved to the cloud.', actionLabel: 'OK', onAction: () => {} });
+      setNotification({ type: 'GENERIC', title: 'Account Synced', description: 'Your data is now saved to the cloud.', actionLabel: 'OK', onAction: () => {}, onClose: () => setNotification(null) });
   };
 
   return (

@@ -72,6 +72,7 @@ export interface UserProfile {
   preferences?: UserPreferences;
   isPremium?: boolean; // NEW: Tracks payment status
   usage?: UsageStats; // NEW: Track free tier usage
+  wishlist?: Product[]; // NEW: Saved products for future
 }
 
 export interface IngredientRisk {

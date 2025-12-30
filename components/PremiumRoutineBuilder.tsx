@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { UserProfile, SkinMetrics, RecommendedProduct } from '../types';
-import { Sparkles, ArrowLeft, DollarSign, Star, Crown, Lock, Search, Droplet, Sun, Zap, ShieldCheck, Loader, Sliders, AlertCircle, Target, CheckCircle2, Check, ArrowRight, Minimize2, Dna } from 'lucide-react';
+import { UserProfile, SkinMetrics, RecommendedProduct, Product } from '../types';
+import { Sparkles, ArrowLeft, DollarSign, Star, Crown, Lock, Search, Droplet, Sun, Zap, ShieldCheck, Loader, Sliders, AlertCircle, Target, CheckCircle2, Check, ArrowRight, Minimize2, Dna, Heart } from 'lucide-react';
 
 interface PremiumRoutineBuilderProps {
     user: UserProfile;
@@ -13,6 +13,7 @@ interface PremiumRoutineBuilderProps {
     savedResults: RecommendedProduct[];
     onSaveResults: (results: RecommendedProduct[]) => void;
     onGenerateBackground: (category: string, price: number, allergies: string, goals: string[]) => void;
+    onAddToWishlist?: (product: Product) => void;
 }
 
 const LIMIT_ROUTINES = 1;
@@ -35,8 +36,7 @@ const GOALS = [
     { label: 'Oil Control', icon: Sliders },
 ];
 
-const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onBack, onUnlockPremium, usageCount, onIncrementUsage, onProductSelect, savedResults, onSaveResults, onGenerateBackground }) => {
-    // Auto-select Goal Logic
+const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onBack, onUnlockPremium, usageCount, onIncrementUsage, onProductSelect, savedResults, onSaveResults, onGenerateBackground, onAddToWishlist }) => {
     const defaultGoal = useMemo(() => {
         const b = user.biometrics;
         if (b.acneActive < 65) return 'Clear Acne';
@@ -47,26 +47,22 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
         return 'Hydration Boost';
     }, [user.biometrics]);
 
-    // Input State
     const [selectedGoals, setSelectedGoals] = useState<string[]>([defaultGoal]);
     const [selectedCategory, setSelectedCategory] = useState('Cleanser');
     const [maxPrice, setMaxPrice] = useState(100);
     const [allergies, setAllergies] = useState('');
-    
-    // UI State
     const [results, setResults] = useState<RecommendedProduct[]>(savedResults);
     const [isGenerating, setIsGenerating] = useState(false);
     const [loadingText, setLoadingText] = useState("Initializing Architect...");
+    const [savedIds, setSavedIds] = useState<string[]>([]);
 
-    // Sync external results
     useEffect(() => {
         if (savedResults.length > 0) {
             setResults(savedResults);
-            setIsGenerating(false); // Stop loading if results arrived
+            setIsGenerating(false);
         }
     }, [savedResults]);
 
-    // Cycle text
     useEffect(() => {
         let interval: ReturnType<typeof setInterval>;
         if (isGenerating) {
@@ -99,23 +95,39 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
     };
 
     const handleGenerate = () => {
-        // Enforce limit
-        if (!isPaid && !hasFreeUsage) {
-            return onUnlockPremium();
-        }
-        
-        // Ensure at least one goal
+        if (!isPaid && !hasFreeUsage) return onUnlockPremium();
         if (selectedGoals.length === 0) return;
-
         setIsGenerating(true);
-        // Trigger background task
         onGenerateBackground(selectedCategory, maxPrice, allergies, selectedGoals);
+    };
+
+    const handleSave = (rec: RecommendedProduct) => {
+        if (onAddToWishlist) {
+            // FIX: Parsing logic was stripping decimals (45.00 -> 4500). Now keeps dots.
+            const rawPrice = rec.price.replace(/[^0-9.]/g, ''); 
+            const price = parseFloat(rawPrice) || 0;
+
+            const product: Product = {
+                id: Date.now().toString() + Math.random(),
+                name: rec.name,
+                brand: rec.brand,
+                type: selectedCategory.toUpperCase() as any,
+                ingredients: [], // Placeholder
+                estimatedPrice: price,
+                suitabilityScore: rec.rating,
+                risks: [],
+                benefits: [{ ingredient: "Recommended Match", target: "overallScore", description: rec.reason, relevance: "HIGH" }],
+                dateScanned: Date.now()
+            };
+            onAddToWishlist(product);
+            setSavedIds([...savedIds, rec.name]);
+        }
     };
 
     return (
         <div className="min-h-screen bg-zinc-50 pb-32 animate-in fade-in slide-in-from-bottom-8 duration-500 font-sans relative">
             
-            {/* FULL SCREEN LOADING OVERLAY */}
+            {/* LOADING */}
             {isGenerating && (
                 <div className="fixed inset-0 z-50 bg-gradient-to-br from-teal-900 to-zinc-900 flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-500 font-sans">
                     <div className="relative mb-10">
@@ -125,35 +137,23 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                         <div className="absolute inset-0 flex items-center justify-center">
                             <Dna size={32} className="text-teal-400 animate-pulse" />
                         </div>
-                        {/* Particles */}
-                        <div className="absolute -top-4 -right-4 w-2 h-2 bg-teal-400 rounded-full animate-bounce"></div>
-                        <div className="absolute -bottom-2 -left-2 w-1.5 h-1.5 bg-white rounded-full animate-bounce delay-100"></div>
                     </div>
-
                     <h3 className="text-2xl font-black text-white mb-2 tracking-tight">Building Routine</h3>
                     <p className="text-sm text-teal-200 font-bold uppercase tracking-widest mb-10 animate-pulse max-w-xs leading-relaxed">
                         {loadingText}
                     </p>
-                    
                     <div className="w-full max-w-xs space-y-4">
-                        <div className="flex justify-center gap-1 mb-4">
-                            <div className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-bounce"></div>
-                            <div className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-bounce delay-100"></div>
-                            <div className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-bounce delay-200"></div>
-                        </div>
-
                         <button 
                             onClick={onBack}
                             className="w-full py-4 bg-white/10 backdrop-blur-md border border-white/10 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-white/20 transition-all flex items-center justify-center gap-2"
                         >
                             <Minimize2 size={14} /> Run in Background
                         </button>
-                        <p className="text-[10px] text-white/50">We'll notify you when it's ready.</p>
                     </div>
                 </div>
             )}
 
-            {/* HERO HEADER */}
+            {/* HEADER */}
             <div 
                 className="pt-12 pb-10 px-6 rounded-b-[2.5rem] relative overflow-hidden shadow-2xl"
                 style={{ backgroundColor: 'rgb(163, 206, 207)' }}
@@ -178,8 +178,7 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
             <div className="px-6 -mt-6 relative z-20">
                 {/* FILTER CARD */}
                 <div className="bg-white rounded-[2rem] p-6 shadow-xl shadow-zinc-200/50 border border-zinc-100">
-                    
-                    {/* PRIMARY GOAL SELECTOR */}
+                    {/* Goals */}
                     <div className="mb-6">
                         <div className="flex justify-between items-center mb-3 px-1">
                             <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
@@ -207,7 +206,6 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                                 );
                             })}
                         </div>
-                        <p className="text-[9px] text-zinc-400 font-medium px-1 mt-1">Select multiple goals to refine your search.</p>
                     </div>
 
                     {/* Categories */}
@@ -242,28 +240,9 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                             onChange={(e) => setMaxPrice(parseInt(e.target.value))}
                             className="w-full h-2 bg-zinc-100 rounded-lg appearance-none cursor-pointer accent-teal-600"
                         />
-                        <div className="flex justify-between mt-2 px-1 text-[10px] font-bold text-zinc-400">
-                            <span>RM 20</span>
-                            <span>RM 500+</span>
-                        </div>
                     </div>
 
-                    {/* Allergies Input */}
-                    <div className="mb-6">
-                        <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block mb-2 pl-1">Avoid Ingredients (Optional)</label>
-                        <div className="relative">
-                            <input 
-                                type="text" 
-                                value={allergies}
-                                onChange={(e) => setAllergies(e.target.value)}
-                                placeholder="e.g. Fragrance, Alcohol, Niacinamide"
-                                className="w-full bg-zinc-50 border border-zinc-200 rounded-xl pl-4 pr-10 py-3 text-sm font-medium text-zinc-900 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/20 placeholder:text-zinc-400"
-                            />
-                            <AlertCircle size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-300" />
-                        </div>
-                    </div>
-
-                    {/* Generate Button */}
+                    {/* Button */}
                     <div className="space-y-3">
                         <button 
                             onClick={handleGenerate}
@@ -273,16 +252,11 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                             <Search size={18} />
                             {!isPaid && !hasFreeUsage ? 'Unlock Full Access' : selectedGoals.length === 0 ? 'Select a Goal' : 'Find Matches'}
                         </button>
-                        {!isPaid && (
-                            <p className="text-center text-[10px] text-zinc-400 font-bold uppercase tracking-wide">
-                                {hasFreeUsage ? '1 Free Generation Available' : 'Free Limit Reached'}
-                            </p>
-                        )}
                     </div>
                 </div>
             </div>
 
-            {/* RESULTS AREA */}
+            {/* RESULTS */}
             <div className="px-6 mt-8 space-y-4">
                 {results.length > 0 ? (
                     <div className="animate-in slide-in-from-bottom-4 duration-500">
@@ -290,39 +264,40 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                             <Sparkles size={14} className="text-teal-500" /> Top Recommendations
                         </h3>
                         <div className="space-y-4">
-                            {results.map((prod, idx) => (
-                                <div 
-                                    key={idx} 
-                                    className="w-full text-left bg-white p-5 rounded-[1.5rem] shadow-sm border border-zinc-100 relative overflow-hidden"
-                                >
-                                    <div className="flex justify-between items-start mb-2">
-                                        <div>
-                                            <h4 className="font-bold text-zinc-900 text-lg leading-tight mb-1">{prod.name}</h4>
-                                            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{prod.brand}</p>
+                            {results.map((prod, idx) => {
+                                const isSaved = savedIds.includes(prod.name);
+                                return (
+                                    <div 
+                                        key={idx} 
+                                        className="w-full text-left bg-white p-5 rounded-[1.5rem] shadow-sm border border-zinc-100 relative overflow-hidden"
+                                    >
+                                        <div className="flex justify-between items-start mb-2">
+                                            <div>
+                                                <h4 className="font-bold text-zinc-900 text-lg leading-tight mb-1">{prod.name}</h4>
+                                                <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{prod.brand}</p>
+                                            </div>
+                                            <button 
+                                                onClick={() => handleSave(prod)}
+                                                disabled={isSaved}
+                                                className={`w-8 h-8 rounded-full flex items-center justify-center border transition-all ${isSaved ? 'bg-rose-50 border-rose-100 text-rose-500' : 'bg-white border-zinc-200 text-zinc-400 hover:text-rose-500 hover:border-rose-200'}`}
+                                            >
+                                                <Heart size={16} fill={isSaved ? "currentColor" : "none"} />
+                                            </button>
                                         </div>
-                                        <div className="bg-zinc-50 px-2 py-1 rounded-lg border border-zinc-100 text-xs font-black text-zinc-900 whitespace-nowrap">
-                                            {prod.price}
-                                        </div>
-                                    </div>
-                                    
-                                    <p className="text-xs text-zinc-600 font-medium leading-relaxed mb-4 border-l-2 border-teal-100 pl-3">
-                                        {prod.reason}
-                                    </p>
-                                    
-                                    <div className="flex items-center justify-between">
+                                        
+                                        <p className="text-xs text-zinc-600 font-medium leading-relaxed mb-4 border-l-2 border-teal-100 pl-3">
+                                            {prod.reason}
+                                        </p>
+                                        
                                         <div className="flex items-center gap-2">
                                             <div className="bg-emerald-50 text-emerald-700 px-2 py-1 rounded-md text-[10px] font-bold border border-emerald-100 flex items-center gap-1">
                                                 <ShieldCheck size={10} /> {prod.rating}% Match
                                             </div>
-                                            {prod.tier && (
-                                                <div className="bg-indigo-50 text-indigo-700 px-2 py-1 rounded-md text-[10px] font-bold border border-indigo-100 uppercase">
-                                                    {prod.tier}
-                                                </div>
-                                            )}
+                                            <span className="text-xs font-bold text-zinc-900">{prod.price}</span>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
                 ) : (
