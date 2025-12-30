@@ -27,43 +27,50 @@ const CATEGORIES = [
     { label: 'Mask', icon: Star },
 ];
 
-const GOALS = [
-    { label: 'Clear Acne', icon: Zap },
-    { label: 'Repair Scars', icon: Eraser }, // Changed from Fade -> Repair (Targets Box/Icepick)
-    { label: 'Fix Texture', icon: Activity }, 
-    { label: 'Minimize Pores', icon: Scan },
-    { label: 'Remove Blackheads', icon: Target }, 
-    { label: 'Hydration Boost', icon: Droplet },
-    { label: 'Anti-Aging', icon: Star }, 
-    { label: 'Brightening', icon: Sun },
-    { label: 'Soothe Redness', icon: ShieldCheck },
-    { label: 'Oil Control', icon: Sliders },
-    { label: 'Barrier Repair', icon: Layers },
-];
-
 const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onBack, onUnlockPremium, usageCount, onIncrementUsage, onProductSelect, savedResults, onSaveResults, onGenerateBackground, onAddToWishlist }) => {
-    const defaultGoal = useMemo(() => {
+    
+    // Dynamic Goal Generation based on Biometrics
+    const displayGoals = useMemo(() => {
         const b = user.biometrics;
-        // Prioritize critical low scores
-        if (b.acneActive < 60) return 'Clear Acne';
-        if (b.redness < 60) return 'Soothe Redness';
-        
-        // Texture & Scarring Logic
-        if (b.acneScars < 65) return 'Repair Scars';
-        if (b.blackheads < 65) return 'Remove Blackheads';
-        if (b.texture < 65) return 'Fix Texture';
-        if (b.poreSize < 60) return 'Minimize Pores';
-        
-        // Health & Aging
-        if (b.hydration < 50) return 'Barrier Repair';
-        if (b.wrinkleFine < 70) return 'Anti-Aging';
-        if (b.pigmentation < 70) return 'Brightening';
-        if (b.oiliness < 60) return 'Oil Control';
-        
-        return 'Hydration Boost';
+        if (!b) return [{ label: 'Hydration Boost', score: 0, icon: Droplet }];
+
+        const candidates = [
+            { label: 'Clear Acne', score: b.acneActive, icon: Zap },
+            { label: 'Soothe Redness', score: b.redness, icon: ShieldCheck },
+            { label: 'Hydration Boost', score: b.hydration, icon: Droplet },
+            { label: 'Oil Control', score: b.oiliness, icon: Sliders },
+            { label: 'Fix Texture', score: b.texture, icon: Activity },
+            { label: 'Minimize Pores', score: b.poreSize, icon: Scan },
+            { label: 'Remove Blackheads', score: b.blackheads, icon: Target },
+            { label: 'Brightening', score: b.pigmentation, icon: Sun },
+            { label: 'Anti-Aging', score: (b.wrinkleFine + b.wrinkleDeep + b.sagging) / 3, icon: Star },
+            { label: 'Repair Scars', score: b.acneScars, icon: Eraser },
+        ];
+
+        // 1. Sort by Score Ascending (Lower score = Higher Priority)
+        candidates.sort((a, b) => a.score - b.score);
+
+        // 2. Filter critical issues (Score < 85)
+        let priorities = candidates.filter(c => c.score < 85);
+
+        // 3. Fallback: If skin is great, show maintenance goals (top 3 worst scores even if high)
+        if (priorities.length === 0) {
+            priorities = candidates.slice(0, 3);
+            // Add a specific maintenance goal if truly perfect
+            if (priorities[0].score > 90) {
+                return [
+                    { label: 'Maintain Glow', score: 95, icon: Sparkles },
+                    { label: 'Prevention', score: 95, icon: ShieldCheck },
+                    { label: 'Hydration Boost', score: 95, icon: Droplet }
+                ];
+            }
+        }
+
+        // 4. Limit to top 6
+        return priorities.slice(0, 6);
     }, [user.biometrics]);
 
-    const [selectedGoals, setSelectedGoals] = useState<string[]>([defaultGoal]);
+    const [selectedGoals, setSelectedGoals] = useState<string[]>([displayGoals[0].label]);
     const [selectedCategory, setSelectedCategory] = useState('Cleanser');
     const [maxPrice, setMaxPrice] = useState(100);
     const [allergies, setAllergies] = useState('');
@@ -119,7 +126,6 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
 
     const handleSave = (rec: RecommendedProduct) => {
         if (onAddToWishlist) {
-            // FIX: Parsing logic was stripping decimals (45.00 -> 4500). Now keeps dots.
             const rawPrice = rec.price.replace(/[^0-9.]/g, ''); 
             const price = parseFloat(rawPrice) || 0;
 
@@ -219,7 +225,7 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                     <div className="mb-6">
                         <div className="flex justify-between items-center mb-3 px-1">
                             <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
-                                <Target size={12} className="text-teal-500" /> Target Goals
+                                <Target size={12} className="text-teal-500" /> Priority Goals
                             </label>
                             {selectedGoals.length > 0 && (
                                 <span className="text-[9px] font-bold text-teal-600 bg-teal-50 px-2 py-0.5 rounded-full">
@@ -228,7 +234,7 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                             )}
                         </div>
                         <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar -mx-2 px-2 snap-x">
-                            {GOALS.map(g => {
+                            {displayGoals.map(g => {
                                 const isSelected = selectedGoals.includes(g.label);
                                 return (
                                     <button
@@ -243,6 +249,9 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                                 );
                             })}
                         </div>
+                        <p className="text-[9px] text-zinc-400 mt-2 px-1">
+                            * Prioritized based on your recent scan metrics.
+                        </p>
                     </div>
 
                     {/* Categories */}
