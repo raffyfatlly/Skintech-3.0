@@ -5,7 +5,7 @@ import {
   UserProfile, 
   Product, 
   SkinMetrics, 
-  SkinType,
+  SkinType, 
   UsageStats,
   RecommendedProduct
 } from './types';
@@ -33,6 +33,7 @@ import SmartNotification, { NotificationType } from './components/SmartNotificat
 import BetaOfferModal from './components/BetaOfferModal';
 import GuideOverlay from './components/GuideOverlay';
 import AdminDashboard from './components/AdminDashboard';
+import BackgroundTaskBar from './components/BackgroundTaskBar';
 
 import { ScanFace, LayoutGrid, User, Search, Home, Loader, ScanBarcode, Lock, Sparkles, Microscope, RefreshCw } from 'lucide-react';
 
@@ -54,6 +55,7 @@ const App: React.FC = () => {
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [pendingScan, setPendingScan] = useState<{metrics: SkinMetrics, image: string} | null>(null);
   const [activeGuide, setActiveGuide] = useState<'SCAN' | null>(null);
+  const [backgroundTask, setBackgroundTask] = useState<{ label: string } | null>(null);
   
   // Notification State
   const [notification, setNotification] = useState<{ type: NotificationType, title: string, description: string, actionLabel?: string, onAction?: () => void } | null>(null);
@@ -151,6 +153,7 @@ const App: React.FC = () => {
   ) => {
       if (!userProfile) return;
       const originatingView = viewRef.current;
+      setBackgroundTask({ label: type === 'SEARCH' ? 'Scanning Product...' : 'Analyzing Photo...' });
 
       try {
           const shelfIngredients = shelf.flatMap(p => p.ingredients).slice(0, 50);
@@ -208,6 +211,8 @@ const App: React.FC = () => {
           if (viewRef.current === AppView.PRODUCT_SCANNER || viewRef.current === AppView.PRODUCT_SEARCH) {
               setCurrentView(AppView.SMART_SHELF);
           }
+      } finally {
+          setBackgroundTask(null);
       }
   };
 
@@ -224,6 +229,7 @@ const App: React.FC = () => {
       }
 
       const originatingView = viewRef.current;
+      setBackgroundTask({ label: `Building ${category} Routine...` });
 
       try {
           const data = await generateTargetedRecommendations(userProfile, category, maxPrice, allergies, goals);
@@ -254,6 +260,8 @@ const App: React.FC = () => {
           if (viewRef.current === AppView.ROUTINE_BUILDER) {
                setRoutineResults([]);
           }
+      } finally {
+          setBackgroundTask(null);
       }
   };
 
@@ -592,6 +600,7 @@ const App: React.FC = () => {
       )}
       {renderView()}
       {renderNavBar()}
+      {backgroundTask && <BackgroundTaskBar label={backgroundTask.label} />}
       {userProfile && <AIAssistant user={userProfile} shelf={shelf} isOpen={showAIAssistant} onOpen={() => setShowAIAssistant(true)} onClose={() => setShowAIAssistant(false)} triggerQuery={aiQuery} onUnlockPremium={handleUnlockPremium} />}
       {showSaveModal && <SaveProfileModal onSave={() => {}} onClose={() => setShowSaveModal(false)} onMockLogin={handleMockLogin} mode={saveModalTrigger === 'GENERIC' ? 'LOGIN' : 'SAVE'} trigger={saveModalTrigger} />}
       {showPremiumModal && <BetaOfferModal onClose={() => setShowPremiumModal(false)} onConfirm={() => startCheckout()} onCodeSuccess={handleCodeUnlock} />}

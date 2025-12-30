@@ -110,8 +110,16 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
     const [loading, setLoading] = useState(true);
     const [adminUser, setAdminUser] = useState<User | null>(auth?.currentUser || null);
     
-    // Time Range State
-    const [timeRange, setTimeRange] = useState<'24h' | '7d' | '30d' | 'all'>('7d');
+    // Time Range State with Persistence
+    const [timeRange, setTimeRange] = useState<'24h' | '7d' | '30d' | 'all'>(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('skinos_admin_time_range');
+            if (saved === '24h' || saved === '7d' || saved === '30d' || saved === 'all') {
+                return saved;
+            }
+        }
+        return '7d';
+    });
 
     const refreshData = async () => {
         try {
@@ -127,6 +135,11 @@ const AdminDashboard: React.FC<AdminDashboardProps> = ({ onExit }) => {
             console.error("Dashboard Sync Error", e);
         }
     };
+
+    // Save preference when timeRange changes
+    useEffect(() => {
+        localStorage.setItem('skinos_admin_time_range', timeRange);
+    }, [timeRange]);
 
     // AUTH LISTENER: Updates UID automatically when user logs in
     useEffect(() => {
