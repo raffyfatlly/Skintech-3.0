@@ -16,14 +16,13 @@ const getAi = (): GenAI.GoogleGenAI => {
 };
 
 // --- FEATURE-SPECIFIC MODEL CONFIGURATION ---
-// Vision remains on Flash for speed in Step 1 (OCR/Recognition)
 const MODEL_FACE_SCAN = 'gemini-3-flash-preview';
 const MODEL_VISION = 'gemini-3-flash-preview';
 
-// UPGRADE: Use Pro for Deep Analysis & Tool Use (Search/Reasoning)
-// Flash sometimes fails tool calls or schema validation on complex queries.
-const MODEL_PRODUCT_SEARCH = 'gemini-3-pro-preview'; 
-const MODEL_ROUTINE = 'gemini-3-pro-preview';
+// REVERTED: Use Flash for speed and cost. 
+// Optimization: We relaxed the schema requirements below to prevent failures.
+const MODEL_PRODUCT_SEARCH = 'gemini-3-flash-preview'; 
+const MODEL_ROUTINE = 'gemini-3-flash-preview';
 
 // Helpers
 const parseJSONFromText = (text: string): any => {
@@ -174,7 +173,7 @@ export const searchProducts = async (query: string): Promise<{ name: string, bra
         `;
         
         const response = await ai.models.generateContent({
-            model: MODEL_PRODUCT_SEARCH, // Now Pro
+            model: MODEL_PRODUCT_SEARCH, 
             contents: prompt,
             config: { responseMimeType: 'application/json' }
         });
@@ -192,7 +191,7 @@ export const compareFaceIdentity = async (newImage: string, referenceImage: stri
         `;
         
         const response = await ai.models.generateContent({
-            model: MODEL_VISION, // Flash is fine for visual comparison
+            model: MODEL_VISION,
             contents: {
                 parts: [
                     { inlineData: { mimeType: 'image/jpeg', data: referenceImage.split(',')[1] } },
@@ -276,7 +275,7 @@ export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, 
     return { ...localMetrics, ...data, observations, timestamp: Date.now() };
 };
 
-// ** UPDATED: Uses runWithTimeout + Pro Model + Relaxed Schema **
+// ** UPDATED: Uses Flash Model + Relaxed Schema + Robust Prompt **
 export const analyzeProductFromSearch = async (productName: string, userMetrics: SkinMetrics, _unusedScore?: number, knownBrand?: string, routineActives: string[] = []): Promise<Product> => {
     const tempUser: UserProfile = { 
         name: "User", age: 25, skinType: "UNKNOWN" as any, hasScannedFace: true, biometrics: userMetrics 
@@ -292,8 +291,9 @@ export const analyzeProductFromSearch = async (productName: string, userMetrics:
         ROUTINE ACTIVES: [${routineActives.join(', ')}].
 
         TASK: 
-        1. Use Google Search to find the EXACT full ingredients list and price in MYR.
-        2. Analyze using these RULES: ${scoringRules}
+        1. **INGREDIENTS**: Use Google Search to find the EXACT full ingredients list.
+        2. **REVIEW SUMMARY**: Search for reviews on reliable sites (Paula's Choice, Incidecoder, Reddit SkincareAddiction, or top beauty blogs). Summarize the consensus in the 'expertReview' field. If no formal expert review exists, summarize general user sentiment.
+        3. **ANALYSIS**: Analyze using these RULES: ${scoringRules}
         
         CRITICAL: 
         - If ingredients cannot be found, return empty array [].
@@ -304,7 +304,7 @@ export const analyzeProductFromSearch = async (productName: string, userMetrics:
         `;
 
         const response = await ai.models.generateContent({
-            model: MODEL_PRODUCT_SEARCH, // Pro Model
+            model: MODEL_PRODUCT_SEARCH, // Flash
             contents: prompt,
             config: { 
                 tools: [{ googleSearch: {} }],
@@ -344,7 +344,7 @@ export const analyzeProductFromSearch = async (productName: string, userMetrics:
                         usageTips: { type: Type.STRING },
                         expertReview: { type: Type.STRING }
                     },
-                    // RELAXED REQUIREMENTS: Removed expertReview/usageTips to prevent failure if not found
+                    // RELAXED REQUIREMENTS: expertReview is OPTIONAL to prevent schema failure
                     required: ["name", "brand", "type", "ingredients", "suitabilityScore", "risks", "benefits"]
                 }
             }
@@ -370,12 +370,12 @@ export const analyzeProductFromSearch = async (productName: string, userMetrics:
             dateScanned: Date.now(),
             sources: sources,
             usageTips: data.usageTips,
-            expertReview: data.expertReview
+            expertReview: data.expertReview // Can be undefined now, handled by UI
         };
     }, 240000); // 4 Minutes
 };
 
-// ** UPDATED: Uses runWithTimeout + Pro Model + Relaxed Schema **
+// ** UPDATED: Uses Flash Model + Relaxed Schema + Robust Prompt **
 export const analyzeProductImage = async (base64: string, userMetrics: SkinMetrics, routineActives: string[] = []): Promise<Product> => {
     return runWithTimeout<Product>(async (ai) => {
         // Step 1: Vision to get Text (Flash is usually sufficient and faster)
@@ -393,7 +393,7 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
         const visionData = parseJSONFromText(visionResponse.text || "{}");
         if (!visionData.name || visionData.name === "Unknown") throw new Error("Could not identify product.");
 
-        // Step 2: Search & Deep Analysis (Use PRO model for tools/reasoning)
+        // Step 2: Search & Deep Analysis
         const tempUser: UserProfile = { name: "User", age: 25, skinType: "UNKNOWN" as any, hasScannedFace: true, biometrics: userMetrics };
         const scoringRules = getStrictScoringRules(tempUser);
 
@@ -405,14 +405,15 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
         ROUTINE ACTIVES: [${routineActives.join(', ')}].
 
         TASK: 
-        1. Search for the product's full ingredient list and reviews.
-        2. Analyze for risks/benefits using these RULES: ${scoringRules}
+        1. **INGREDIENTS**: Search for the product's full ingredient list.
+        2. **REVIEW SUMMARY**: Search for reviews on reliable sites or blogs. Summarize the consensus in the 'expertReview' field. If no formal expert review exists, summarize general user sentiment.
+        3. **ANALYSIS**: Analyze for risks/benefits using these RULES: ${scoringRules}
         
         OUTPUT: Strict JSON Schema.
         `;
 
         const finalResponse = await ai.models.generateContent({
-            model: MODEL_PRODUCT_SEARCH, // Pro Model
+            model: MODEL_PRODUCT_SEARCH, // Flash
             contents: refinementPrompt,
             config: { 
                 tools: [{ googleSearch: {} }],
@@ -452,7 +453,7 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
                         usageTips: { type: Type.STRING },
                         expertReview: { type: Type.STRING }
                     },
-                    // RELAXED REQUIREMENTS
+                    // RELAXED REQUIREMENTS: expertReview is OPTIONAL
                     required: ["name", "brand", "type", "ingredients", "suitabilityScore", "risks", "benefits"]
                 }
             }
@@ -633,7 +634,7 @@ export const generateRoutineRecommendations = async (user: UserProfile): Promise
     }, null, 60000);
 }
 
-// ** UPDATED: Uses runWithTimeout + Pro Model **
+// ** UPDATED: Uses Flash Model **
 export const generateTargetedRecommendations = async (user: UserProfile, category: string, maxPrice: number, allergies: string, goals: string[]): Promise<any> => {
     // We don't use getStrictScoringRules here directly in the prompt text as we want a cleaner "Search Intent" context first.
     
@@ -702,7 +703,7 @@ export const generateTargetedRecommendations = async (user: UserProfile, categor
         `;
         
         const response = await ai.models.generateContent({
-            model: MODEL_ROUTINE, // Pro Model
+            model: MODEL_ROUTINE, // Flash
             contents: prompt,
             config: { 
                 tools: [{ googleSearch: {} }], 
