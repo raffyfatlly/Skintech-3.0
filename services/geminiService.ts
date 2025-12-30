@@ -604,58 +604,59 @@ export const generateTargetedRecommendations = async (user: UserProfile, categor
     return runWithTimeout<any>(async (ai) => {
         // --- SMART CONTEXT GENERATION ---
         const m = user.biometrics;
-        const conditions = [];
         
-        // 1. Acne & Comedogenicity
-        // If Acne is active (Low Score) OR Oiliness is high (Low Score), block pore cloggers.
+        // 1. Define Safety Constraints (MUST AVOID) based on Biometrics
+        const safetyConstraints = [];
         if (m.acneActive < 75 || m.oiliness < 70) {
-            conditions.push("User has congestion/acne-prone skin. MUST AVOID pore-clogging ingredients (e.g. Cocoa Butter, Coconut Oil, Isopropyl Myristate, high Oleic Acid oils). Prefer non-comedogenic.");
+            safetyConstraints.push("ACNE/OILY: STRICTLY AVOID pore-clogging ingredients (e.g., Cocoa Butter, Coconut Oil, Isopropyl Myristate, high Oleic oils). Must be Non-Comedogenic.");
         }
-
-        // 2. Sensitivity & Barrier
-        // If Redness is high (Low Score), block irritants.
         if (m.redness < 75) {
-            conditions.push("User has sensitive/reactive skin. MUST AVOID drying alcohols (Alcohol Denat), strong essential oils, and synthetic fragrance. Prefer soothing ingredients (Centella, Allantoin, Panthenol).");
+            safetyConstraints.push("SENSITIVE: STRICTLY AVOID drying alcohols (Alcohol Denat), strong essential oils, and high fragrance loads.");
         }
 
-        // 3. Scarring Nuance (User Request)
-        // If Scarring is significant (Low Score), clarify type.
-        // NOTE: Score < 65 indicates heavier scarring.
-        if (m.acneScars < 65) {
-            conditions.push("User has SIGNIFICANT scarring (likely pitted/atrophic). Note: Prioritize texturizing/collagen-boosting agents (Retinoids, Peptides, Azelaic Acid) for texture repair, rather than just simple brighteners.");
-        } else if (m.acneScars < 85) {
-            conditions.push("User has mild post-acne marks (PIH). Prioritize brightening agents (Niacinamide, Vitamin C, Alpha Arbutin).");
-        }
+        // 2. Define "Bonus" Targets (Secondary Ranking Factors)
+        // These are low scores that are NOT the primary goal, but good if the product helps them too.
+        const secondaryConcerns = [];
+        if (m.hydration < 60 && !goals.some(g => g.toLowerCase().includes('hydra'))) secondaryConcerns.push('Dehydration');
+        if (m.pigmentation < 70 && !goals.some(g => g.toLowerCase().includes('bright'))) secondaryConcerns.push('Pigmentation');
+        if (m.acneScars < 70 && !goals.some(g => g.toLowerCase().includes('scar'))) secondaryConcerns.push('Texture/Scarring');
+        if (m.wrinkleFine < 70 && !goals.some(g => g.toLowerCase().includes('aging'))) secondaryConcerns.push('Fine Lines');
 
-        // 4. Hydration
-        if (m.hydration < 60) {
-            conditions.push("User has dehydrated skin. Ensure formula provides deep hydration (HA, Glycerin, Ceramides).");
+        // 3. Nuance Context for Specific Goals (Clarification)
+        const nuanceContext = [];
+        if (goals.some(g => g.toLowerCase().includes('scar'))) {
+            if (m.acneScars < 65) {
+                nuanceContext.push("SCAR CONTEXT: User has pitted/atrophic scarring. Prioritize collagen-building actives (Peptides, Retinoids, Growth Factors) over simple brighteners.");
+            } else {
+                nuanceContext.push("SCAR CONTEXT: User has PIH (Dark Spots). Prioritize Tyrosinase Inhibitors (Vit C, Azelaic Acid, Niacinamide).");
+            }
         }
-
-        // 5. Texture
-        if (m.texture < 70 && m.redness > 70) { 
-            // Only suggest exfoliation if NOT sensitive
-            conditions.push("User has textured skin. Look for gentle resurfacing agents (AHAs/BHAs) if appropriate for product type.");
-        }
-
-        const contextStr = conditions.length > 0 
-            ? `\nCRITICAL SKIN CONTEXT:\n- ${conditions.join('\n- ')}\n`
-            : "";
 
         const prompt = `
-        Find 3 ${category} products in Malaysia for ${user.skinType} skin.
+        TASK: Recommend 3 ${category} products available in Malaysia/Global.
         
-        USER GOALS: ${goals.join(', ')}. 
-        USER ALLERGIES/AVOID: ${allergies}.
-        MAX PRICE: RM ${maxPrice}.
-        ${contextStr}
+        1. PRIMARY FILTER (USER DEMAND): ${goals.join(', ')}.
+           - The product MUST explicitly target this goal.
+        
+        2. SAFETY FIREWALL (STRICT EXCLUSION):
+           - Skin Type: ${user.skinType}
+           - Allergies to avoid: ${allergies || "None"}
+           - ${safetyConstraints.join('\n   - ')}
+        
+        3. NUANCE & CLARIFICATION:
+           - ${nuanceContext.join('\n   - ')}
+
+        4. SECONDARY RANKING (BONUS POINTS):
+           - Rank higher if product ALSO helps with: ${secondaryConcerns.join(', ')}.
         
         INSTRUCTIONS:
-        1. Recommend products that meet the User Goals but ARE SAFE given the Critical Skin Context.
-        2. If constraints conflict with goals (e.g. "Exfoliate" but "Sensitive"), prioritize safety (Barrier Support).
-        3. For "Repair Scars", check the Context to distinguish between pitted scars (needs collagen) vs dark marks (needs brighteners).
+        - Step 1: Find products that meet the PRIMARY FILTER.
+        - Step 2: Discard any that violate SAFETY FIREWALL (e.g. if User has Acne, discard Coconut Oil products even if they are good for Hydration).
+        - Step 3: Sort remaining products by how well they address SECONDARY RANKING.
         
         Output JSON: [{ "name": "string", "brand": "string", "price": "string", "reason": "string", "rating": number, "tier": "BEST MATCH" }]
+        
+        "reason" should explain WHY it fits the Primary Goal AND matches the Safety Constraints.
         `;
         
         const response = await ai.models.generateContent({
