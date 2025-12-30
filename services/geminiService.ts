@@ -87,31 +87,33 @@ const runWithRetry = async <T>(fn: (ai: GoogleGenAI) => Promise<T>, fallback: T,
 const getStrictScoringRules = (user: UserProfile): string => {
     const m = user.biometrics;
     
+    // Identify USER DEFICITS (Low scores = Bad condition)
     const deficits = [];
-    if (m.acneActive < 75) deficits.push('ACNE/CONGESTION');
-    if (m.pigmentation < 75) deficits.push('HYPERPIGMENTATION');
-    if (m.wrinkleFine < 75 || m.wrinkleDeep < 75) deficits.push('AGING/WRINKLES');
-    if (m.hydration < 60) deficits.push('DEHYDRATION');
-    if (m.redness < 70) deficits.push('SENSITIVITY/REDNESS');
-    if (m.oiliness < 60) deficits.push('EXCESS_OIL');
+    if (m.acneActive < 75) deficits.push('ACNE/CONGESTION (User has active breakouts)');
+    if (m.pigmentation < 75) deficits.push('HYPERPIGMENTATION (User has dark spots)');
+    if (m.wrinkleFine < 75 || m.wrinkleDeep < 75) deficits.push('AGING/WRINKLES (User has signs of aging)');
+    if (m.hydration < 60) deficits.push('DEHYDRATION (User skin is dry/dehydrated)');
+    if (m.redness < 70) deficits.push('SENSITIVITY (User is prone to redness/irritation)');
+    if (m.oiliness < 60) deficits.push('EXCESS OIL (User has uncontrolled oil production)');
 
     const userProfileString = deficits.length > 0 
-        ? `USER PRIORITIES: ${deficits.join(', ')}`
-        : "USER STATUS: Healthy/Maintenance Mode.";
+        ? `USER PRIORITIES (Conditions needing treatment): ${deficits.join(', ')}`
+        : "USER STATUS: Healthy/Maintenance Mode. Focus on barrier support.";
 
     let rules = [
         `CONTEXT: ${userProfileString}`,
         "CLIMATE: Malaysia (Hot & Humid).",
         "SCORING SYSTEM (0-100):",
-        " - BASE: Start at 50.",
-        " - RANGE: Use the FULL range (0-100). Do not bunch scores around 60.",
-        " - PERSONALIZATION: Scores MUST be relative to USER PRIORITIES.",
-        "   - Product good for acne but bad for aging? If user has Acne, score High. If user has Aging, score Low.",
+        "1. PERSONALIZATION IS MANDATORY. Do not score generically.",
+        "2. HIGH SCORE (85-100): Product contains active ingredients that DIRECTLY treat the User's Priorities listed above. (e.g. Salicylic for Acne user).",
+        "3. LOW SCORE (0-40): Product contains ingredients that conflict with User's Priorities (e.g. Alcohol for Sensitive user, Pore cloggers for Acne user).",
+        "4. NEUTRAL (50-75): Product is safe but does not target specific deficits.",
+        "",
+        "RISK ASSESSMENT:",
+        "- CRITICAL RISK (High Level): Only assign 'HIGH' risk if the ingredient harms a SPECIFIC user condition identified above.",
+        "- REFERENCE RISK (Low/Medium Level): General 'clean beauty' concerns (e.g. Fragrance, Essential Oils) are LOW RISK unless the user has SENSITIVITY/REDNESS.",
+        "  - Example: Fragrance is fine for a non-sensitive user (Score stays high). Fragrance is CRITICAL for a sensitive user (Score drops).",
     ];
-
-    rules.push("1. REWARDS: +20 for ingredients that DIRECTLY address a User Priority (e.g. Salicylic for Acne). +10 for Barrier Support.");
-    rules.push("2. CRITICAL PENALTIES (-40): ONLY if ingredient conflicts with a specific User Priority (e.g. Alcohol if user has SENSITIVITY).");
-    rules.push("3. GENERAL RISKS: Treat as 'Reference'. Do NOT penalize score significantly unless it affects the specific user.");
     
     return rules.join('\n');
 };
@@ -516,9 +518,44 @@ export const getClinicalTreatmentSuggestions = (user: UserProfile) => {
 };
 
 export const createDermatologistSession = (user: UserProfile, shelf: Product[]): Chat => {
+    // 1. Get User Data
+    const biometrics = user.biometrics;
+    
+    // 2. Construct Data Strings
+    const userContext = JSON.stringify(biometrics);
+    const shelfContext = shelf.map(p => `${p.brand || ''} ${p.name}`).join(', ');
+
+    // 3. Define Metric Legend (Crucial for AI understanding)
+    const legend = `
+    CRITICAL SCORING GUIDE (0-100 Scale):
+    - HIGH SCORE (80-100) = GOOD / HEALTHY / CONTROLLED.
+    - LOW SCORE (0-50) = BAD / CONCERN / UNCONTROLLED.
+    
+    EXAMPLES:
+    - Oiliness: 90 = Balanced/Good. 20 = Very Oily/Bad (Uncontrolled).
+    - Acne: 90 = Clear Skin. 20 = Active Breakouts.
+    - Hydration: 90 = Well Hydrated. 20 = Dehydrated.
+    - Sensitivity/Redness: 90 = Calm/Resilient. 20 = Inflamed/Sensitive.
+    
+    IMPORTANT: Do NOT misinterpret low 'Oiliness' or 'Acne' scores. A low score means the CONDITION is bad (i.e. very oily or very acne-prone). A high score means the condition is good (balanced oil, clear skin).
+    `;
+
     return getAi().chats.create({
         model: MODEL_FAST,
-        config: { systemInstruction: `You are SkinOS. User: ${JSON.stringify(user.biometrics)}. Shelf: ${shelf.map(p=>p.name).join(', ')}.` }
+        config: { 
+            systemInstruction: `You are SkinOS, an expert dermatological AI assistant.
+            
+            USER PROFILE:
+            ${userContext}
+            
+            USER SHELF:
+            ${shelfContext}
+            
+            ${legend}
+            
+            Your goal is to provide specific, science-backed advice based on the user's specific biometric scores and product routine.
+            ` 
+        }
     });
 };
 
