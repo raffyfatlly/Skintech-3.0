@@ -85,6 +85,7 @@ interface ProfileSetupProps {
   onBack: () => void;
   onReset: () => void;
   onLoginRequired: (trigger: string) => void;
+  installPrompt?: any; // New Prop from Parent
 }
 
 // --- SUB-COMPONENT: MONTH GROUP (Expandable) ---
@@ -537,7 +538,7 @@ const IOSInstallCard: React.FC = () => {
     );
 };
 
-const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplete, onBack, onReset, onLoginRequired }) => {
+const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplete, onBack, onReset, onLoginRequired, installPrompt }) => {
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
   const [selectedScan, setSelectedScan] = useState<SkinMetrics | null>(null);
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
@@ -553,11 +554,15 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [scanToDelete, setScanToDelete] = useState<SkinMetrics | null>(null);
   
-  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  // Track if user has dismissed/installed locally to hide the button instantly
+  const [installDismissed, setInstallDismissed] = useState(false);
   
-  // Detect iOS
+  // Detect iOS - Enhanced Detection
   const isIOS = useMemo(() => {
-      return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+      // Modern iPadOS often pretends to be MacIntel
+      // But MacIntel with touch points usually means iPad
+      return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+             (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   }, []);
   
   // Detect Standalone (already installed)
@@ -565,21 +570,13 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
       return window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
   }, []);
 
-  useEffect(() => {
-    const handler = (e: any) => {
-      e.preventDefault();
-      setInstallPrompt(e);
-    };
-    window.addEventListener('beforeinstallprompt', handler);
-    return () => window.removeEventListener('beforeinstallprompt', handler);
-  }, []);
-
   const handleInstallApp = async () => {
       if (!installPrompt) return;
       installPrompt.prompt();
       const { outcome } = await installPrompt.userChoice;
       if (outcome === 'accepted') {
-          setInstallPrompt(null);
+          // Hide button if user accepts
+          setInstallDismissed(true);
       }
   };
   
@@ -936,8 +933,8 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
       <div className="space-y-6 px-6 pt-8">
           
           {/* DOWNLOAD APP PROMPT (PWA) - MOVED TO TOP */}
-          {/* 1. Android/Chrome (Native Event) */}
-          {installPrompt && !isStandalone && (
+          {/* 1. Android/Chrome (Native Event - Passed from App.tsx) */}
+          {installPrompt && !isStandalone && !installDismissed && (
               <section className="mb-4">
                   <button
                       onClick={handleInstallApp}

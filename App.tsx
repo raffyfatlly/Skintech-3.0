@@ -56,6 +56,7 @@ const App: React.FC = () => {
   const [pendingScan, setPendingScan] = useState<{metrics: SkinMetrics, image: string} | null>(null);
   const [activeGuide, setActiveGuide] = useState<'SCAN' | null>(null);
   const [backgroundTask, setBackgroundTask] = useState<{ label: string } | null>(null);
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
   
   // Notification State
   const [notification, setNotification] = useState<{ type: NotificationType, title: string, description: string, actionLabel?: string, onAction?: () => void } | null>(null);
@@ -66,6 +67,16 @@ const App: React.FC = () => {
   const [routineResults, setRoutineResults] = useState<RecommendedProduct[]>([]);
 
   useEffect(() => { viewRef.current = currentView; }, [currentView]);
+
+  // Capture PWA Install Prompt Global Listener
+  useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
 
   useEffect(() => {
       let interval: ReturnType<typeof setInterval>;
@@ -533,7 +544,7 @@ const App: React.FC = () => {
           case AppView.BUYING_ASSISTANT:
               return userProfile && analyzedProduct ? <BuyingAssistant product={analyzedProduct} user={userProfile} shelf={shelf} onAddToShelf={handleAddToShelf} onDiscard={handleDiscardProduct} onUnlockPremium={handleUnlockPremium} usageCount={userProfile.usage?.buyingAssistantViews || 0} onIncrementUsage={() => incrementUsage('buyingAssistantViews')} /> : null;
           case AppView.PROFILE_SETUP:
-              return userProfile ? <ProfileSetup user={userProfile} shelf={shelf} onComplete={handleProfileUpdate} onBack={() => setCurrentView(AppView.DASHBOARD)} onReset={handleResetApp} onLoginRequired={(trigger) => openAuth(trigger as AuthTrigger)} /> : null;
+              return userProfile ? <ProfileSetup user={userProfile} shelf={shelf} onComplete={handleProfileUpdate} onBack={() => setCurrentView(AppView.DASHBOARD)} onReset={handleResetApp} onLoginRequired={(trigger) => openAuth(trigger as AuthTrigger)} installPrompt={installPrompt} /> : null;
           case AppView.ROUTINE_BUILDER:
               return userProfile ? (
                   <PremiumRoutineBuilder 
