@@ -344,10 +344,12 @@ export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, 
     
     INPUT CV METRICS (Reference): ${JSON.stringify(localMetrics)}
     
-    SCORING SCALE (CRITICAL):
-    - 100 = PERFECT / CLEAR / HEALTHY (Good)
-    - 0 = SEVERE / INFLAMED / DAMAGED (Bad)
-    - Example: 'acneActive': 90 means NO ACNE. 'acneActive': 20 means SEVERE ACNE.
+    CRITICAL GRADING RUBRIC (Adjust scores based on visual severity):
+    - 90-100 (PRISTINE): No visible issues. Glass skin.
+    - 75-89 (GOOD): Minor/Occasional issues (e.g., 1-3 small spots, slight texture).
+    - 60-74 (FAIR): Common/Regular issues (e.g., visible acne but not cystic, moderate redness). **MOST "REGULAR" ACNE FALLS HERE.**
+    - 40-59 (POOR): Significant/Inflamed (e.g., many active breakouts, distinct redness).
+    - 0-39 (SEVERE): Critical condition (e.g., Cystic acne covering large areas, extreme damage). **RESERVE THESE SCORES FOR WORST CASES ONLY.**
     
     OUTPUT JSON (Strict):
     {
