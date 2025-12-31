@@ -69,6 +69,11 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
     return getBuyingDecision(product, shelf, user);
   }, [product, shelf, user]);
 
+  const comparableProducts = useMemo(() => {
+      // Show all products on shelf for comprehensive comparison
+      return shelf.filter(p => p.id !== product.id);
+  }, [shelf, product.id]);
+
   const { verdict, audit, shelfConflicts, comparison } = decisionData;
 
   // --- SIMPLIFIED VERDICT LOGIC ---
@@ -238,13 +243,41 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
                     <span className={`text-lg font-black ${theme.accent}`}>{Math.min(99, product.suitabilityScore)}%</span>
                 </div>
                 
-                {/* Score Bar */}
-                <div className="h-2 w-full bg-zinc-100 rounded-full mt-2 overflow-hidden">
-                    <div 
-                        className={`h-full rounded-full transition-all duration-1000 ${simpleVerdict.type === 'GREAT' ? 'bg-emerald-500' : simpleVerdict.type === 'AVOID' ? 'bg-rose-500' : 'bg-amber-500'}`} 
-                        style={{ width: `${Math.min(99, product.suitabilityScore)}%` }}
-                    />
+                {/* Score Bar with Comparisons */}
+                <div className="relative mt-2 mb-2">
+                    <div className="h-2 w-full bg-zinc-100 rounded-full overflow-hidden">
+                        <div 
+                            className={`h-full rounded-full transition-all duration-1000 ${simpleVerdict.type === 'GREAT' ? 'bg-emerald-500' : simpleVerdict.type === 'AVOID' ? 'bg-rose-500' : 'bg-amber-500'}`} 
+                            style={{ width: `${Math.min(99, product.suitabilityScore)}%` }}
+                        />
+                    </div>
+
+                    {/* Shelf Markers - Updated Style (White/Clean) */}
+                    {comparableProducts.map(p => (
+                        <div 
+                            key={p.id}
+                            className="absolute top-1/2 -translate-y-1/2 w-1.5 h-4 bg-white rounded-full border border-zinc-300 shadow-sm z-10 cursor-help group/marker hover:scale-125 transition-transform hover:z-30 hover:border-teal-500"
+                            style={{ left: `${Math.min(99, p.suitabilityScore)}%` }}
+                        >
+                             <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-white text-zinc-600 text-[9px] font-bold px-3 py-2 rounded-xl shadow-xl border border-zinc-100 whitespace-nowrap opacity-0 group-hover/marker:opacity-100 transition-all pointer-events-none z-20 flex flex-col items-center min-w-[80px]">
+                                <span className="text-teal-700 uppercase tracking-widest text-[8px] mb-0.5">{p.type}</span>
+                                <span className="text-zinc-900 text-[10px]">{p.brand || p.name.substring(0, 10)}</span>
+                                <span className="text-zinc-400 font-medium mt-0.5">Match: {p.suitabilityScore}%</span>
+                                {/* Pointer Arrow */}
+                                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-white border-b border-r border-zinc-100 rotate-45"></div>
+                             </div>
+                        </div>
+                    ))}
                 </div>
+
+                {comparableProducts.length > 0 && (
+                    <div className="flex justify-end mt-1">
+                        <p className="text-[9px] font-bold text-zinc-400 flex items-center gap-1.5">
+                            <span className="w-1.5 h-3 bg-white rounded-full border border-zinc-300 inline-block"></span>
+                            vs {comparableProducts.length} items in your routine
+                        </p>
+                    </div>
+                )}
             </div>
 
             {/* EXPAND ACTION */}
