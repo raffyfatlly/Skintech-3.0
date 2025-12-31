@@ -30,14 +30,14 @@ const LandingPage: React.FC<LandingPageProps> = ({ onGetStarted, onLogin }) => {
                {/* No filters - showing original image brightness */}
           </div>
 
-          {/* Nav (Absolute Top) */}
-          <div className="absolute top-0 left-0 right-0 p-6 pt-8 flex justify-between items-center z-50 animate-in slide-in-from-top-4 duration-1000">
+          {/* Nav (Absolute Top) - UPDATED FOR IOS NOTCH */}
+          <div className="absolute top-0 left-0 right-0 px-6 pt-safe-top pb-4 flex justify-between items-center z-50 animate-in slide-in-from-top-4 duration-1000">
             <div className="flex items-center gap-2">
                 <span className="font-bold text-2xl tracking-tight text-white drop-shadow-lg shadow-black/50">SkinOS</span>
             </div>
             <button 
                 onClick={onLogin} 
-                className="text-xs font-bold bg-white/10 backdrop-blur-md text-white px-6 py-2.5 rounded-full hover:bg-white/20 transition-all active:scale-95 border border-white/20 shadow-lg"
+                className="text-xs font-bold bg-white/10 backdrop-blur-md text-white px-6 py-2.5 rounded-full hover:bg-white/20 transition-all active:scale-95 border border-white/20 shadow-lg cursor-pointer"
             >
                 Log In
             </button>

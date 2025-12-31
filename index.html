@@ -9,6 +9,8 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="SkinOS">
     <link rel="manifest" href="/manifest.json" />
+    <!-- IOS ICON FIX: Explicit PNG for Apple Home Screen -->
+    <link rel="apple-touch-icon" href="https://placehold.co/192x192/0d9488/ffffff.png?text=OS" />
     <title>SkinOS</title>
     <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="12" fill="%230d9488"/><path d="M16 6L18.5 13.5L26 16L18.5 18.5L16 26L13.5 18.5L6 16L13.5 13.5Z" fill="white"/></svg>' />
     <script src="https://cdn.tailwindcss.com"></script>
@@ -67,6 +69,8 @@
       .no-scrollbar::-webkit-scrollbar { display: none; }
       .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
+      /* IOS NOTCH FIX: Adds padding equal to the safe area (notch) plus 20px */
+      .pt-safe-top { padding-top: max(env(safe-area-inset-top), 20px); }
       
       .scan-line {
         position: absolute;
