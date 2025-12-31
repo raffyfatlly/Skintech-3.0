@@ -91,7 +91,7 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
   const dynamicDescription = useMemo(() => {
       const decision = simpleVerdict.type;
       
-      const typeLabel = product.type === 'UNKNOWN' ? 'formulation' : 
+      const typeLabel = product.type === 'UNKNOWN' ? 'product' : 
                         product.type.charAt(0).toUpperCase() + product.type.slice(1).toLowerCase();
 
       // Helper to get nice labels for targets based on benefits
@@ -121,32 +121,64 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
       // 1. GOOD MATCH
       if (decision === 'GREAT') {
           if (targets) {
-              return `This **${typeLabel}** is highly compatible. Scientifically matched to improve your **${targets}** metrics while maintaining barrier integrity.`;
+              return `Great choice. This **${typeLabel}** targets your **${targets}** goals while keeping your skin barrier safe.`;
           }
-          return `Excellent compatibility. This **${typeLabel}** aligns perfectly with your biometric profile and supports healthy barrier function.`;
+          return `Excellent match. This **${typeLabel}** is safe and aligns perfectly with your skin profile.`;
       }
 
       // 2. CONSIDER
       if (decision === 'CONSIDER') {
-          const risk = product.risks[0];
+          // Only show caution if risk is relevant to a low biometric score
+          const getRelevantRisk = () => {
+              if (!product.risks || product.risks.length === 0) return null;
+              const b = user.biometrics;
+              
+              // Find a risk that matches a vulnerability (score < 60)
+              return product.risks.find(r => {
+                  const content = (r.ingredient + ' ' + r.reason).toLowerCase();
+                  
+                  // Sensitivity/Redness
+                  if (b.redness < 60 && (content.includes('irritat') || content.includes('sensit') || content.includes('alcohol') || content.includes('fragrance') || content.includes('acid') || content.includes('exfolia'))) return true;
+                  
+                  // Dryness/Hydration
+                  if (b.hydration < 60 && (content.includes('dry') || content.includes('strip') || content.includes('alcohol') || content.includes('sulfate'))) return true;
+                  
+                  // Acne/Oily/Pores
+                  if ((b.acneActive < 60 || b.oiliness < 60 || b.poreSize < 60) && (content.includes('clog') || content.includes('comedogen') || content.includes('oil') || content.includes('butter') || content.includes('coconut'))) return true;
+
+                  return false;
+              });
+          };
+
+          const risk = getRelevantRisk();
+
           if (risk) {
-              const reason = risk.reason.replace(/\.$/, ''); 
-              return `Proceed with caution. While generally safe, **${risk.ingredient}** is flagged for potential **${reason.toLowerCase()}**.`;
+              let reason = risk.reason.trim();
+              
+              // Simplify language
+              reason = reason.replace(/is flagged for potential/i, 'may cause');
+              reason = reason.replace(/increase the feeling of/i, 'cause');
+              
+              reason = reason.charAt(0).toUpperCase() + reason.slice(1);
+              if (!reason.endsWith('.')) reason += '.';
+              
+              return `Be careful. This contains **${risk.ingredient}**. ${reason}`;
           }
-          return `Partial match. This **${typeLabel}** is safe but lacks specific active ingredients to effectively target your ${targets || 'primary concerns'}.`;
+          
+          return `It's okay, but not the best fit. This **${typeLabel}** is safe, but there are better options for your skin goals.`;
       }
 
       // 3. AVOID
       if (decision === 'AVOID') {
           const risk = product.risks.find(r => r.riskLevel === 'HIGH') || product.risks[0];
           if (risk) {
-              return `Critical mismatch. Contains **${risk.ingredient}**, which poses a high risk of irritation for your current skin state.`;
+              return `Best to avoid. It contains **${risk.ingredient}**, which could irritate your skin.`;
           }
-          return `Not recommended. The ingredient profile of this **${typeLabel}** conflicts with your sensitivity levels and may disrupt your barrier.`;
+          return `Not recommended. This **${typeLabel}** has ingredients that may conflict with your skin type.`;
       }
 
       return verdict.description;
-  }, [simpleVerdict.type, product, verdict.description]);
+  }, [simpleVerdict.type, product, verdict.description, user.biometrics]);
 
   const getThemeClasses = () => {
       switch(simpleVerdict.type) {
