@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { UserProfile, UserPreferences, SkinMetrics, Product } from '../types';
-import { ArrowLeft, ArrowRight, Check, Sparkles, Target, Zap, Activity, TrendingUp, LineChart, X, Trash2, Settings2, ChevronDown, ChevronRight, Minus, Trophy, LogOut, AlertCircle, Clock, Calendar, Edit2, Loader, CheckCircle2, MessageCircle } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Sparkles, Target, Zap, Activity, TrendingUp, LineChart, X, Trash2, Settings2, ChevronDown, ChevronRight, Minus, Trophy, LogOut, AlertCircle, Clock, Calendar, Edit2, Loader, CheckCircle2, MessageCircle, Download, Smartphone } from 'lucide-react';
 import { signOut, auth } from '../services/firebase';
 
 // Helper to parse markdown-style bolding from string
@@ -523,6 +523,26 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [scanToDelete, setScanToDelete] = useState<SkinMetrics | null>(null);
   
+  const [installPrompt, setInstallPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstallApp = async () => {
+      if (!installPrompt) return;
+      installPrompt.prompt();
+      const { outcome } = await installPrompt.userChoice;
+      if (outcome === 'accepted') {
+          setInstallPrompt(null);
+      }
+  };
+  
   const history = useMemo(() => {
       const raw = user.scanHistory || (user.biometrics ? [user.biometrics] : []);
       // Filter out invalid entries to prevent crashes
@@ -1020,6 +1040,28 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
                   </div>
               )}
           </section>
+
+          {/* DOWNLOAD APP PROMPT (PWA) */}
+          {installPrompt && (
+              <section className="mt-4">
+                  <button
+                      onClick={handleInstallApp}
+                      className="w-full bg-zinc-900 text-white rounded-[2rem] p-5 border border-zinc-900 shadow-xl hover:scale-[1.02] transition-all group flex items-center gap-4 text-left relative overflow-hidden"
+                  >
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none"></div>
+                      <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center shrink-0 text-white border border-white/10">
+                          <Smartphone size={24} />
+                      </div>
+                      <div className="flex-1 relative z-10">
+                          <h3 className="text-sm font-bold text-white mb-0.5">Download App</h3>
+                          <p className="text-xs text-white/70 font-medium">Install for offline access</p>
+                      </div>
+                      <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-zinc-900 group-hover:scale-110 transition-transform">
+                          <Download size={16} />
+                      </div>
+                  </button>
+              </section>
+          )}
 
           {/* WhatsApp Support - Clean Design */}
           <section className="mt-8">
