@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { UserProfile, UserPreferences, SkinMetrics, Product } from '../types';
-import { ArrowLeft, ArrowRight, Check, Sparkles, Target, Zap, Activity, TrendingUp, LineChart, X, Trash2, Settings2, ChevronDown, ChevronRight, Minus, Trophy, LogOut, AlertCircle, Clock, Calendar, Edit2, Loader, CheckCircle2, MessageCircle, Download, Smartphone } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Sparkles, Target, Zap, Activity, TrendingUp, LineChart, X, Trash2, Settings2, ChevronDown, ChevronRight, Minus, Trophy, LogOut, AlertCircle, Clock, Calendar, Edit2, Loader, CheckCircle2, MessageCircle, Download, Smartphone, Share, PlusSquare } from 'lucide-react';
 import { signOut, auth } from '../services/firebase';
 
 // Helper to parse markdown-style bolding from string
@@ -507,6 +507,36 @@ const ScanDetailModal: React.FC<{ scan: SkinMetrics; onClose: () => void }> = ({
     );
 };
 
+// --- SUB-COMPONENT: IOS INSTALL INSTRUCTIONS ---
+const IOSInstallCard: React.FC = () => {
+    return (
+        <div className="bg-zinc-900 text-white rounded-[2rem] p-6 border border-zinc-800 shadow-xl relative overflow-hidden group">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-3xl -mr-10 -mt-10 pointer-events-none"></div>
+            
+            <div className="flex items-start gap-4 relative z-10">
+                <div className="w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center shrink-0 border border-white/10">
+                    <Smartphone size={24} className="text-white" />
+                </div>
+                <div>
+                    <h3 className="text-sm font-bold text-white mb-1">Install SkinOS App</h3>
+                    <p className="text-xs text-white/60 font-medium mb-3">Add to home screen for the best experience.</p>
+                    
+                    <div className="space-y-2 text-[11px] font-medium text-white/80">
+                        <div className="flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold">1</span>
+                            <span>Tap the <strong className="text-white">Share</strong> button <Share size={10} className="inline mx-0.5" /> below</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <span className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center text-[10px] font-bold">2</span>
+                            <span>Select <strong className="text-white">Add to Home Screen</strong> <PlusSquare size={10} className="inline mx-0.5" /></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplete, onBack, onReset, onLoginRequired }) => {
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
   const [selectedScan, setSelectedScan] = useState<SkinMetrics | null>(null);
@@ -524,6 +554,16 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
   const [scanToDelete, setScanToDelete] = useState<SkinMetrics | null>(null);
   
   const [installPrompt, setInstallPrompt] = useState<any>(null);
+  
+  // Detect iOS
+  const isIOS = useMemo(() => {
+      return /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+  }, []);
+  
+  // Detect Standalone (already installed)
+  const isStandalone = useMemo(() => {
+      return window.matchMedia('(display-mode: standalone)').matches || (navigator as any).standalone;
+  }, []);
 
   useEffect(() => {
     const handler = (e: any) => {
@@ -1041,8 +1081,9 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
               )}
           </section>
 
-          {/* DOWNLOAD APP PROMPT (PWA) */}
-          {installPrompt && (
+          {/* DOWNLOAD APP PROMPT (PWA) - UPDATED */}
+          {/* 1. Android/Chrome (Native Event) */}
+          {installPrompt && !isStandalone && (
               <section className="mt-4">
                   <button
                       onClick={handleInstallApp}
@@ -1060,6 +1101,13 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
                           <Download size={16} />
                       </div>
                   </button>
+              </section>
+          )}
+
+          {/* 2. iOS Instruction Card (No Native Event) */}
+          {isIOS && !isStandalone && (
+              <section className="mt-4">
+                  <IOSInstallCard />
               </section>
           )}
 
