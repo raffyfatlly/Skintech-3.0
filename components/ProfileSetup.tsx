@@ -935,6 +935,36 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
       {/* CONTENT CONTAINER */}
       <div className="space-y-6 px-6 pt-8">
           
+          {/* DOWNLOAD APP PROMPT (PWA) - MOVED TO TOP */}
+          {/* 1. Android/Chrome (Native Event) */}
+          {installPrompt && !isStandalone && (
+              <section className="mb-4">
+                  <button
+                      onClick={handleInstallApp}
+                      className="w-full bg-zinc-900 text-white rounded-[2rem] p-5 border border-zinc-900 shadow-xl hover:scale-[1.02] transition-all group flex items-center gap-4 text-left relative overflow-hidden"
+                  >
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none"></div>
+                      <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center shrink-0 text-white border border-white/10">
+                          <Smartphone size={24} />
+                      </div>
+                      <div className="flex-1 relative z-10">
+                          <h3 className="text-sm font-bold text-white mb-0.5">Download App</h3>
+                          <p className="text-xs text-white/70 font-medium">Install for offline access</p>
+                      </div>
+                      <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-zinc-900 group-hover:scale-110 transition-transform">
+                          <Download size={16} />
+                      </div>
+                  </button>
+              </section>
+          )}
+
+          {/* 2. iOS Instruction Card (No Native Event) */}
+          {isIOS && !isStandalone && (
+              <section className="mb-4">
+                  <IOSInstallCard />
+              </section>
+          )}
+
           {/* REFINED PROGRESS INTELLIGENCE (SIMPLIFIED UI) */}
           {progressIntel && (
              <div className="bg-white rounded-[2rem] p-6 border border-zinc-100 shadow-sm relative overflow-hidden animate-in slide-in-from-bottom-2">
@@ -1080,36 +1110,6 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
                   </div>
               )}
           </section>
-
-          {/* DOWNLOAD APP PROMPT (PWA) - UPDATED */}
-          {/* 1. Android/Chrome (Native Event) */}
-          {installPrompt && !isStandalone && (
-              <section className="mt-4">
-                  <button
-                      onClick={handleInstallApp}
-                      className="w-full bg-zinc-900 text-white rounded-[2rem] p-5 border border-zinc-900 shadow-xl hover:scale-[1.02] transition-all group flex items-center gap-4 text-left relative overflow-hidden"
-                  >
-                      <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none"></div>
-                      <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center shrink-0 text-white border border-white/10">
-                          <Smartphone size={24} />
-                      </div>
-                      <div className="flex-1 relative z-10">
-                          <h3 className="text-sm font-bold text-white mb-0.5">Download App</h3>
-                          <p className="text-xs text-white/70 font-medium">Install for offline access</p>
-                      </div>
-                      <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-zinc-900 group-hover:scale-110 transition-transform">
-                          <Download size={16} />
-                      </div>
-                  </button>
-              </section>
-          )}
-
-          {/* 2. iOS Instruction Card (No Native Event) */}
-          {isIOS && !isStandalone && (
-              <section className="mt-4">
-                  <IOSInstallCard />
-              </section>
-          )}
 
           {/* WhatsApp Support - Clean Design */}
           <section className="mt-8">
