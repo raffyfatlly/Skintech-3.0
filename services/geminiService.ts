@@ -346,14 +346,21 @@ export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, 
     const prompt = `
     You are SkinOS. Analyze this face image for dermatological health.
     
-    INPUT CV METRICS (Reference): ${JSON.stringify(localMetrics)}
+    INPUT CV METRICS (Reference Only): ${JSON.stringify(localMetrics)}. 
+    Note: These metrics are a baseline. Trust your visual analysis of the image features for the text report.
     
-    CRITICAL GRADING RUBRIC (Adjust scores based on visual severity):
-    - 90-100 (PRISTINE): No visible issues. Glass skin.
-    - 75-89 (GOOD): Minor/Occasional issues (e.g., 1-3 small spots, slight texture).
-    - 60-74 (FAIR): Common/Regular issues (e.g., visible acne but not cystic, moderate redness). **MOST "REGULAR" ACNE FALLS HERE.**
-    - 40-59 (POOR): Significant/Inflamed (e.g., many active breakouts, distinct redness).
-    - 0-39 (SEVERE): Critical condition (e.g., Cystic acne covering large areas, extreme damage). **RESERVE THESE SCORES FOR WORST CASES ONLY.**
+    GRADING RUBRIC (Use this to calibrate your JSON score output):
+    - 90-100 (EXCELLENT): Healthy barrier. Minimal issues. Glass skin or very slight imperfections.
+    - 75-89 (GOOD): Generally healthy. May have mild texture, slight redness, or occasional spots. **Normal skin often falls here.**
+    - 60-74 (AVERAGE): Visible congestion, uneven tone, or regular mild acne.
+    - 40-59 (CONCERN): Active inflammation, significant breakouts, or damaged barrier.
+    - 0-39 (SEVERE): Critical condition requiring medical attention.
+    
+    INSTRUCTION FOR TEXT ANALYSIS ("analysisSummary" and "observations"):
+    - **BE OBJECTIVE:** Describe exactly what you see (e.g., "Visible redness on cheeks", "Enlarged pores on nose"). 
+    - **DO NOT** sugarcoat the visual description just because the score is high. 
+    - If the score is 85 but you see a pimple, say "Overall healthy skin with a visible spot on the chin."
+    - Use clinical terms but explain them simply.
     
     OUTPUT JSON (Strict):
     {
