@@ -34,6 +34,7 @@ import BetaOfferModal from './components/BetaOfferModal';
 import GuideOverlay from './components/GuideOverlay';
 import AdminDashboard from './components/AdminDashboard';
 import BackgroundTaskBar from './components/BackgroundTaskBar';
+import SplashScreen from './components/SplashScreen'; // IMPORTED SPLASH SCREEN
 
 import { ScanFace, LayoutGrid, User, Search, Home, Loader, ScanBarcode, Lock, Sparkles, Microscope, RefreshCw } from 'lucide-react';
 
@@ -338,7 +339,7 @@ const App: React.FC = () => {
                     if (user.displayName) setPrefillName(user.displayName);
                     setCurrentView(AppView.ONBOARDING);
                 }
-            } catch (e) { console.error(e); } finally { setTimeout(() => setIsGlobalLoading(false), 500); setLoadingMessage(null); }
+            } catch (e) { console.error(e); } finally { setTimeout(() => setIsGlobalLoading(false), 800); setLoadingMessage(null); }
         }
     }) : () => {};
     return () => unsubscribe();
@@ -589,25 +590,7 @@ const App: React.FC = () => {
   return (
     <div className="bg-zinc-50 min-h-screen font-sans">
       {isGlobalLoading && (
-          <div className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-md flex items-center justify-center p-6 animate-in fade-in duration-300">
-                  <div className="bg-white rounded-[2.5rem] p-8 shadow-2xl flex flex-col items-center max-w-xs w-full text-center relative overflow-hidden">
-                      <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-teal-400 via-emerald-500 to-teal-600 animate-[shimmer_2s_infinite]" style={{ backgroundSize: '200% 100%' }}></div>
-                      
-                      <div className="w-20 h-20 bg-zinc-50 rounded-full flex items-center justify-center mb-6 relative shadow-inner">
-                          <div className="absolute inset-0 border-4 border-zinc-100 rounded-full"></div>
-                          <div className="absolute inset-0 border-4 border-t-teal-500 border-r-teal-500/30 border-b-transparent border-l-transparent rounded-full animate-spin"></div>
-                          <RefreshCw size={28} className="text-teal-600" />
-                      </div>
-                      
-                      <h3 className="text-xl font-black text-zinc-900 mb-2 tracking-tight">
-                          {loadingMessage || "Syncing Profile..."}
-                      </h3>
-                      
-                      <p className="text-xs text-zinc-500 font-medium leading-relaxed max-w-[200px]">
-                          Updating your secure dashboard...
-                      </p>
-                  </div>
-          </div>
+          <SplashScreen message={loadingMessage || "Syncing Profile..."} />
       )}
       {renderView()}
       {renderNavBar()}
