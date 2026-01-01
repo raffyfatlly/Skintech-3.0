@@ -1,10 +1,17 @@
 
 import React, { useState } from 'react';
 import { SkinType } from '../types';
-import { Sparkles, Calendar, ArrowRight, LogIn, ArrowLeft, ScanFace } from 'lucide-react';
+import { Sparkles, Calendar, ArrowRight, LogIn, ArrowLeft, ScanFace, Baby, Feather, Pill, ShieldAlert, Check } from 'lucide-react';
+
+interface SafetyFlags {
+    isPregnant: boolean;
+    hasSensitiveSkin: boolean;
+    hasEczema: boolean;
+    onMedication: boolean;
+}
 
 interface OnboardingProps {
-  onComplete: (data: { name: string; age: number; skinType: SkinType }) => void;
+  onComplete: (data: { name: string; age: number; skinType: SkinType; safety: SafetyFlags }) => void;
   onSignIn: () => void;
   initialName?: string;
 }
@@ -13,16 +20,55 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSignIn, initialNa
   const [step, setStep] = useState(initialName ? 1 : 0);
   const [name, setName] = useState(initialName);
   const [age, setAge] = useState('');
+  
+  // Step 2: Safety State
+  const [safety, setSafety] = useState<SafetyFlags>({
+      isPregnant: false,
+      hasSensitiveSkin: false,
+      hasEczema: false,
+      onMedication: false
+  });
 
   const handleNext = () => {
     if (step === 0 && name) setStep(1);
-    else if (step === 1 && age) {
-        onComplete({ name, age: parseInt(age), skinType: SkinType.UNKNOWN });
+    else if (step === 1 && age) setStep(2);
+    else if (step === 2) {
+        onComplete({ 
+            name, 
+            age: parseInt(age), 
+            skinType: SkinType.UNKNOWN,
+            safety
+        });
     }
   };
 
   const handleBack = () => {
       if (step > 0) setStep(step - 1);
+  };
+
+  const toggleSafety = (key: keyof SafetyFlags) => {
+      setSafety(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const SafetyOption = ({ field, icon: Icon, title, desc }: { field: keyof SafetyFlags, icon: any, title: string, desc: string }) => {
+      const isSelected = safety[field];
+      return (
+          <button 
+              onClick={() => toggleSafety(field)}
+              className={`w-full text-left p-4 rounded-2xl border transition-all duration-300 flex items-center gap-4 group active:scale-[0.98] ${isSelected ? 'bg-teal-50 border-teal-500 shadow-sm' : 'bg-white border-zinc-100 hover:bg-zinc-50'}`}
+          >
+              <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 transition-colors ${isSelected ? 'bg-teal-500 text-white' : 'bg-zinc-100 text-zinc-400 group-hover:bg-zinc-200'}`}>
+                  <Icon size={20} />
+              </div>
+              <div className="flex-1 min-w-0">
+                  <h4 className={`text-sm font-bold mb-0.5 ${isSelected ? 'text-teal-900' : 'text-zinc-900'}`}>{title}</h4>
+                  <p className={`text-xs font-medium leading-tight ${isSelected ? 'text-teal-700' : 'text-zinc-500'}`}>{desc}</p>
+              </div>
+              <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-teal-500 border-teal-500' : 'border-zinc-200 bg-white'}`}>
+                  {isSelected && <Check size={14} className="text-white" strokeWidth={3} />}
+              </div>
+          </button>
+      )
   };
 
   return (
@@ -40,7 +86,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSignIn, initialNa
                 </button>
             )}
             <div className="flex gap-2">
-                {[0, 1].map(i => (
+                {[0, 1, 2].map(i => (
                     <div key={i} className={`h-1.5 rounded-full transition-all duration-500 ${i === step ? 'w-8 bg-teal-500' : 'w-2 bg-zinc-100'}`} />
                 ))}
             </div>
@@ -55,12 +101,13 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSignIn, initialNa
              </button>
           ) : (
              <div className="text-zinc-300 text-[10px] font-bold tracking-widest uppercase">
-                Step {step + 1}/2
+                Step {step + 1}/3
              </div>
           )}
       </div>
 
       <div className="flex-1 flex flex-col justify-center max-w-lg mx-auto w-full min-h-[200px]">
+            {/* STEP 0: NAME */}
             {step === 0 && (
                 <div className="space-y-6 sm:space-y-8 animate-in fade-in slide-in-from-right-8 duration-500">
                     <div>
@@ -85,6 +132,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSignIn, initialNa
                 </div>
             )}
 
+            {/* STEP 1: AGE */}
             {step === 1 && (
                 <div className="space-y-6 sm:space-y-8 animate-in fade-in slide-in-from-right-8 duration-500">
                     <div>
@@ -108,6 +156,49 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSignIn, initialNa
                     </div>
                 </div>
             )}
+
+            {/* STEP 2: SAFETY CHECK */}
+            {step === 2 && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-right-8 duration-500">
+                    <div>
+                        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-rose-50 rounded-full mb-6 border border-rose-100">
+                            <Pill size={12} className="text-rose-500" />
+                            <span className="text-[10px] font-bold tracking-widest uppercase text-rose-500">Safety First</span>
+                        </div>
+                        <h1 className="text-4xl sm:text-5xl font-black text-zinc-900 tracking-tighter mb-3 leading-tight">Just a few <br/><span className="text-zinc-300">details.</span></h1>
+                        <p className="text-sm text-zinc-500 font-medium leading-relaxed">
+                            Select any that apply so we can filter out unsafe ingredients.
+                        </p>
+                    </div>
+                    
+                    <div className="space-y-3 pt-2">
+                        <SafetyOption 
+                            field="isPregnant" 
+                            icon={Baby} 
+                            title="Pregnancy / Breastfeeding" 
+                            desc="We'll filter for pregnancy-safe ingredients." 
+                        />
+                        <SafetyOption 
+                            field="hasSensitiveSkin" 
+                            icon={Feather} 
+                            title="Sensitive Skin" 
+                            desc="We'll prioritize gentle formulas." 
+                        />
+                        <SafetyOption 
+                            field="hasEczema" 
+                            icon={ShieldAlert} 
+                            title="Eczema / Rosacea" 
+                            desc="We'll avoid harsh acids and triggers." 
+                        />
+                        <SafetyOption 
+                            field="onMedication" 
+                            icon={Pill} 
+                            title="Prescription Medication" 
+                            desc="Accutane, Tretinoin, etc." 
+                        />
+                    </div>
+                </div>
+            )}
       </div>
 
       <div className="mt-auto pt-8 shrink-0">
@@ -116,9 +207,9 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSignIn, initialNa
             disabled={(step === 0 && !name) || (step === 1 && !age)}
             className="w-full h-16 sm:h-20 bg-teal-500 text-white rounded-[2rem] font-bold text-lg flex items-center justify-between px-8 disabled:opacity-50 disabled:scale-100 hover:bg-teal-600 hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-teal-500/20 group shrink-0"
         >
-            <span>{step === 1 ? 'Start Scan' : 'Next Step'}</span>
+            <span>{step === 2 ? 'Start Scan' : 'Next Step'}</span>
             <div className="w-12 h-12 rounded-full bg-white/20 flex items-center justify-center group-hover:bg-white/30 transition-colors border border-white/10">
-                {step === 1 ? <ScanFace size={22} /> : <ArrowRight size={22} />}
+                {step === 2 ? <ScanFace size={22} /> : <ArrowRight size={22} />}
             </div>
         </button>
       </div>

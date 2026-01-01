@@ -7,7 +7,8 @@ import {
   SkinMetrics, 
   SkinType, 
   UsageStats,
-  RecommendedProduct
+  RecommendedProduct,
+  UserPreferences
 } from './types';
 import { loadUserData, saveUserData, syncLocalToCloud, clearLocalData } from './services/storageService';
 import { auth } from './services/firebase';
@@ -402,14 +403,34 @@ const App: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  const handleOnboardingComplete = (data: { name: string; age: number; skinType: SkinType }) => {
+  const handleOnboardingComplete = (data: { name: string; age: number; skinType: SkinType; safety: any }) => {
       trackEvent('ONBOARDING_COMPLETE');
       const isAuth = !!auth?.currentUser;
+      
+      const initialPrefs: UserPreferences = {
+          goals: [],
+          sensitivity: data.safety.hasSensitiveSkin ? 'VERY_SENSITIVE' : 'MILD',
+          complexity: 'MODERATE',
+          sunscreenFrequency: 'SUNNY',
+          lifestyle: [],
+          buyingPriority: 'Fast Results',
+          isPregnant: data.safety.isPregnant,
+          hasEczema: data.safety.hasEczema, // Mapped here
+          onMedication: data.safety.onMedication
+      };
+
       const newUser: UserProfile = {
-          name: data.name, age: data.age, skinType: data.skinType, hasScannedFace: false, biometrics: {} as any, 
-          isAnonymous: !isAuth, isPremium: false,
+          name: data.name, 
+          age: data.age, 
+          skinType: data.skinType, 
+          hasScannedFace: false, 
+          biometrics: {} as any, 
+          isAnonymous: !isAuth, 
+          isPremium: false,
+          preferences: initialPrefs,
           usage: { buyingAssistantViews: 0, manualScans: 0, routineGenerations: 0 }
       };
+      
       setUserProfile(newUser);
       if (isAuth) saveUserData(newUser, shelf); else persistState(newUser, shelf);
       setCurrentView(AppView.FACE_SCANNER);

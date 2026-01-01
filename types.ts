@@ -52,6 +52,10 @@ export interface UserPreferences {
   sunscreenFrequency: 'DAILY' | 'SUNNY' | 'RARELY';
   lifestyle: string[];
   buyingPriority: string;
+  // New Safety Flags
+  isPregnant?: boolean;
+  hasEczema?: boolean; // Replaced usesRetinol
+  onMedication?: boolean;
 }
 
 export interface UsageStats {
