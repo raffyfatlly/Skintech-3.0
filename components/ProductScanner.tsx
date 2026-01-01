@@ -71,8 +71,8 @@ const ProductScanner: React.FC<ProductScannerProps> = ({ userProfile, shelf, onS
                 width: { ideal: 1920 }, 
                 height: { ideal: 1080 },
                 // @ts-ignore
-                zoom: true,
-                torch: true
+                zoom: true
+                // torch: false // Default to off
             }
         };
         const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);

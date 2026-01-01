@@ -190,20 +190,26 @@ export const analyzeProductFromSearch = async (
             else if (lowerName.includes('sun') || lowerName.includes('spf')) detectedType = 'SPF';
         }
 
+        // STRICT NO-FALLBACK LOGIC
+        const hasIngredients = Array.isArray(data.ingredients) && data.ingredients.length > 0;
+
         return {
             id: Date.now().toString(),
             name: finalName,
             brand: finalBrand,
             type: detectedType,
-            ingredients: Array.isArray(data.ingredients) ? data.ingredients : [],
-            estimatedPrice: data.estimatedPrice || 45,
-            suitabilityScore: typeof data.suitabilityScore === 'number' ? data.suitabilityScore : 50,
+            ingredients: hasIngredients ? data.ingredients : [],
+            // No fallback price (e.g. 45). If missing, return 0 to indicate unknown.
+            estimatedPrice: typeof data.estimatedPrice === 'number' ? data.estimatedPrice : 0,
+            // If ingredients are missing, score must be 0 (Unknown/Unverified), not 50.
+            suitabilityScore: (typeof data.suitabilityScore === 'number' && hasIngredients) ? data.suitabilityScore : 0,
             risks: Array.isArray(data.risks) ? data.risks : [],
             benefits: Array.isArray(data.benefits) ? data.benefits : [],
             dateScanned: Date.now(),
             sources: sources,
-            usageTips: data.usageTips || "Patch test before full use.",
-            expertReview: data.expertReview || "Analysis based on online product data."
+            // Explicitly state unavailability instead of generic advice
+            usageTips: data.usageTips || "Usage guidelines are unavailable for this product.",
+            expertReview: data.expertReview || "Expert clinical review is unavailable at this time due to insufficient data."
         };
 
     }, 60000); 
@@ -244,7 +250,7 @@ export const analyzeProductImage = async (
                 dateScanned: Date.now(),
                 risks: [],
                 benefits: [],
-                suitabilityScore: 50,
+                suitabilityScore: 0, // Score 0 for unknown
                 estimatedPrice: 0,
                 expertReview: "Could not identify the product from the image. Please try scanning the text or searching manually."
              }
@@ -299,20 +305,23 @@ export const analyzeProductImage = async (
         const data = parseJSONFromText(searchResponse.text || "{}");
         const sources = extractSources(searchResponse);
 
+        // STRICT NO-FALLBACK LOGIC
+        const hasIngredients = Array.isArray(data.ingredients) && data.ingredients.length > 0;
+
         return {
             id: Date.now().toString(),
             name: data.name || detectedName,
             brand: data.brand || detectedBrand,
             type: data.type || "UNKNOWN",
-            ingredients: Array.isArray(data.ingredients) ? data.ingredients : [],
-            estimatedPrice: data.estimatedPrice || 0,
-            suitabilityScore: typeof data.suitabilityScore === 'number' ? data.suitabilityScore : 50,
+            ingredients: hasIngredients ? data.ingredients : [],
+            estimatedPrice: typeof data.estimatedPrice === 'number' ? data.estimatedPrice : 0,
+            suitabilityScore: (typeof data.suitabilityScore === 'number' && hasIngredients) ? data.suitabilityScore : 0,
             risks: Array.isArray(data.risks) ? data.risks : [],
             benefits: Array.isArray(data.benefits) ? data.benefits : [],
             dateScanned: Date.now(),
             sources: sources,
-            usageTips: data.usageTips || "Patch test recommended.",
-            expertReview: data.expertReview || "Analysis based on visual identification."
+            usageTips: data.usageTips || "Usage guidelines are unavailable.",
+            expertReview: data.expertReview || "Analysis based on visual identification only. Detailed verification unavailable."
         };
 
     }, 60000);
@@ -428,22 +437,68 @@ export const compareFaceIdentity = async (newImage: string, referenceImage: stri
 };
 
 export const auditProduct = (product: Product, user: UserProfile) => {
+    // 0. MISSING DATA CHECK
+    if (!product.ingredients || product.ingredients.length === 0) {
+        return {
+            adjustedScore: 0,
+            warnings: [{ severity: 'CAUTION', reason: "Ingredients list could not be retrieved." }],
+            analysisReason: "We could not access the ingredient data for this product to perform a safety audit."
+        };
+    }
+
     const warnings = product.risks.map(r => ({ 
         severity: r.riskLevel === 'HIGH' ? 'CRITICAL' : 'CAUTION', 
         reason: r.reason 
     }));
     let adjustedScore = product.suitabilityScore;
-    if (user.biometrics.redness < 50 && adjustedScore > 60) {
-        const ingStr = product.ingredients.join(' ').toLowerCase();
-        if (ingStr.includes('alcohol denat') || ingStr.includes('fragrance') || ingStr.includes('parfum')) {
-            adjustedScore = 40;
-            warnings.unshift({ severity: 'CRITICAL', reason: 'Fragrance/Alcohol conflict.' });
+    const ingStr = product.ingredients.join(' ').toLowerCase();
+    const bio = user.biometrics;
+
+    // 1. HYDRATION PENALTY (Specific request: Low Hydration = High Penalty for Drying Agents)
+    if (bio.hydration < 50) {
+        const dryingAgents = ['alcohol denat', 'sd alcohol', 'isopropyl alcohol', 'sodium lauryl sulfate', 'sls', 'ammonium lauryl sulfate'];
+        const found = dryingAgents.find(a => ingStr.includes(a));
+        if (found) {
+            adjustedScore -= 30; // Heavy penalty
+            warnings.unshift({ severity: 'CRITICAL', reason: `Contains ${found}, which dehydrates dry skin.` });
         }
     }
+
+    // 2. SENSITIVITY / REDNESS PENALTY
+    if (bio.redness < 50 || user.preferences?.sensitivity === 'VERY_SENSITIVE' || user.preferences?.hasEczema) {
+        const irritants = ['fragrance', 'parfum', 'alcohol denat', 'essential oil', 'menthol', 'eucalyptus'];
+        const found = irritants.find(a => ingStr.includes(a));
+        if (found) {
+            adjustedScore = Math.min(adjustedScore, 40);
+            warnings.unshift({ severity: 'CRITICAL', reason: `Contains ${found}, a known trigger for sensitive skin.` });
+        }
+    }
+
+    // 3. ACNE PENALTY (Low Score = Active Acne)
+    if (bio.acneActive < 55) {
+        const cloggers = ['coconut oil', 'cocoa butter', 'isopropyl myristate', 'algae extract', 'carrageenan', 'palm oil'];
+        const found = cloggers.find(a => ingStr.includes(a));
+        if (found) {
+            adjustedScore = Math.min(adjustedScore, 35);
+            warnings.unshift({ severity: 'CRITICAL', reason: `Contains ${found}, a high-risk pore clogger.` });
+        }
+    }
+
+    // 4. PREGNANCY SAFETY
+    if (user.preferences?.isPregnant) {
+        const unsafe = ['retinol', 'retinyl', 'tretinoin', 'hydroquinone', 'arbutin', 'salicylic acid']; 
+        // Note: Salicylic < 2% is often okay but generally flagged for safety in apps
+        const found = unsafe.find(a => ingStr.includes(a));
+        if (found) {
+            adjustedScore = 0;
+            warnings.unshift({ severity: 'CRITICAL', reason: `Not recommended during pregnancy (contains ${found}).` });
+        }
+    }
+
     return {
         adjustedScore: Math.max(0, Math.min(99, adjustedScore)),
         warnings,
-        analysisReason: warnings.length > 0 ? warnings[0].reason : "Good match."
+        analysisReason: warnings.length > 0 ? warnings[0].reason : "Good match based on your profile."
     };
 };
 
