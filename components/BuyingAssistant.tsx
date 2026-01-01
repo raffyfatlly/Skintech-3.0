@@ -3,7 +3,7 @@ import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Product, UserProfile } from '../types';
 import { getBuyingDecision } from '../services/geminiService';
 import { startCheckout } from '../services/stripeService';
-import { Check, X, AlertTriangle, ShieldCheck, Zap, AlertOctagon, TrendingUp, DollarSign, Clock, ArrowRight, Lock, Sparkles, Crown, Link, ExternalLink, CloudSun, Layers, MessageCircle, ArrowLeft, ThumbsUp, ThumbsDown, HelpCircle, ChevronDown, Eye } from 'lucide-react';
+import { Check, X, AlertTriangle, ShieldCheck, Zap, AlertOctagon, TrendingUp, DollarSign, Clock, ArrowRight, Lock, Sparkles, Crown, Link, ExternalLink, CloudSun, Layers, MessageCircle, ArrowLeft, ThumbsUp, ThumbsDown, HelpCircle, ChevronDown, Eye, Search } from 'lucide-react';
 
 interface BuyingAssistantProps {
   product: Product;
@@ -83,6 +83,8 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
           return { type: 'GREAT', label: 'Great Match', color: 'emerald', icon: ThumbsUp };
       } else if (rawDecision === 'AVOID') {
           return { type: 'AVOID', label: 'Avoid', color: 'rose', icon: ThumbsDown };
+      } else if (rawDecision === 'UNKNOWN') {
+          return { type: 'UNKNOWN', label: 'Verify Info', color: 'zinc', icon: Search };
       } else {
           return { type: 'CONSIDER', label: 'Consider', color: 'amber', icon: HelpCircle };
       }
@@ -177,6 +179,11 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
           return `Not recommended. This **${typeLabel}** has ingredients that may conflict with your skin type.`;
       }
 
+      // 4. UNKNOWN
+      if (decision === 'UNKNOWN') {
+          return `We couldn't auto-retrieve the full ingredient list. To keep your routine safe, please verify this product using **Google AI Overview** below.`;
+      }
+
       return verdict.description;
   }, [simpleVerdict.type, product, verdict.description, user.biometrics]);
 
@@ -195,6 +202,13 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
               text: 'text-rose-900',
               accent: 'text-rose-600',
               badge: 'bg-rose-100 text-rose-700'
+          };
+          case 'UNKNOWN': return {
+              bg: 'bg-zinc-50',
+              border: 'border-zinc-200',
+              text: 'text-zinc-800',
+              accent: 'text-zinc-500',
+              badge: 'bg-zinc-100 text-zinc-600'
           };
           default: return {
               bg: 'bg-amber-50',
@@ -270,50 +284,67 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
                     </p>
                 </div>
 
-                <div className="flex items-center justify-between text-xs font-bold text-zinc-500 px-1">
-                    <span>Skin Match Score</span>
-                    <span className={`text-lg font-black ${theme.accent}`}>{Math.min(99, product.suitabilityScore)}%</span>
-                </div>
-                
-                {/* Score Bar with Comparisons */}
-                <div className="relative mt-2 mb-2">
-                    <div className="h-2 w-full bg-zinc-100 rounded-full overflow-hidden">
-                        <div 
-                            className={`h-full rounded-full transition-all duration-1000 ${simpleVerdict.type === 'GREAT' ? 'bg-emerald-500' : simpleVerdict.type === 'AVOID' ? 'bg-rose-500' : 'bg-amber-500'}`} 
-                            style={{ width: `${Math.min(99, product.suitabilityScore)}%` }}
-                        />
-                    </div>
-
-                    {/* Shelf Markers - Updated Style (White/Clean) */}
-                    {comparableProducts.map(p => (
-                        <div 
-                            key={p.id}
-                            className="absolute top-1/2 -translate-y-1/2 w-1.5 h-4 bg-white rounded-full border border-zinc-300 shadow-sm z-10 cursor-help group/marker hover:scale-125 transition-transform hover:z-30 hover:border-teal-500"
-                            style={{ left: `${Math.min(99, p.suitabilityScore)}%` }}
+                {simpleVerdict.type === 'UNKNOWN' ? (
+                    <div className="mt-4">
+                        <a 
+                            href={`https://www.google.com/search?q=${encodeURIComponent(product.brand + ' ' + product.name + ' ingredients safety review')}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="w-full py-3.5 bg-blue-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 group"
                         >
-                             <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-white text-zinc-600 text-[9px] font-bold px-3 py-2 rounded-xl shadow-xl border border-zinc-100 whitespace-nowrap opacity-0 group-hover/marker:opacity-100 transition-all pointer-events-none z-20 flex flex-col items-center min-w-[80px]">
-                                <span className="text-teal-700 uppercase tracking-widest text-[8px] mb-0.5">{p.type}</span>
-                                <span className="text-zinc-900 text-[10px]">{p.brand || p.name.substring(0, 10)}</span>
-                                <span className="text-zinc-400 font-medium mt-0.5">Match: {p.suitabilityScore}%</span>
-                                {/* Pointer Arrow */}
-                                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-white border-b border-r border-zinc-100 rotate-45"></div>
-                             </div>
-                        </div>
-                    ))}
-                </div>
-
-                {comparableProducts.length > 0 && (
-                    <div className="flex justify-end mt-1">
-                        <p className="text-[9px] font-bold text-zinc-400 flex items-center gap-1.5">
-                            <span className="w-1.5 h-3 bg-white rounded-full border border-zinc-300 inline-block"></span>
-                            vs {comparableProducts.length} items in your routine
-                        </p>
+                            <Sparkles size={16} className="text-blue-200 group-hover:text-white transition-colors" /> 
+                            Launch Google AI
+                        </a>
+                        <p className="text-[9px] text-center text-zinc-400 mt-2 font-medium">Opens Google Search for AI Overview</p>
                     </div>
+                ) : (
+                    <>
+                        <div className="flex items-center justify-between text-xs font-bold text-zinc-500 px-1">
+                            <span>Skin Match Score</span>
+                            <span className={`text-lg font-black ${theme.accent}`}>{Math.min(99, product.suitabilityScore)}%</span>
+                        </div>
+                        
+                        {/* Score Bar with Comparisons */}
+                        <div className="relative mt-2 mb-2">
+                            <div className="h-2 w-full bg-zinc-100 rounded-full overflow-hidden">
+                                <div 
+                                    className={`h-full rounded-full transition-all duration-1000 ${simpleVerdict.type === 'GREAT' ? 'bg-emerald-500' : simpleVerdict.type === 'AVOID' ? 'bg-rose-500' : 'bg-amber-500'}`} 
+                                    style={{ width: `${Math.min(99, product.suitabilityScore)}%` }}
+                                />
+                            </div>
+
+                            {/* Shelf Markers - Updated Style (White/Clean) */}
+                            {comparableProducts.map(p => (
+                                <div 
+                                    key={p.id}
+                                    className="absolute top-1/2 -translate-y-1/2 w-1.5 h-4 bg-white rounded-full border border-zinc-300 shadow-sm z-10 cursor-help group/marker hover:scale-125 transition-transform hover:z-30 hover:border-teal-500"
+                                    style={{ left: `${Math.min(99, p.suitabilityScore)}%` }}
+                                >
+                                    <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-white text-zinc-600 text-[9px] font-bold px-3 py-2 rounded-xl shadow-xl border border-zinc-100 whitespace-nowrap opacity-0 group-hover/marker:opacity-100 transition-all pointer-events-none z-20 flex flex-col items-center min-w-[80px]">
+                                        <span className="text-teal-700 uppercase tracking-widest text-[8px] mb-0.5">{p.type}</span>
+                                        <span className="text-zinc-900 text-[10px]">{p.brand || p.name.substring(0, 10)}</span>
+                                        <span className="text-zinc-400 font-medium mt-0.5">Match: {p.suitabilityScore}%</span>
+                                        {/* Pointer Arrow */}
+                                        <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-white border-b border-r border-zinc-100 rotate-45"></div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {comparableProducts.length > 0 && (
+                            <div className="flex justify-end mt-1">
+                                <p className="text-[9px] font-bold text-zinc-400 flex items-center gap-1.5">
+                                    <span className="w-1.5 h-3 bg-white rounded-full border border-zinc-300 inline-block"></span>
+                                    vs {comparableProducts.length} items in your routine
+                                </p>
+                            </div>
+                        )}
+                    </>
                 )}
             </div>
 
-            {/* EXPAND ACTION */}
-            {!showDetails && (
+            {/* EXPAND ACTION - HIDE IF UNKNOWN */}
+            {!showDetails && simpleVerdict.type !== 'UNKNOWN' && (
                 <button 
                     onClick={handleExpand}
                     className="w-full bg-white rounded-[2rem] p-4 flex flex-col items-center justify-center gap-1 shadow-sm border border-zinc-100 text-zinc-400 font-bold text-xs uppercase tracking-widest hover:text-teal-600 hover:border-teal-100 transition-all active:scale-95 group animate-in slide-in-from-bottom-2"
@@ -331,7 +362,7 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
             )}
 
             {/* DETAILED ANALYSIS - EXPANDABLE */}
-            {showDetails && (
+            {showDetails && simpleVerdict.type !== 'UNKNOWN' && (
                 <div ref={detailsRef} className="relative animate-in slide-in-from-bottom-4 duration-500 fade-in pt-2">
                      
                      {/* LOCKED OVERLAY (If Not Premium AND Usage Limit Reached) */}
@@ -488,8 +519,8 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
             )}
         </div>
 
-        {/* FIXED BOTTOM BAR - Only visible when unlocked */}
-        {(isUnlocked || !isUsageLimitReached) && (
+        {/* FIXED BOTTOM BAR - Only visible when unlocked or missing info */}
+        {(isUnlocked || !isUsageLimitReached || simpleVerdict.type === 'UNKNOWN') && (
             <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 backdrop-blur-xl border-t border-zinc-100 z-50 pb-safe animate-in slide-in-from-bottom-full duration-500">
                 <div className="flex gap-3 max-w-md mx-auto">
                     <button 
@@ -498,12 +529,14 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
                     >
                         Cancel
                     </button>
-                    <button 
-                        onClick={onAddToShelf}
-                        className="flex-[2] py-4 bg-teal-600 text-white rounded-2xl font-bold text-sm hover:bg-teal-700 transition-colors shadow-lg shadow-teal-600/20 flex items-center justify-center gap-2"
-                    >
-                        Add to Routine <ArrowRight size={18} />
-                    </button>
+                    {simpleVerdict.type !== 'UNKNOWN' && (
+                        <button 
+                            onClick={onAddToShelf}
+                            className="flex-[2] py-4 bg-teal-600 text-white rounded-2xl font-bold text-sm hover:bg-teal-700 transition-colors shadow-lg shadow-teal-600/20 flex items-center justify-center gap-2"
+                        >
+                            Add to Routine <ArrowRight size={18} />
+                        </button>
+                    )}
                 </div>
             </div>
         )}

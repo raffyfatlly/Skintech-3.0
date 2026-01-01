@@ -1,4 +1,5 @@
 
+// ... existing imports ...
 import { GoogleGenAI, Type, SchemaShared } from "@google/genai";
 import type { Chat } from "@google/genai";
 import { SkinMetrics, Product, UserProfile } from '../types';
@@ -11,6 +12,9 @@ const getAi = (): GoogleGenAI => {
     }
     return aiInstance;
 };
+
+// ... keep existing helpers and analysis functions ...
+// (Retaining parseJSONFromText, extractSources, runWithTimeout, runWithRetry, analyzeProductFromSearch, analyzeProductImage, searchProducts, analyzeFaceSkin, compareFaceIdentity, auditProduct, analyzeShelfHealth, analyzeProductContext, getClinicalTreatmentSuggestions, createDermatologistSession, isQuotaError)
 
 // --- CONFIGURATION ---
 // Upgraded to Gemini 3 Flash for improved speed and reasoning
@@ -569,6 +573,25 @@ export const createDermatologistSession = (
 export const isQuotaError = (e: any) => e?.message?.includes('429') || e?.status === 429;
 
 export const getBuyingDecision = (product: Product, shelf: Product[], user: UserProfile) => {
+    // SPECIAL: Missing Data handling to prevent AVOID fallback
+    if (!product.ingredients || product.ingredients.length === 0) {
+        return {
+            verdict: { 
+                decision: 'UNKNOWN', 
+                title: 'Info Unavailable', 
+                description: "We couldn't retrieve the ingredients for this product. Use Google AI to verify safety.", 
+                color: 'zinc' 
+            },
+            audit: {
+                adjustedScore: 0, 
+                warnings: [], 
+                analysisReason: "Ingredients missing."
+            },
+            shelfConflicts: [],
+            comparison: { result: 'NEUTRAL' }
+        };
+    }
+
     const audit = auditProduct(product, user);
     let decision = 'CONSIDER';
     const hasCriticalWarnings = audit.warnings.some(w => w.severity === 'CRITICAL');
