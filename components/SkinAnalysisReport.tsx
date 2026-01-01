@@ -501,7 +501,7 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({ userProf
           <div className="mb-3 last:mb-0">
               <div className="flex justify-between text-[10px] font-bold text-zinc-500 uppercase tracking-wide mb-1">
                   <span>{label}</span>
-                  <span className={isUnlimited ? 'text-teal-600' : 'text-zinc-600'}>
+                  <span className="text-zinc-600">
                       {isUnlimited ? 'Unlimited' : `${current} / ${max}`}
                   </span>
               </div>
@@ -515,8 +515,10 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({ userProf
       );
   };
 
+  // --- SAFE AREA PADDING ADDED ---
+  // Added 'pt-safe-top' to ensure content is not hidden behind notch
   return (
-    <div className="max-w-7xl mx-auto lg:px-8 pb-48">
+    <div className="max-w-7xl mx-auto lg:px-8 pb-48 pt-safe-top">
       
       <div className="lg:grid lg:grid-cols-12 lg:gap-12 lg:items-start lg:pt-8">
         
@@ -532,7 +534,11 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({ userProf
                     )}
                     <div className="absolute inset-x-0 bottom-0 h-3/4 bg-gradient-to-t from-black/90 via-black/50 to-transparent" />
                     
-                    <button onClick={handleRescan} className="absolute top-6 right-6 z-20 bg-black/40 backdrop-blur-md text-white px-5 py-2.5 rounded-full flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest hover:bg-black/60 transition-colors border border-white/10 shadow-lg">
+                    {/* RESCAN BUTTON FIX: Increased Z-Index, Added Cursor Pointer, Touch Manipulation */}
+                    <button 
+                        onClick={handleRescan} 
+                        className="absolute top-6 right-6 z-40 cursor-pointer bg-black/40 backdrop-blur-md text-white px-5 py-2.5 rounded-full flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest hover:bg-black/60 transition-colors border border-white/10 shadow-lg active:scale-95 touch-manipulation"
+                    >
                         {userProfile.isAnonymous ? <Sparkles size={12} /> : <RefreshCw size={12} />}
                         {userProfile.isAnonymous ? "Save to Rescan" : "Rescan"}
                     </button>

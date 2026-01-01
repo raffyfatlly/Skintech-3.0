@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Sparkles, Image as ImageIcon, ScanFace, BrainCircuit, Target, Lightbulb, CheckCircle2, Focus, X, ArrowRight, UserX, ShieldAlert, Fingerprint, Lock } from 'lucide-react';
 import { analyzeSkinFrame, drawBiometricOverlay, validateFrame, applyClinicalOverlays, applyMedicalProcessing, preprocessForAI } from '../services/visionService';
@@ -666,7 +667,8 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
       </div>
       
       <div className="absolute inset-0 z-20 flex flex-col justify-between pointer-events-none">
-          <div className="w-full p-6 pt-12 flex justify-between items-start pointer-events-auto">
+          {/* UPDATED: ADDED pt-safe-top + mt-2 for top safety */}
+          <div className="w-full p-6 pt-safe-top mt-2 flex justify-between items-start pointer-events-auto">
              <div className="bg-white/10 backdrop-blur-md rounded-full px-4 py-2 border border-white/10 flex items-center gap-2">
                 <ScanFace size={16} className="text-white" />
                 <span className="text-white text-xs font-bold tracking-wider">SKIN AI</span>
