@@ -84,38 +84,6 @@ const rgbToLab = (r: number, g: number, b: number) => {
     };
 };
 
-const labToRgb = (L: number, a: number, b: number) => {
-    let y = (L + 16) / 116;
-    let x = a / 500 + y;
-    let z = y - b / 200;
-
-    const x3 = x * x * x;
-    const y3 = y * y * y;
-    const z3 = z * z * z;
-
-    x = (x3 > 0.008856) ? x3 : (x - 16/116) / 7.787;
-    y = (y3 > 0.008856) ? y3 : (y - 16/116) / 7.787;
-    z = (z3 > 0.008856) ? z3 : (z - 16/116) / 7.787;
-
-    x = x * 0.95047;
-    y = y * 1.00000;
-    z = z * 1.08883;
-
-    let r = x * 3.2406 + y * -1.5372 + z * -0.4986;
-    let g = x * -0.9689 + y * 1.8758 + z * 0.0415;
-    let bl = x * 0.0557 + y * -0.2040 + z * 1.0570;
-
-    r = (r > 0.0031308) ? (1.055 * Math.pow(r, 1/2.4) - 0.055) : 12.92 * r;
-    g = (g > 0.0031308) ? (1.055 * Math.pow(g, 1/2.4) - 0.055) : 12.92 * g;
-    bl = (bl > 0.0031308) ? (1.055 * Math.pow(bl, 1/2.4) - 0.055) : 12.92 * bl;
-
-    return {
-        r: Math.max(0, Math.min(255, Math.round(r * 255))),
-        g: Math.max(0, Math.min(255, Math.round(g * 255))),
-        b: Math.max(0, Math.min(255, Math.round(bl * 255)))
-    };
-};
-
 // --- SCORING ALGORITHMS (High Score = Good Condition) ---
 
 // 1. ACNE: Detects Redness + Inflammation
@@ -134,10 +102,9 @@ function calculateAcneScore(img: ImageData): number {
     }
     const avgA = count > 0 ? sumA / count : 128;
     
-    // SENSITIVITY FIX: Lower threshold significantly to catch more redness
-    // Previous: avgA + 18 (Too lenient, gave high scores even with acne)
-    // New: avgA + 10 (Stricter, will penalize redness more aggressively)
-    const rednessThreshold = avgA + 10; 
+    // RELAXED SENSITIVITY: 
+    // Increased threshold buffer from 10 to 15 to ignore mild flushing
+    const rednessThreshold = avgA + 15; 
 
     for (let i = 0; i < data.length; i += 4) {
         const { a } = rgbToLab(data[i], data[i+1], data[i+2]);
@@ -147,9 +114,9 @@ function calculateAcneScore(img: ImageData): number {
     }
 
     const density = acnePixels / totalPixels;
-    // Penalty: High density reduces score from 100.
-    // 5% coverage = 100 - 60 = 40 (Bad).
-    return Math.max(10, 100 - (density * 1200));
+    // Penalty: Reduced multiplier from 1200 to 800 to be less harsh.
+    // 5% coverage = 100 - 40 = 60 (Fair) instead of 40 (Poor).
+    return Math.max(10, 100 - (density * 800));
 }
 
 // 2. REDNESS: Global Erythema
@@ -168,9 +135,10 @@ function calculateRednessScore(img: ImageData): number {
     const avgA = count > 0 ? sumA / count : 15;
     
     // Healthy range ~14-16.
-    // SENSITIVITY FIX: If avgA > 17, start penalizing immediately.
-    if (avgA <= 17) return 98;
-    const penalty = (avgA - 17) * 4.0; // Stricter penalty multiplier
+    // RELAXED SENSITIVITY: Increased baseline from 17 to 18.
+    // Reduced penalty multiplier from 4.0 to 3.0.
+    if (avgA <= 18) return 98;
+    const penalty = (avgA - 18) * 3.0; 
     return Math.max(20, 100 - penalty);
 }
 
@@ -204,9 +172,10 @@ function calculateTextureScore(img: ImageData): number {
 
     const avgRoughness = pixels > 0 ? varianceSum / pixels : 0;
     
-    // SENSITIVITY FIX: Tighter baseline (2.0 instead of 2.5). 
-    // Any roughness above 2.0 starts reducing score.
-    const score = 100 - ((avgRoughness - 2.0) * 12);
+    // RELAXED SENSITIVITY: 
+    // Increased baseline from 2.0 to 2.5 (allows more natural texture)
+    // Reduced penalty multiplier from 12 to 10.
+    const score = 100 - ((avgRoughness - 2.5) * 10);
     
     return Math.max(10, Math.min(99, score));
 }
@@ -221,7 +190,6 @@ function calculateWrinkleScore(img: ImageData): number {
 
     for (let y = 1; y < h - 1; y++) {
         for (let x = 1; x < w - 1; x++) {
-            const idx = (y * w + x) * 4;
             
             const getL = (ox: number, oy: number) => {
                 const i = ((y + oy) * w + (x + ox)) * 4;
@@ -233,16 +201,17 @@ function calculateWrinkleScore(img: ImageData): number {
 
             const sobelY = (bl + 2*b + br) - (tl + 2*t + tr);
             
-            // SENSITIVITY FIX: Lower threshold from 60 to 35.
-            // This detects finer lines as wrinkles, lowering the score appropriately.
-            if (Math.abs(sobelY) > 35) { 
+            // RELAXED SENSITIVITY: 
+            // Increased threshold from 35 to 40 to ignore micro-lines
+            if (Math.abs(sobelY) > 40) { 
                 edgePixels++;
             }
         }
     }
 
     const density = edgePixels / (w * h);
-    return Math.max(20, 100 - (density * 350));
+    // Reduced penalty multiplier from 350 to 300.
+    return Math.max(20, 100 - (density * 300));
 }
 
 // 5. HYDRATION: Specular Reflection
@@ -266,10 +235,10 @@ function calculateHydrationScore(img: ImageData): number {
     }
     
     const glowDensity = glowPixels / total;
-    // Ideal glow is ~10-15%. Deviation reduces score.
     const deviation = Math.abs(glowDensity - 0.12); 
     
-    return Math.max(20, 100 - (deviation * 300)); // Increased penalty
+    // Reduced penalty multiplier from 300 to 200.
+    return Math.max(20, 100 - (deviation * 200)); 
 }
 
 // 6. DARK CIRCLES: Luma Contrast
@@ -285,8 +254,8 @@ function calculateDarkCircleScore(eyeImg: ImageData, cheekImg: ImageData): numbe
     const cheekL = getAvgLuma(cheekImg);
     
     const diff = Math.max(0, cheekL - eyeL);
-    // If difference is high (shadow), score drops.
-    return Math.max(30, 100 - (diff * 2.5));
+    // Reduced penalty multiplier from 2.5 to 2.0.
+    return Math.max(30, 100 - (diff * 2.0));
 }
 
 /**
@@ -527,7 +496,7 @@ export const analyzeSkinFrame = (
   const saggingScore = 85; 
 
   // Overall Score Weighted Average
-  const overallScore = (
+  let overallScore = (
       acneScore * 0.25 + 
       rednessScore * 0.15 + 
       textureScore * 0.20 + 
@@ -535,6 +504,9 @@ export const analyzeSkinFrame = (
       hydrationScore * 0.15 +
       darkCircleScore * 0.10
   );
+
+  // BOOST: Add small bonus to ensure "average" skin doesn't feel "bad"
+  overallScore = Math.min(99, overallScore + 5);
 
   return {
       overallScore: normalizeScore(overallScore),
