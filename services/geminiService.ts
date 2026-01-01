@@ -114,19 +114,26 @@ const runWithRetry = async <T>(fn: (ai: GoogleGenAI) => Promise<T>, fallback: T,
 
 // --- CORE ANALYSIS FUNCTION ---
 
-export const analyzeProductFromSearch = async (productName: string, userMetrics: SkinMetrics, _unused?: any, knownBrand?: string, routineActives: string[] = []): Promise<Product> => {
+export const analyzeProductFromSearch = async (
+    productName: string, 
+    userMetrics: SkinMetrics, 
+    _unused?: any, 
+    knownBrand?: string, 
+    routineActives: string[] = [],
+    location: string = "Global"
+): Promise<Product> => {
     return runWithTimeout<Product>(async (ai) => {
         
-        // User's Exact Prompt Structure
+        // User's Exact Prompt Structure - NOW LOCATION AWARE
         const prompt = `
         ACT AS AN EXPERT COSMETIC CHEMIST.
         PRODUCT: "${productName}" ${knownBrand ? `by ${knownBrand}` : ''}
-        CONTEXT: User in MALAYSIA. 
+        USER LOCATION: ${location} (Determine currency and product availability based on this).
         USER PROFILE (0=Bad, 100=Good): ${JSON.stringify(userMetrics)}.
         ROUTINE ACTIVES ALREADY USED: [${routineActives.join(', ')}].
 
         TASK: 
-        1. Use Google Search to find the ingredients list and price in MYR.
+        1. Use Google Search to find the ingredients list and price in the User's Local Currency (infer from location).
         2. Analyze the ingredients against the user profile.
         3. Output the result in the strict JSON format below.
 
@@ -163,9 +170,6 @@ export const analyzeProductFromSearch = async (productName: string, userMetrics:
             contents: prompt,
             config: { 
                 tools: [{ googleSearch: {} }],
-                // IMPORTANT: We do NOT use responseMimeType: 'application/json' here
-                // because it often conflicts with Google Search tools in the same call.
-                // We rely on the prompt's schema instruction and regex parsing.
             }
         });
 
@@ -205,10 +209,14 @@ export const analyzeProductFromSearch = async (productName: string, userMetrics:
     }, 60000); 
 };
 
-export const analyzeProductImage = async (base64: string, userMetrics: SkinMetrics, routineActives: string[] = []): Promise<Product> => {
+export const analyzeProductImage = async (
+    base64: string, 
+    userMetrics: SkinMetrics, 
+    routineActives: string[] = [],
+    location: string = "Global"
+): Promise<Product> => {
     return runWithTimeout<Product>(async (ai) => {
         // Step 1: Vision to Text (Identify Product)
-        // We stick to simple JSON extraction for this step
         const visionPrompt = `Identify the skincare product in this image. Return JSON: { "brand": "Brand Name", "name": "Product Name" }. If unclear, return { "name": "Unknown" }`;
         
         const visionResp = await ai.models.generateContent({
@@ -227,7 +235,6 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
         const detectedBrand = visionData.brand || "Unknown";
 
         if (detectedName === "Unknown Product") {
-             // If vision fails, return a generic placeholder immediately rather than hallucinating details
              return {
                 id: Date.now().toString(),
                 name: "Unidentified Product",
@@ -247,7 +254,7 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
         const refinementPrompt = `
         ACT AS AN EXPERT COSMETIC CHEMIST.
         PRODUCT: "${detectedBrand} ${detectedName}"
-        CONTEXT: Malaysia.
+        USER LOCATION: ${location} (Determine currency and product availability based on this).
         USER PROFILE (0=Bad, 100=Good): ${JSON.stringify(userMetrics)}.
         ROUTINE ACTIVES: [${routineActives.join(', ')}].
 
@@ -286,7 +293,6 @@ export const analyzeProductImage = async (base64: string, userMetrics: SkinMetri
             contents: refinementPrompt,
             config: { 
                 tools: [{ googleSearch: {} }],
-                // Again, no responseMimeType here to ensure Google Search tool works reliably
             }
         });
 
@@ -321,7 +327,7 @@ export const searchProducts = async (query: string): Promise<{ name: string, bra
             contents: `Find 5 specific skincare products that strictly match the user search query: "${query}".
             
             STRICT RULES:
-            1. If the query is a Brand Name (e.g. "Neutrogena"), return their most popular products.
+            1. If the query is a Brand Name, return their most popular products.
             2. If the query is a Product Name, return the exact match.
             3. Do NOT suggest competitors or alternatives.
             4. Do NOT filter by skin type - return exactly what was searched.
@@ -329,7 +335,6 @@ export const searchProducts = async (query: string): Promise<{ name: string, bra
             Return strictly a JSON array: [{"brand": "Brand Name", "name": "Product Name"}]`,
             config: { 
                 tools: [{ googleSearch: {} }],
-                // responseMimeType REMOVED
             }
         });
         const res = parseJSONFromText(response.text || "[]");
@@ -338,7 +343,6 @@ export const searchProducts = async (query: string): Promise<{ name: string, bra
 };
 
 export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, shelf: string[] = [], history?: SkinMetrics[]): Promise<SkinMetrics> => {
-    const previousScan = history && history.length > 0 ? history[history.length - 1] : null;
     const prompt = `
     You are SkinOS. Analyze this face image for dermatological health.
     
@@ -478,7 +482,11 @@ export const getClinicalTreatmentSuggestions = (user: UserProfile) => {
     return s;
 };
 
-export const createDermatologistSession = (user: UserProfile, shelf: Product[]): Chat => {
+export const createDermatologistSession = (
+    user: UserProfile, 
+    shelf: Product[],
+    location: string = "Global"
+): Chat => {
     const biometrics = user.biometrics;
     const userContext = JSON.stringify(biometrics);
     const shelfContext = shelf.map(p => `${p.brand || ''} ${p.name}`).join(', ');
@@ -488,6 +496,7 @@ export const createDermatologistSession = (user: UserProfile, shelf: Product[]):
         config: { 
             systemInstruction: `You are SkinOS, an expert dermatological AI assistant.
             USER PROFILE (High=Good, Low=Bad): ${userContext}
+            USER LOCATION: ${location}. Take into account the user's local climate, season, and likely product availability when giving advice.
             USER SHELF: ${shelfContext}
             Provide specific, science-backed advice.
             ` 
@@ -528,14 +537,22 @@ export const generateRoutineRecommendations = async (user: UserProfile): Promise
     }, {});
 };
 
-export const generateTargetedRecommendations = async (user: UserProfile, category: string, maxPrice: number, allergies: string, goals: string[]): Promise<any> => {
+export const generateTargetedRecommendations = async (
+    user: UserProfile, 
+    category: string, 
+    maxPrice: number, 
+    allergies: string, 
+    goals: string[],
+    location: string = "Global"
+): Promise<any> => {
     return runWithTimeout<any>(async (ai) => {
         const m = user.biometrics;
         const prompt = `
-        TASK: Recommend 3 ${category} products available in Malaysia/Global.
+        TASK: Recommend 3 ${category} products available in ${location} or Globally.
         
         USER GOALS: ${goals.join(', ')}.
-        BUDGET: RM ${maxPrice}.
+        USER LOCATION: ${location} (Respect local currency/availability).
+        BUDGET: ${maxPrice} (Approximate in local currency).
         SKIN TYPE: ${user.skinType}
         
         SAFETY CONSTRAINTS:
@@ -550,7 +567,6 @@ export const generateTargetedRecommendations = async (user: UserProfile, categor
             contents: prompt,
             config: { 
                 tools: [{ googleSearch: {} }],
-                // responseMimeType REMOVED
             }
         });
         return parseJSONFromText(response.text || "[]");

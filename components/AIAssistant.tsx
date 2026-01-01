@@ -13,6 +13,7 @@ interface AIAssistantProps {
   onClose: () => void;
   triggerQuery?: string | null;
   onUnlockPremium: () => void;
+  location?: string; // New Prop
 }
 
 interface Message {
@@ -56,7 +57,7 @@ const MessageContent: React.FC<{ text: string }> = ({ text }) => {
     );
 }
 
-const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, isOpen, onOpen, onClose, triggerQuery, onUnlockPremium }) => {
+const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, isOpen, onOpen, onClose, triggerQuery, onUnlockPremium, location = "Global" }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -69,13 +70,14 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, isOpen, onOpen, 
 
   useEffect(() => {
       if (!session && isChatEnabled) {
-          const newSession = createDermatologistSession(user, shelf);
+          // Pass location to session creation
+          const newSession = createDermatologistSession(user, shelf, location);
           setSession(newSession);
           if (messages.length === 0) {
              setMessages([{ role: 'model', text: `Analysis complete. I can help optimize your routine or suggest professional treatments.` }]);
           }
       }
-  }, [user, shelf, session, isChatEnabled]); 
+  }, [user, shelf, session, isChatEnabled, location]); 
 
   // Handle Trigger Query
   useEffect(() => {
@@ -136,7 +138,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, isOpen, onOpen, 
       e.stopPropagation();
       setSession(null);
       setMessages([{ role: 'model', text: `Session reset. Ready for your next query.` }]);
-      const newSession = createDermatologistSession(user, shelf);
+      const newSession = createDermatologistSession(user, shelf, location);
       setSession(newSession);
   };
 

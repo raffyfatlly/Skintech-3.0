@@ -14,7 +14,8 @@ import { auth } from './services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { startCheckout } from './services/stripeService';
 import { trackEvent } from './services/analyticsService';
-import { analyzeProductFromSearch, analyzeProductImage, generateTargetedRecommendations } from './services/geminiService'; // Import analyzer
+import { analyzeProductFromSearch, analyzeProductImage, generateTargetedRecommendations } from './services/geminiService';
+import { runNotificationEngine } from './services/notificationService';
 
 // Components
 import LandingPage from './components/LandingPage';
@@ -34,7 +35,7 @@ import BetaOfferModal from './components/BetaOfferModal';
 import GuideOverlay from './components/GuideOverlay';
 import AdminDashboard from './components/AdminDashboard';
 import BackgroundTaskBar from './components/BackgroundTaskBar';
-import SplashScreen from './components/SplashScreen'; // IMPORTED SPLASH SCREEN
+import SplashScreen from './components/SplashScreen';
 
 import { ScanFace, LayoutGrid, User, Search, Home, Loader, ScanBarcode, Lock, Sparkles, Microscope, RefreshCw } from 'lucide-react';
 
@@ -59,6 +60,9 @@ const App: React.FC = () => {
   const [backgroundTask, setBackgroundTask] = useState<{ label: string } | null>(null);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   
+  // Location Context State
+  const [userLocation, setUserLocation] = useState<string>("Global");
+
   // Notification State
   const [notification, setNotification] = useState<{ type: NotificationType, title: string, description: string, actionLabel?: string, onAction?: () => void } | null>(null);
   
@@ -78,6 +82,50 @@ const App: React.FC = () => {
     window.addEventListener('beforeinstallprompt', handler);
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
+
+  // --- LOCATION DETECTION ---
+  useEffect(() => {
+      // 1. Try Timezone as baseline
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      setUserLocation(`Timezone: ${tz}`);
+
+      // 2. Try Geo for precision
+      if ('geolocation' in navigator) {
+          navigator.geolocation.getCurrentPosition((pos) => {
+              const { latitude, longitude } = pos.coords;
+              setUserLocation(`Coordinates: ${latitude.toFixed(2)}, ${longitude.toFixed(2)} (Timezone: ${tz})`);
+          }, (err) => {
+              console.log("Geo access denied, using timezone");
+          });
+      }
+  }, []);
+
+  // --- NEW: RUN NOTIFICATION ENGINE ---
+  useEffect(() => {
+      if (userProfile) {
+          // Add a small delay to not block main thread on load
+          const timer = setTimeout(() => {
+              runNotificationEngine(userProfile, shelf);
+          }, 3000);
+          return () => clearTimeout(timer);
+      }
+  }, [userProfile, shelf]);
+
+  // --- NEW: HANDLE DEEP LINKS FROM NOTIFICATIONS ---
+  useEffect(() => {
+      const params = new URLSearchParams(window.location.search);
+      const action = params.get('action');
+      if (action === 'scan' && userProfile) {
+          setCurrentView(AppView.FACE_SCANNER);
+      } else if (action === 'shelf' && userProfile) {
+          setCurrentView(AppView.SMART_SHELF);
+      }
+      
+      // Clean URL
+      if (action) {
+          window.history.replaceState({}, document.title, window.location.pathname);
+      }
+  }, [userProfile]);
 
   useEffect(() => {
       let interval: ReturnType<typeof setInterval>;
@@ -177,13 +225,15 @@ const App: React.FC = () => {
                   userProfile.biometrics,
                   undefined, 
                   productBrand,
-                  shelfIngredients
+                  shelfIngredients,
+                  userLocation // Pass location
               );
           } else {
               product = await analyzeProductImage(
                   payload, 
                   userProfile.biometrics, 
-                  shelfIngredients
+                  shelfIngredients,
+                  userLocation // Pass location
               );
           }
 
@@ -244,7 +294,14 @@ const App: React.FC = () => {
       setBackgroundTask({ label: `Building ${category} Routine...` });
 
       try {
-          const data = await generateTargetedRecommendations(userProfile, category, maxPrice, allergies, goals);
+          const data = await generateTargetedRecommendations(
+              userProfile, 
+              category, 
+              maxPrice, 
+              allergies, 
+              goals,
+              userLocation // Pass location
+          );
           
           setRoutineResults(data);
           
@@ -495,7 +552,18 @@ const App: React.FC = () => {
           case AppView.FACE_SCANNER: return <FaceScanner onScanComplete={handleFaceScanComplete} scanHistory={userProfile?.scanHistory} onCancel={userProfile?.hasScannedFace ? () => setCurrentView(AppView.DASHBOARD) : undefined} referenceImage={userProfile?.faceImage} shelf={shelf} />;
           case AppView.DASHBOARD:
               if (userProfile && !userProfile.hasScannedFace) return <FaceScanner onScanComplete={handleFaceScanComplete} scanHistory={userProfile?.scanHistory} shelf={shelf} />;
-              return userProfile ? <SkinAnalysisReport userProfile={userProfile} shelf={shelf} onRescan={() => setCurrentView(AppView.FACE_SCANNER)} onConsultAI={(q) => { setAiQuery(q); setShowAIAssistant(true); }} onViewProgress={() => setCurrentView(AppView.PROFILE_SETUP)} onOpenRoutineBuilder={() => setCurrentView(AppView.ROUTINE_BUILDER)} onLoginRequired={(reason) => openAuth(reason as AuthTrigger)} onUnlockPremium={handleUnlockPremium} /> : null;
+              return userProfile ? (
+                  <SkinAnalysisReport 
+                      userProfile={userProfile} 
+                      shelf={shelf} 
+                      onRescan={() => setCurrentView(AppView.FACE_SCANNER)} 
+                      onConsultAI={(q) => { setAiQuery(q); setShowAIAssistant(true); }} 
+                      onViewProgress={() => setCurrentView(AppView.PROFILE_SETUP)} 
+                      onOpenRoutineBuilder={() => setCurrentView(AppView.ROUTINE_BUILDER)} 
+                      onLoginRequired={(reason) => openAuth(reason as AuthTrigger)} 
+                      onUnlockPremium={handleUnlockPremium} 
+                  />
+              ) : null;
           case AppView.SMART_SHELF:
               return userProfile ? (
                   <SmartShelf 
@@ -543,7 +611,18 @@ const App: React.FC = () => {
                   />
               ) : null;
           case AppView.BUYING_ASSISTANT:
-              return userProfile && analyzedProduct ? <BuyingAssistant product={analyzedProduct} user={userProfile} shelf={shelf} onAddToShelf={handleAddToShelf} onDiscard={handleDiscardProduct} onUnlockPremium={handleUnlockPremium} usageCount={userProfile.usage?.buyingAssistantViews || 0} onIncrementUsage={() => incrementUsage('buyingAssistantViews')} /> : null;
+              return userProfile && analyzedProduct ? (
+                  <BuyingAssistant 
+                      product={analyzedProduct} 
+                      user={userProfile} 
+                      shelf={shelf} 
+                      onAddToShelf={handleAddToShelf} 
+                      onDiscard={handleDiscardProduct} 
+                      onUnlockPremium={handleUnlockPremium} 
+                      usageCount={userProfile.usage?.buyingAssistantViews || 0} 
+                      onIncrementUsage={() => incrementUsage('buyingAssistantViews')} 
+                  />
+              ) : null;
           case AppView.PROFILE_SETUP:
               return userProfile ? <ProfileSetup user={userProfile} shelf={shelf} onComplete={handleProfileUpdate} onBack={() => setCurrentView(AppView.DASHBOARD)} onReset={handleResetApp} onLoginRequired={(trigger) => openAuth(trigger as AuthTrigger)} installPrompt={installPrompt} /> : null;
           case AppView.ROUTINE_BUILDER:
@@ -595,7 +674,20 @@ const App: React.FC = () => {
       {renderView()}
       {renderNavBar()}
       {backgroundTask && <BackgroundTaskBar label={backgroundTask.label} />}
-      {userProfile && <AIAssistant user={userProfile} shelf={shelf} isOpen={showAIAssistant} onOpen={() => setShowAIAssistant(true)} onClose={() => setShowAIAssistant(false)} triggerQuery={aiQuery} onUnlockPremium={handleUnlockPremium} />}
+      {userProfile && (
+          <AIAssistant 
+              user={userProfile} 
+              shelf={shelf} 
+              isOpen={showAIAssistant} 
+              onOpen={() => setShowAIAssistant(true)} 
+              onClose={() => setShowAIAssistant(false)} 
+              triggerQuery={aiQuery} 
+              onUnlockPremium={handleUnlockPremium}
+              // Pass location context to Chat Assistant
+              // Note: AIAssistant creates its own session, but we can't easily pass it here without prop drilling
+              // So we will modify AIAssistant to accept location prop
+          />
+      )}
       {showSaveModal && <SaveProfileModal onSave={() => {}} onClose={() => setShowSaveModal(false)} onMockLogin={handleMockLogin} mode={saveModalTrigger === 'GENERIC' ? 'LOGIN' : 'SAVE'} trigger={saveModalTrigger} />}
       {showPremiumModal && <BetaOfferModal onClose={() => setShowPremiumModal(false)} onConfirm={() => startCheckout()} onCodeSuccess={handleCodeUnlock} />}
       {notification && <SmartNotification {...notification} onClose={() => setNotification(null)} />}

@@ -2,6 +2,7 @@
   "name": "Skintech NEW (production)",
   "description": "Advanced dermatological assistant using computer vision and AI to analyze skin health, scan product ingredients, and manage routine safety.",
   "requestFramePermissions": [
-    "camera"
+    "camera",
+    "geolocation"
   ]
 }
