@@ -102,9 +102,8 @@ function calculateAcneScore(img: ImageData): number {
     }
     const avgA = count > 0 ? sumA / count : 128;
     
-    // RELAXED SENSITIVITY: 
-    // Increased threshold buffer from 10 to 15 to ignore mild flushing
-    const rednessThreshold = avgA + 15; 
+    // CALIBRATED: Buffer 12 (Midpoint between 10 and 15)
+    const rednessThreshold = avgA + 12; 
 
     for (let i = 0; i < data.length; i += 4) {
         const { a } = rgbToLab(data[i], data[i+1], data[i+2]);
@@ -114,9 +113,8 @@ function calculateAcneScore(img: ImageData): number {
     }
 
     const density = acnePixels / totalPixels;
-    // Penalty: Reduced multiplier from 1200 to 800 to be less harsh.
-    // 5% coverage = 100 - 40 = 60 (Fair) instead of 40 (Poor).
-    return Math.max(10, 100 - (density * 800));
+    // CALIBRATED: Multiplier 1000 (Midpoint between 1200 and 800)
+    return Math.max(10, 100 - (density * 1000));
 }
 
 // 2. REDNESS: Global Erythema
@@ -135,10 +133,10 @@ function calculateRednessScore(img: ImageData): number {
     const avgA = count > 0 ? sumA / count : 15;
     
     // Healthy range ~14-16.
-    // RELAXED SENSITIVITY: Increased baseline from 17 to 18.
-    // Reduced penalty multiplier from 4.0 to 3.0.
-    if (avgA <= 18) return 98;
-    const penalty = (avgA - 18) * 3.0; 
+    // CALIBRATED: Baseline 17.5 (Midpoint between 17 and 18)
+    // Penalty 3.5 (Midpoint between 4.0 and 3.0)
+    if (avgA <= 17.5) return 98;
+    const penalty = (avgA - 17.5) * 3.5; 
     return Math.max(20, 100 - penalty);
 }
 
@@ -172,10 +170,9 @@ function calculateTextureScore(img: ImageData): number {
 
     const avgRoughness = pixels > 0 ? varianceSum / pixels : 0;
     
-    // RELAXED SENSITIVITY: 
-    // Increased baseline from 2.0 to 2.5 (allows more natural texture)
-    // Reduced penalty multiplier from 12 to 10.
-    const score = 100 - ((avgRoughness - 2.5) * 10);
+    // CALIBRATED: Baseline 2.2 (Midpoint between 2.0 and 2.5)
+    // Multiplier 11 (Midpoint between 12 and 10)
+    const score = 100 - ((avgRoughness - 2.2) * 11);
     
     return Math.max(10, Math.min(99, score));
 }
@@ -201,17 +198,16 @@ function calculateWrinkleScore(img: ImageData): number {
 
             const sobelY = (bl + 2*b + br) - (tl + 2*t + tr);
             
-            // RELAXED SENSITIVITY: 
-            // Increased threshold from 35 to 40 to ignore micro-lines
-            if (Math.abs(sobelY) > 40) { 
+            // CALIBRATED: Threshold 38 (Midpoint between 35 and 40)
+            if (Math.abs(sobelY) > 38) { 
                 edgePixels++;
             }
         }
     }
 
     const density = edgePixels / (w * h);
-    // Reduced penalty multiplier from 350 to 300.
-    return Math.max(20, 100 - (density * 300));
+    // CALIBRATED: Multiplier 325 (Midpoint between 350 and 300)
+    return Math.max(20, 100 - (density * 325));
 }
 
 // 5. HYDRATION: Specular Reflection
@@ -237,8 +233,8 @@ function calculateHydrationScore(img: ImageData): number {
     const glowDensity = glowPixels / total;
     const deviation = Math.abs(glowDensity - 0.12); 
     
-    // Reduced penalty multiplier from 300 to 200.
-    return Math.max(20, 100 - (deviation * 200)); 
+    // CALIBRATED: Multiplier 250 (Midpoint between 300 and 200)
+    return Math.max(20, 100 - (deviation * 250)); 
 }
 
 // 6. DARK CIRCLES: Luma Contrast
@@ -254,8 +250,8 @@ function calculateDarkCircleScore(eyeImg: ImageData, cheekImg: ImageData): numbe
     const cheekL = getAvgLuma(cheekImg);
     
     const diff = Math.max(0, cheekL - eyeL);
-    // Reduced penalty multiplier from 2.5 to 2.0.
-    return Math.max(30, 100 - (diff * 2.0));
+    // CALIBRATED: Multiplier 2.25 (Midpoint between 2.5 and 2.0)
+    return Math.max(30, 100 - (diff * 2.25));
 }
 
 /**
@@ -505,8 +501,8 @@ export const analyzeSkinFrame = (
       darkCircleScore * 0.10
   );
 
-  // BOOST: Add small bonus to ensure "average" skin doesn't feel "bad"
-  overallScore = Math.min(99, overallScore + 5);
+  // BOOST: Slightly reduced from +5 to +2 for cleaner calibration
+  overallScore = Math.min(99, overallScore + 2);
 
   return {
       overallScore: normalizeScore(overallScore),
