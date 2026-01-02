@@ -1,11 +1,11 @@
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { UserProfile, Product, SkinType } from '../types';
 import { signOut, auth } from '../services/firebase';
 import { 
-  ArrowLeft, LogOut, Trash2, Save, User, 
+  ArrowLeft, Trash2, Save, User, 
   Download, Activity, Baby, Feather, ShieldAlert, 
-  Pill, Smartphone, Settings, Crown 
+  Pill, TrendingUp, Calendar
 } from 'lucide-react';
 
 interface ProfileSetupProps {
@@ -63,7 +63,6 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({
 
   const handleSignOut = async () => {
     await signOut();
-    // Assuming App.tsx handles auth state change and redirects/reloads
     onBack(); 
     window.location.reload();
   };
@@ -79,6 +78,93 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({
     }
   };
 
+  // --- PROGRESS CHART LOGIC ---
+  const renderChart = useMemo(() => {
+      const history = user.scanHistory || [];
+      if (history.length < 2) return null;
+
+      // Get last 7 scans or all if less
+      const data = history.slice(-7);
+      
+      const height = 120;
+      const width = 300; // viewBox width
+      const padding = 10;
+      
+      const minScore = Math.min(...data.map(d => d.overallScore)) - 5;
+      const maxScore = Math.max(...data.map(d => d.overallScore)) + 5;
+      const range = maxScore - minScore || 1;
+
+      const getX = (i: number) => padding + (i / (data.length - 1)) * (width - 2 * padding);
+      const getY = (score: number) => height - padding - ((score - minScore) / range) * (height - 2 * padding);
+
+      let pathD = `M ${getX(0)} ${getY(data[0].overallScore)}`;
+      for (let i = 1; i < data.length; i++) {
+          pathD += ` L ${getX(i)} ${getY(data[i].overallScore)}`;
+      }
+
+      // Calculate improvement
+      const first = data[0].overallScore;
+      const last = data[data.length - 1].overallScore;
+      const diff = last - first;
+
+      return (
+          <div className="bg-white rounded-[2rem] p-6 shadow-xl shadow-zinc-200/50 border border-zinc-100 mb-6">
+              <div className="flex justify-between items-center mb-6">
+                  <div className="flex items-center gap-2 text-zinc-400">
+                      <TrendingUp size={16} />
+                      <span className="text-xs font-bold uppercase tracking-widest">Skin Health History</span>
+                  </div>
+                  {diff !== 0 && (
+                      <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${diff > 0 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                          {diff > 0 ? '+' : ''}{diff} pts
+                      </span>
+                  )}
+              </div>
+              
+              <div className="w-full aspect-[2.5/1] relative">
+                  <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-full overflow-visible">
+                      {/* Gradient Defs */}
+                      <defs>
+                          <linearGradient id="lineGradient" x1="0" y1="0" x2="1" y2="0">
+                              <stop offset="0%" stopColor="#2dd4bf" />
+                              <stop offset="100%" stopColor="#0d9488" />
+                          </linearGradient>
+                      </defs>
+
+                      {/* Grid Lines */}
+                      <line x1={padding} y1={height - padding} x2={width - padding} y2={height - padding} stroke="#f4f4f5" strokeWidth="1" />
+                      <line x1={padding} y1={padding} x2={width - padding} y2={padding} stroke="#f4f4f5" strokeWidth="1" strokeDasharray="4 4" />
+
+                      {/* Line */}
+                      <path d={pathD} fill="none" stroke="url(#lineGradient)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="drop-shadow-sm" />
+
+                      {/* Dots */}
+                      {data.map((d, i) => (
+                          <g key={i} className="group relative">
+                              <circle 
+                                  cx={getX(i)} 
+                                  cy={getY(d.overallScore)} 
+                                  r="4" 
+                                  className="fill-white stroke-teal-600 stroke-[3px] group-hover:scale-150 transition-transform cursor-pointer" 
+                              />
+                              {/* Tooltip */}
+                              <foreignObject x={getX(i) - 20} y={getY(d.overallScore) - 35} width="40" height="30" className="opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                                  <div className="bg-zinc-800 text-white text-[9px] font-bold py-1 px-1.5 rounded text-center shadow-lg">
+                                      {d.overallScore}
+                                  </div>
+                              </foreignObject>
+                          </g>
+                      ))}
+                  </svg>
+              </div>
+              <div className="flex justify-between mt-2 px-2">
+                  <span className="text-[9px] font-bold text-zinc-300">{new Date(data[0].timestamp).toLocaleDateString(undefined, {month:'short', day:'numeric'})}</span>
+                  <span className="text-[9px] font-bold text-zinc-300">{new Date(data[data.length-1].timestamp).toLocaleDateString(undefined, {month:'short', day:'numeric'})}</span>
+              </div>
+          </div>
+      );
+  }, [user.scanHistory]);
+
   return (
     <div className="min-h-screen bg-zinc-50 font-sans pb-32 animate-in slide-in-from-right-8 duration-500">
       
@@ -93,9 +179,9 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({
               {auth && auth.currentUser && (
                   <button 
                     onClick={handleSignOut}
-                    className="px-4 py-2 bg-white/10 backdrop-blur-md rounded-full text-white text-[10px] font-bold uppercase tracking-widest hover:bg-white/20 transition-colors border border-white/10 flex items-center gap-2"
+                    className="px-5 py-2.5 bg-white/10 backdrop-blur-md rounded-full text-white text-[10px] font-bold uppercase tracking-widest hover:bg-white/20 transition-colors border border-white/10"
                   >
-                      <LogOut size={12} /> Sign Out
+                      Sign Out
                   </button>
               )}
           </div>
@@ -108,6 +194,9 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({
 
       <div className="px-6 -mt-6 relative z-20 space-y-6">
           
+          {/* Progress Chart (Restored) */}
+          {renderChart}
+
           {/* User Details Card */}
           <div className="bg-white rounded-[2rem] p-6 shadow-xl shadow-zinc-200/50 border border-zinc-100">
               <div className="flex items-center gap-2 mb-6 text-zinc-400">
