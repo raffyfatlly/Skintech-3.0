@@ -1,7 +1,7 @@
 
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Product, UserProfile } from '../types';
-import { getBuyingDecision } from '../services/geminiService';
+import { getBuyingDecision, auditProduct } from '../services/geminiService';
 import { startCheckout } from '../services/stripeService';
 import { Check, X, AlertTriangle, ShieldCheck, Zap, AlertOctagon, TrendingUp, DollarSign, Clock, ArrowRight, Lock, Sparkles, Crown, Link, ExternalLink, CloudSun, Layers, MessageCircle, ArrowLeft, ThumbsUp, ThumbsDown, HelpCircle, ChevronDown, Eye, Search } from 'lucide-react';
 
@@ -224,8 +224,6 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
   
   // Calculate lock status based on usage if not premium
   const isUsageLimitReached = !user.isPremium && usageCount >= LIMIT_VIEWS;
-  // If user is premium OR hasn't expanded OR (has expanded AND is under limit), it's considered "viewable" logic-wise, 
-  // but actual content blur happens if isUsageLimitReached is true when showDetails is true.
   
   return (
     <div className="min-h-screen pb-32 animate-in slide-in-from-bottom-8 duration-500 bg-zinc-50 font-sans">
@@ -299,9 +297,10 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
                     </div>
                 ) : (
                     <>
+                        {/* MATCH SCORE: Use Adjusted Score to reflect penalties */}
                         <div className="flex items-center justify-between text-xs font-bold text-zinc-500 px-1">
                             <span>Skin Match Score</span>
-                            <span className={`text-lg font-black ${theme.accent}`}>{Math.min(99, product.suitabilityScore)}%</span>
+                            <span className={`text-lg font-black ${theme.accent}`}>{Math.min(99, audit.adjustedScore)}%</span>
                         </div>
                         
                         {/* Score Bar with Comparisons */}
@@ -309,26 +308,31 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
                             <div className="h-2 w-full bg-zinc-100 rounded-full overflow-hidden">
                                 <div 
                                     className={`h-full rounded-full transition-all duration-1000 ${simpleVerdict.type === 'GREAT' ? 'bg-emerald-500' : simpleVerdict.type === 'AVOID' ? 'bg-rose-500' : 'bg-amber-500'}`} 
-                                    style={{ width: `${Math.min(99, product.suitabilityScore)}%` }}
+                                    style={{ width: `${Math.min(99, audit.adjustedScore)}%` }}
                                 />
                             </div>
 
-                            {/* Shelf Markers - Updated Style (White/Clean) */}
-                            {comparableProducts.map(p => (
+                            {/* Shelf Markers - Updated to compute Adjusted Score for apple-to-apple comparison */}
+                            {comparableProducts.map(p => {
+                                // Compute adjusted score on the fly for accurate comparison against user's specific constraints
+                                const pAudit = auditProduct(p, user);
+                                const pScore = pAudit.adjustedScore;
+                                
+                                return (
                                 <div 
                                     key={p.id}
                                     className="absolute top-1/2 -translate-y-1/2 w-1.5 h-4 bg-white rounded-full border border-zinc-300 shadow-sm z-10 cursor-help group/marker hover:scale-125 transition-transform hover:z-30 hover:border-teal-500"
-                                    style={{ left: `${Math.min(99, p.suitabilityScore)}%` }}
+                                    style={{ left: `${Math.min(99, pScore)}%` }}
                                 >
                                     <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 bg-white text-zinc-600 text-[9px] font-bold px-3 py-2 rounded-xl shadow-xl border border-zinc-100 whitespace-nowrap opacity-0 group-hover/marker:opacity-100 transition-all pointer-events-none z-20 flex flex-col items-center min-w-[80px]">
                                         <span className="text-teal-700 uppercase tracking-widest text-[8px] mb-0.5">{p.type}</span>
                                         <span className="text-zinc-900 text-[10px]">{p.brand || p.name.substring(0, 10)}</span>
-                                        <span className="text-zinc-400 font-medium mt-0.5">Match: {p.suitabilityScore}%</span>
+                                        <span className="text-zinc-400 font-medium mt-0.5">Match: {pScore}%</span>
                                         {/* Pointer Arrow */}
                                         <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-white border-b border-r border-zinc-100 rotate-45"></div>
                                     </div>
                                 </div>
-                            ))}
+                            )})}
                         </div>
 
                         {comparableProducts.length > 0 && (
