@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, Type, SchemaShared } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import type { Chat } from "@google/genai";
 import { SkinMetrics, Product, UserProfile } from '../types';
 
@@ -44,17 +44,15 @@ const parseJSONFromText = (text: string): any => {
     if (!text) return {};
     try {
         // 1. Remove markdown code blocks
-        // We match ```json, ```JSON, or just ```
         let cleanText = text.replace(/```json/gi, '').replace(/```/g, '').trim();
         
-        // 2. Identify start char (Object or Array)
+        // 2. Identify start char
         const firstBrace = cleanText.indexOf('{');
         const firstBracket = cleanText.indexOf('[');
         
         let start = -1;
         let startChar = '';
         
-        // Determine which comes first
         if (firstBrace !== -1 && (firstBracket === -1 || firstBrace < firstBracket)) {
             start = firstBrace;
             startChar = '{';
@@ -65,8 +63,7 @@ const parseJSONFromText = (text: string): any => {
         
         if (start === -1) return {};
         
-        // 3. Smart extraction with brace/bracket counting
-        // This ensures we capture exactly one complete JSON root object, ignoring trailing text.
+        // 3. Smart extraction
         let openCount = 0;
         let end = -1;
         const openChar = startChar;
@@ -88,7 +85,6 @@ const parseJSONFromText = (text: string): any => {
         if (end !== -1) {
             cleanText = cleanText.substring(start, end + 1);
         } else {
-             // Fallback: If braces don't balance (truncated output), try finding the last closing char
              const lastClose = cleanText.lastIndexOf(closeChar);
              if (lastClose !== -1) {
                  cleanText = cleanText.substring(start, lastClose + 1);
@@ -98,7 +94,6 @@ const parseJSONFromText = (text: string): any => {
         return JSON.parse(cleanText);
     } catch (e) {
         console.error("JSON Parse Failure", e);
-        // Return empty object/array depending on context if needed, but {} is safe default
         return {};
     }
 };
@@ -134,7 +129,7 @@ const runWithRetry = async <T>(fn: (ai: GoogleGenAI) => Promise<T>, fallback: T,
     }
 };
 
-// --- CORE ANALYSIS FUNCTION ---
+// --- CORE ANALYSIS FUNCTIONS ---
 
 export const analyzeProductFromSearch = async (
     productName: string, 
@@ -146,29 +141,19 @@ export const analyzeProductFromSearch = async (
 ): Promise<Product> => {
     return runWithTimeout<Product>(async (ai) => {
         
-        // User's Exact Prompt Structure - NOW LOCATION AWARE
         const prompt = `
         ACT AS AN EXPERT COSMETIC CHEMIST.
         PRODUCT: "${productName}" ${knownBrand ? `by ${knownBrand}` : ''}
-        USER LOCATION: ${location} (Determine currency and product availability based on this).
+        USER LOCATION: ${location}.
         USER PROFILE (0=Bad, 100=Good): ${JSON.stringify(userMetrics)}.
         ROUTINE ACTIVES ALREADY USED: [${routineActives.join(', ')}].
 
         TASK: 
-        1. Use Google Search to find the ingredients list and price in the User's Local Currency (infer from location).
-        2. Analyze the ingredients against the user profile.
-        3. Output the result in the strict JSON format below.
+        1. Find ingredients and price.
+        2. Analyze against user profile.
+        3. Output strict JSON.
 
-        STYLE GUIDELINES:
-        - Use simple, concise prose suitable for a general audience.
-        - **CRITICAL:** If you use a technical term, immediately explain it in simple terms within brackets. 
-          Example: "Contains salicylic acid [a pore-clearing exfoliant]." or "Rich in ceramides [lipids that repair the skin barrier]."
-
-        CRITICAL OUTPUT RULES:
-        - Return ONLY JSON. 
-        - Ensure "suitabilityScore" (0-100) reflects match with User Profile.
-        - "expertReview": Write an objective consensus review. Summarize what experts generally say about this formulation. DO NOT use first-person ("I", "As a chemist"). Keep it professional and third-party. Use simple language with bracketed explanations.
-        - "benefits" & "risks" descriptions: Must use simple language with bracketed explanations if needed.
+        STYLE: Simple, concise. Explain technical terms in brackets [like this].
 
         OUTPUT JSON SCHEMA:
         \`\`\`json
@@ -187,16 +172,29 @@ export const analyzeProductFromSearch = async (
         \`\`\`
         `;
 
-        const response = await ai.models.generateContent({
-            model: MODEL_FAST,
-            contents: prompt,
-            config: { 
-                tools: [{ googleSearch: {} }],
-            }
-        });
+        let response;
+        let sources: string[] = [];
+
+        try {
+            // Attempt 1: With Google Search (Real-time data)
+            response = await ai.models.generateContent({
+                model: MODEL_FAST,
+                contents: prompt,
+                config: { tools: [{ googleSearch: {} }] }
+            });
+            sources = extractSources(response);
+        } catch (e) {
+            console.warn("Product Search Tool failed, falling back to internal knowledge", e);
+            // Attempt 2: Internal Knowledge (Reliable fallback)
+            // Note: We use responseMimeType here because we are NOT using tools.
+            response = await ai.models.generateContent({
+                model: MODEL_FAST,
+                contents: prompt + "\n\nUse your internal database to estimate ingredients and details.",
+                config: { responseMimeType: 'application/json' }
+            });
+        }
 
         const data = parseJSONFromText(response.text || "{}");
-        const sources = extractSources(response);
 
         // Validation & Defaults
         const finalName = data.name || productName;
@@ -212,7 +210,6 @@ export const analyzeProductFromSearch = async (
             else if (lowerName.includes('sun') || lowerName.includes('spf')) detectedType = 'SPF';
         }
 
-        // STRICT NO-FALLBACK LOGIC
         const hasIngredients = Array.isArray(data.ingredients) && data.ingredients.length > 0;
 
         return {
@@ -221,17 +218,14 @@ export const analyzeProductFromSearch = async (
             brand: finalBrand,
             type: detectedType,
             ingredients: hasIngredients ? data.ingredients : [],
-            // No fallback price (e.g. 45). If missing, return 0 to indicate unknown.
             estimatedPrice: typeof data.estimatedPrice === 'number' ? data.estimatedPrice : 0,
-            // If ingredients are missing, score must be 0 (Unknown/Unverified), not 50.
             suitabilityScore: (typeof data.suitabilityScore === 'number' && hasIngredients) ? data.suitabilityScore : 0,
             risks: Array.isArray(data.risks) ? data.risks : [],
             benefits: Array.isArray(data.benefits) ? data.benefits : [],
             dateScanned: Date.now(),
             sources: sources,
-            // Explicitly state unavailability instead of generic advice
-            usageTips: data.usageTips || "Usage guidelines are unavailable for this product.",
-            expertReview: data.expertReview || "Expert clinical review is unavailable at this time due to insufficient data."
+            usageTips: data.usageTips || "Usage guidelines are unavailable.",
+            expertReview: data.expertReview || "Expert clinical review unavailable."
         };
 
     }, 60000); 
@@ -245,6 +239,7 @@ export const analyzeProductImage = async (
 ): Promise<Product> => {
     return runWithTimeout<Product>(async (ai) => {
         // Step 1: Vision to Text (Identify Product)
+        // No tools needed for vision, so we use responseMimeType for strict JSON
         const visionPrompt = `Identify the skincare product in this image. Return JSON: { "brand": "Brand Name", "name": "Product Name" }. If unclear, return { "name": "Unknown" }`;
         
         const visionResp = await ai.models.generateContent({
@@ -272,62 +267,57 @@ export const analyzeProductImage = async (
                 dateScanned: Date.now(),
                 risks: [],
                 benefits: [],
-                suitabilityScore: 0, // Score 0 for unknown
+                suitabilityScore: 0,
                 estimatedPrice: 0,
-                expertReview: "Could not identify the product from the image. Please try scanning the text or searching manually."
+                expertReview: "Could not identify the product. Try searching manually."
              }
         }
 
-        // Step 2: Search & Deep Analysis (Using the User's "Refinement Prompt")
+        // Step 2: Search & Deep Analysis
         const refinementPrompt = `
         ACT AS AN EXPERT COSMETIC CHEMIST.
         PRODUCT: "${detectedBrand} ${detectedName}"
-        USER LOCATION: ${location} (Determine currency and product availability based on this).
-        USER PROFILE (0=Bad, 100=Good): ${JSON.stringify(userMetrics)}.
-        ROUTINE ACTIVES: [${routineActives.join(', ')}].
-
-        TASK: 
-        1. Search for the product's full ingredient list and reviews.
-        2. Analyze for risks/benefits based on user profile.
-        3. RETURN A VALID JSON OBJECT matching the schema below.
-
-        STYLE GUIDELINES:
-        - Use simple, concise prose.
-        - **CRITICAL:** Explain any technical term immediately in brackets. Example: "Contains hyaluronic acid [a moisture magnet for hydration]."
-
-        CRITICAL OUTPUT RULES:
-        - "expertReview": Write an objective consensus review. Summarize what experts generally say about this formulation. DO NOT use first-person ("I", "As a chemist"). Keep it professional and third-party. Use simple language with bracketed explanations.
-        - "benefits" & "risks" descriptions: Must use simple language with bracketed explanations if needed.
-
+        USER PROFILE: ${JSON.stringify(userMetrics)}.
+        
+        TASK: Search for ingredients, analyze safety, output JSON.
+        
         OUTPUT JSON SCHEMA:
-        \`\`\`json
         {
           "name": "${detectedName}",
           "brand": "${detectedBrand}",
-          "type": "CLEANSER" | "TONER" | "SERUM" | "MOISTURIZER" | "SPF" | "TREATMENT" | "FOUNDATION" | "UNKNOWN",
+          "type": "CLEANSER" | "TONER" | "SERUM" | "MOISTURIZER" | "SPF" | "TREATMENT" | "UNKNOWN",
           "ingredients": ["string"],
           "estimatedPrice": number,
           "suitabilityScore": number,
           "risks": [{ "ingredient": "string", "riskLevel": "LOW"|"MEDIUM"|"HIGH", "reason": "string" }],
-          "benefits": [{ "ingredient": "string", "target": "acneActive"|"hydration" etc, "description": "string", "relevance": "HIGH"|"MAINTENANCE" }],
+          "benefits": [{ "ingredient": "string", "target": "string", "description": "string", "relevance": "HIGH" }],
           "usageTips": "string",
           "expertReview": "string"
         }
-        \`\`\`
         `;
 
-        const searchResponse = await ai.models.generateContent({
-            model: MODEL_FAST,
-            contents: refinementPrompt,
-            config: { 
-                tools: [{ googleSearch: {} }],
-            }
-        });
+        let searchResponse;
+        let sources: string[] = [];
+
+        try {
+            // Attempt 1: Tool-assisted
+            searchResponse = await ai.models.generateContent({
+                model: MODEL_FAST,
+                contents: refinementPrompt,
+                config: { tools: [{ googleSearch: {} }] }
+            });
+            sources = extractSources(searchResponse);
+        } catch (e) {
+            console.warn("Vision Refinement Tool failed, falling back", e);
+            // Attempt 2: Knowledge Base
+            searchResponse = await ai.models.generateContent({
+                model: MODEL_FAST,
+                contents: refinementPrompt,
+                config: { responseMimeType: 'application/json' }
+            });
+        }
 
         const data = parseJSONFromText(searchResponse.text || "{}");
-        const sources = extractSources(searchResponse);
-
-        // STRICT NO-FALLBACK LOGIC
         const hasIngredients = Array.isArray(data.ingredients) && data.ingredients.length > 0;
 
         return {
@@ -343,44 +333,29 @@ export const analyzeProductImage = async (
             dateScanned: Date.now(),
             sources: sources,
             usageTips: data.usageTips || "Usage guidelines are unavailable.",
-            expertReview: data.expertReview || "Analysis based on visual identification only. Detailed verification unavailable."
+            expertReview: data.expertReview || "Analysis based on visual identification only."
         };
 
     }, 60000);
 };
 
-// --- OTHER EXPORTS ---
-
 export const searchProducts = async (query: string): Promise<{ name: string, brand: string }[]> => {
     return runWithRetry(async (ai) => {
+        const prompt = `Find 5 skincare products matching: "${query}". Return strict JSON array: [{"brand": "Brand", "name": "Product"}]`;
         try {
-            // Attempt 1: With Search Tool (Ideal)
             const response = await ai.models.generateContent({
                 model: MODEL_FAST,
-                contents: `Find 5 specific skincare products that strictly match the user search query: "${query}".
-                
-                STRICT RULES:
-                1. If the query is a Brand Name, return their most popular products.
-                2. If the query is a Product Name, return the exact match.
-                3. Do NOT suggest competitors or alternatives.
-                4. Do NOT filter by skin type - return exactly what was searched.
-                
-                Return strictly a JSON array: [{"brand": "Brand Name", "name": "Product Name"}]`,
-                config: { 
-                    tools: [{ googleSearch: {} }],
-                }
+                contents: prompt,
+                config: { tools: [{ googleSearch: {} }] }
             });
             const res = parseJSONFromText(response.text || "[]");
             if (Array.isArray(res) && res.length > 0) return res;
-            throw new Error("Empty search results from tool");
+            throw new Error("Empty search results");
         } catch (e) {
-            console.warn("Search tool failed or empty, using knowledge base fallback", e);
-            // Attempt 2: Internal Knowledge Base (Fallback for when Tools fail/blocked)
-            // This ensures the user at least gets results even if Search Grounding is unavailable
+            console.warn("Search tool failed, using fallback", e);
             const response = await ai.models.generateContent({
                 model: MODEL_FAST,
-                contents: `List 5 real skincare products matching "${query}". 
-                Return strictly a JSON array: [{"brand": "Brand Name", "name": "Product Name"}]`,
+                contents: prompt,
                 config: { responseMimeType: 'application/json' }
             });
             const res = parseJSONFromText(response.text || "[]");
@@ -390,71 +365,59 @@ export const searchProducts = async (query: string): Promise<{ name: string, bra
 };
 
 export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, shelf: string[] = [], history?: SkinMetrics[]): Promise<SkinMetrics> => {
-    const prompt = `
-    You are SkinOS. Analyze this face image for dermatological health.
-    
-    INPUT CV METRICS (Reference Only): ${JSON.stringify(localMetrics)}. 
-    Note: These metrics are a baseline. Trust your visual analysis of the image features for the text report.
-    
-    GRADING RUBRIC (Use this to calibrate your JSON score output):
-    - 90-100 (EXCELLENT): Healthy barrier. Minimal issues. Glass skin or very slight imperfections.
-    - 75-89 (GOOD): Generally healthy. May have mild texture, slight redness, or occasional spots. **Normal skin often falls here.**
-    - 60-74 (AVERAGE): Visible congestion, uneven tone, or regular mild acne.
-    - 40-59 (CONCERN): Active inflammation, significant breakouts, or damaged barrier.
-    - 0-39 (SEVERE): Critical condition requiring medical attention.
-    
-    INSTRUCTION FOR TEXT ANALYSIS ("analysisSummary" and "observations"):
-    - **BE OBJECTIVE:** Describe exactly what you see (e.g., "Visible redness on cheeks", "Enlarged pores on nose"). 
-    - **DO NOT** sugarcoat the visual description just because the score is high. 
-    - If the score is 85 but you see a pimple, say "Overall healthy skin with a visible spot on the chin."
-    - Use clinical terms but explain them simply.
-    
-    OUTPUT JSON (Strict):
-    {
-      "overallScore": number,
-      "acneActive": number,
-      "acneScars": number,
-      "poreSize": number,
-      "blackheads": number,
-      "wrinkleFine": number,
-      "wrinkleDeep": number,
-      "sagging": number,
-      "pigmentation": number,
-      "redness": number,
-      "texture": number,
-      "hydration": number,
-      "oiliness": number,
-      "darkCircles": number,
-      "skinAge": number,
-      "analysisSummary": {
-        "headline": "Short clinical headline",
-        "generalCondition": "2 sentences summary. Mention the scale (High is Good).",
-        "points": [{ "subtitle": "Concern", "content": "Details" }]
-      },
-      "immediateAction": "One tip",
-      "observations": { "acneActive": "Details" }
-    }
-    `;
-    
-    // No tools used here, so responseMimeType is safe and recommended
-    const response = await getAi().models.generateContent({
-        model: MODEL_FAST,
-        contents: {
-            parts: [
-                { inlineData: { mimeType: 'image/jpeg', data: image.split(',')[1] } },
-                { text: prompt }
-            ]
-        },
-        config: { responseMimeType: 'application/json' }
-    });
-    
-    const data = parseJSONFromText(response.text || "{}");
-    if (!data.overallScore && !data.analysisSummary) throw new Error("Incomplete analysis");
+    // Wrapped in timeout to prevent hanging UI
+    return runWithTimeout<SkinMetrics>(async (ai) => {
+        const prompt = `
+        You are SkinOS. Analyze this face image for dermatological health.
+        
+        INPUT CV METRICS (Reference Only): ${JSON.stringify(localMetrics)}. 
+        
+        OUTPUT JSON (Strict):
+        {
+          "overallScore": number,
+          "acneActive": number,
+          "acneScars": number,
+          "poreSize": number,
+          "blackheads": number,
+          "wrinkleFine": number,
+          "wrinkleDeep": number,
+          "sagging": number,
+          "pigmentation": number,
+          "redness": number,
+          "texture": number,
+          "hydration": number,
+          "oiliness": number,
+          "darkCircles": number,
+          "skinAge": number,
+          "analysisSummary": {
+            "headline": "Short clinical headline",
+            "generalCondition": "2 sentences summary. Mention the scale (High is Good).",
+            "points": [{ "subtitle": "Concern", "content": "Details" }]
+          },
+          "immediateAction": "One tip",
+          "observations": { "acneActive": "Details" }
+        }
+        `;
+        
+        const response = await ai.models.generateContent({
+            model: MODEL_FAST,
+            contents: {
+                parts: [
+                    { inlineData: { mimeType: 'image/jpeg', data: image.split(',')[1] } },
+                    { text: prompt }
+                ]
+            },
+            config: { responseMimeType: 'application/json' }
+        });
+        
+        const data = parseJSONFromText(response.text || "{}");
+        if (!data.overallScore && !data.analysisSummary) throw new Error("Incomplete analysis");
 
-    const observations = data.observations || {};
-    if (data.immediateAction) observations.advice = data.immediateAction;
+        const observations = data.observations || {};
+        if (data.immediateAction) observations.advice = data.immediateAction;
 
-    return { ...localMetrics, ...data, observations, timestamp: Date.now() };
+        return { ...localMetrics, ...data, observations, timestamp: Date.now() };
+    }, 45000); // 45s Timeout
 };
 
 export const compareFaceIdentity = async (newImage: string, referenceImage: string): Promise<{ isMatch: boolean; confidence: number; reason: string }> => {
@@ -474,13 +437,14 @@ export const compareFaceIdentity = async (newImage: string, referenceImage: stri
     }, { isMatch: true, confidence: 100, reason: "Fallback" });
 };
 
+// --- SYNCHRONOUS HELPERS (NO AI CALLS) ---
+
 export const auditProduct = (product: Product, user: UserProfile) => {
-    // 0. MISSING DATA CHECK
     if (!product.ingredients || product.ingredients.length === 0) {
         return {
             adjustedScore: 0,
             warnings: [{ severity: 'CAUTION', reason: "Ingredients list could not be retrieved." }],
-            analysisReason: "We could not access the ingredient data for this product to perform a safety audit."
+            analysisReason: "We could not access the ingredient data for this product."
         };
     }
 
@@ -492,44 +456,39 @@ export const auditProduct = (product: Product, user: UserProfile) => {
     const ingStr = product.ingredients.join(' ').toLowerCase();
     const bio = user.biometrics;
 
-    // 1. HYDRATION PENALTY (Specific request: Low Hydration = High Penalty for Drying Agents)
     if (bio.hydration < 50) {
-        const dryingAgents = ['alcohol denat', 'sd alcohol', 'isopropyl alcohol', 'sodium lauryl sulfate', 'sls', 'ammonium lauryl sulfate'];
+        const dryingAgents = ['alcohol denat', 'sd alcohol', 'isopropyl alcohol', 'sodium lauryl sulfate', 'sls'];
         const found = dryingAgents.find(a => ingStr.includes(a));
         if (found) {
-            adjustedScore -= 30; // Heavy penalty
+            adjustedScore -= 30;
             warnings.unshift({ severity: 'CRITICAL', reason: `Contains ${found}, which dehydrates dry skin.` });
         }
     }
 
-    // 2. SENSITIVITY / REDNESS PENALTY
     if (bio.redness < 50 || user.preferences?.sensitivity === 'VERY_SENSITIVE' || user.preferences?.hasEczema) {
-        const irritants = ['fragrance', 'parfum', 'alcohol denat', 'essential oil', 'menthol', 'eucalyptus'];
+        const irritants = ['fragrance', 'parfum', 'alcohol denat', 'essential oil', 'menthol'];
         const found = irritants.find(a => ingStr.includes(a));
         if (found) {
             adjustedScore = Math.min(adjustedScore, 40);
-            warnings.unshift({ severity: 'CRITICAL', reason: `Contains ${found}, a known trigger for sensitive skin.` });
+            warnings.unshift({ severity: 'CRITICAL', reason: `Contains ${found}, a known trigger.` });
         }
     }
 
-    // 3. ACNE PENALTY (Low Score = Active Acne)
     if (bio.acneActive < 55) {
-        const cloggers = ['coconut oil', 'cocoa butter', 'isopropyl myristate', 'algae extract', 'carrageenan', 'palm oil'];
+        const cloggers = ['coconut oil', 'cocoa butter', 'isopropyl myristate', 'algae extract', 'palm oil'];
         const found = cloggers.find(a => ingStr.includes(a));
         if (found) {
             adjustedScore = Math.min(adjustedScore, 35);
-            warnings.unshift({ severity: 'CRITICAL', reason: `Contains ${found}, a high-risk pore clogger.` });
+            warnings.unshift({ severity: 'CRITICAL', reason: `Contains ${found}, a pore clogger.` });
         }
     }
 
-    // 4. PREGNANCY SAFETY
     if (user.preferences?.isPregnant) {
         const unsafe = ['retinol', 'retinyl', 'tretinoin', 'hydroquinone', 'arbutin', 'salicylic acid']; 
-        // Note: Salicylic < 2% is often okay but generally flagged for safety in apps
         const found = unsafe.find(a => ingStr.includes(a));
         if (found) {
             adjustedScore = 0;
-            warnings.unshift({ severity: 'CRITICAL', reason: `Not recommended during pregnancy (contains ${found}).` });
+            warnings.unshift({ severity: 'CRITICAL', reason: `Not recommended during pregnancy (${found}).` });
         }
     }
 
@@ -596,7 +555,7 @@ export const createDermatologistSession = (
         config: { 
             systemInstruction: `You are SkinOS, an expert dermatological AI assistant.
             USER PROFILE (High=Good, Low=Bad): ${userContext}
-            USER LOCATION: ${location}. Take into account the user's local climate, season, and likely product availability when giving advice.
+            USER LOCATION: ${location}.
             USER SHELF: ${shelfContext}
             Provide specific, science-backed advice.
             ` 
@@ -607,20 +566,15 @@ export const createDermatologistSession = (
 export const isQuotaError = (e: any) => e?.message?.includes('429') || e?.status === 429;
 
 export const getBuyingDecision = (product: Product, shelf: Product[], user: UserProfile) => {
-    // SPECIAL: Missing Data handling to prevent AVOID fallback
     if (!product.ingredients || product.ingredients.length === 0) {
         return {
             verdict: { 
                 decision: 'UNKNOWN', 
                 title: 'Info Unavailable', 
-                description: "We couldn't retrieve the ingredients for this product. Use Google AI to verify safety.", 
+                description: "We couldn't retrieve the ingredients for this product.", 
                 color: 'zinc' 
             },
-            audit: {
-                adjustedScore: 0, 
-                warnings: [], 
-                analysisReason: "Ingredients missing."
-            },
+            audit: { adjustedScore: 0, warnings: [], analysisReason: "Ingredients missing." },
             shelfConflicts: [],
             comparison: { result: 'NEUTRAL' }
         };
@@ -646,7 +600,6 @@ export const getBuyingDecision = (product: Product, shelf: Product[], user: User
 
 export const generateRoutineRecommendations = async (user: UserProfile): Promise<any> => {
     return runWithRetry(async (ai) => {
-        // No tools, safe to use responseMimeType
         const response = await ai.models.generateContent({
             model: MODEL_FAST,
             contents: `Generate AM/PM routine for ${user.skinType}. JSON format.`,
@@ -668,27 +621,30 @@ export const generateTargetedRecommendations = async (
         const m = user.biometrics;
         const prompt = `
         TASK: Recommend 3 ${category} products available in ${location} or Globally.
-        
         USER GOALS: ${goals.join(', ')}.
-        USER LOCATION: ${location} (Respect local currency/availability).
         BUDGET: ${maxPrice} (Approximate in local currency).
         SKIN TYPE: ${user.skinType}
-        
-        SAFETY CONSTRAINTS:
-        - Acne Score: ${m.acneActive} (If < 60: Avoid Pore Cloggers)
-        - Sensitivity: ${m.redness} (If < 60: Avoid Alcohol/Fragrance)
-        
-        Output strictly valid JSON: [{ "name": "string", "brand": "string", "price": "string", "reason": "string", "rating": number }]
+        SAFETY: Acne Score: ${m.acneActive}, Sensitivity: ${m.redness}.
+        Output strict JSON: [{ "name": "string", "brand": "string", "price": "string", "reason": "string", "rating": number }]
         `;
         
-        const response = await ai.models.generateContent({
-            model: MODEL_FAST,
-            contents: prompt,
-            config: { 
-                tools: [{ googleSearch: {} }],
-            }
-        });
-        return parseJSONFromText(response.text || "[]");
+        try {
+            // Attempt 1: Search Grounding
+            const response = await ai.models.generateContent({
+                model: MODEL_FAST,
+                contents: prompt,
+                config: { tools: [{ googleSearch: {} }] }
+            });
+            return parseJSONFromText(response.text || "[]");
+        } catch (e) {
+            console.warn("Routine Recommendation Tool failed, using fallback", e);
+            // Attempt 2: Internal Knowledge Base
+            const response = await ai.models.generateContent({
+                model: MODEL_FAST,
+                contents: prompt + "\nUse your internal knowledge of global products.",
+                config: { responseMimeType: 'application/json' }
+            });
+            return parseJSONFromText(response.text || "[]");
+        }
     }, 240000);
 };
-    
