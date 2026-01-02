@@ -30,11 +30,18 @@ export const VALID_ACCESS_CODES = [
 // --- LOAD DATA ---
 export const loadUserData = async (): Promise<{ user: UserProfile | null, shelf: Product[] }> => {
     // 1. Get Local Data First
-    const localUserStr = localStorage.getItem(USER_KEY);
-    const localShelfStr = localStorage.getItem(SHELF_KEY);
-    
-    let localUser = localUserStr ? JSON.parse(localUserStr) as UserProfile : null;
-    let localShelf = localShelfStr ? JSON.parse(localShelfStr) : [];
+    let localUser: UserProfile | null = null;
+    let localShelf: Product[] = [];
+
+    try {
+        const localUserStr = localStorage.getItem(USER_KEY);
+        const localShelfStr = localStorage.getItem(SHELF_KEY);
+        
+        localUser = localUserStr ? JSON.parse(localUserStr) as UserProfile : null;
+        localShelf = localShelfStr ? JSON.parse(localShelfStr) : [];
+    } catch (e) {
+        console.error("Local Load Error:", e);
+    }
 
     // 2. Try Cloud if Logged In
     if (auth?.currentUser && db) {
@@ -62,8 +69,12 @@ export const loadUserData = async (): Promise<{ user: UserProfile | null, shelf:
                 } else {
                     console.log("Load: Cloud data is newer/equal. Updating Local.");
                     // Cloud is fresher, so update local cache
-                    localStorage.setItem(USER_KEY, JSON.stringify(cloudProfile));
-                    localStorage.setItem(SHELF_KEY, JSON.stringify(cloudShelf));
+                    try {
+                        localStorage.setItem(USER_KEY, JSON.stringify(cloudProfile));
+                        localStorage.setItem(SHELF_KEY, JSON.stringify(cloudShelf));
+                    } catch (e) {
+                        console.error("Local Update Error:", e);
+                    }
                     return { user: cloudProfile, shelf: cloudShelf };
                 }
             }
@@ -83,8 +94,15 @@ export const loadUserData = async (): Promise<{ user: UserProfile | null, shelf:
 // --- SAVE DATA ---
 export const saveUserData = async (user: UserProfile, shelf: Product[]) => {
     // 1. Always save to local storage (for offline/speed)
-    localStorage.setItem(USER_KEY, JSON.stringify(user));
-    localStorage.setItem(SHELF_KEY, JSON.stringify(shelf));
+    try {
+        // SAFEGUARD: Ensure we don't crash on circular references
+        const userStr = JSON.stringify(user);
+        const shelfStr = JSON.stringify(shelf);
+        localStorage.setItem(USER_KEY, userStr);
+        localStorage.setItem(SHELF_KEY, shelfStr);
+    } catch (e) {
+        console.error("Local Save Error (Circular Ref?):", e);
+    }
 
     // 2. If Logged In, Sync to Cloud
     if (auth?.currentUser && db) {
@@ -108,13 +126,19 @@ export const saveUserData = async (user: UserProfile, shelf: Product[]) => {
 export const syncLocalToCloud = async () => {
     if (!auth?.currentUser || !db) return;
 
-    const localUserStr = localStorage.getItem(USER_KEY);
-    const localShelfStr = localStorage.getItem(SHELF_KEY);
+    let localUser: UserProfile | null = null;
+    let localShelf: Product[] = [];
 
-    if (!localUserStr) return; // No local data to sync
-
-    const localUser = JSON.parse(localUserStr) as UserProfile;
-    const localShelf = localShelfStr ? JSON.parse(localShelfStr) : [];
+    try {
+        const localUserStr = localStorage.getItem(USER_KEY);
+        const localShelfStr = localStorage.getItem(SHELF_KEY);
+        if (!localUserStr) return; // No local data to sync
+        localUser = JSON.parse(localUserStr) as UserProfile;
+        localShelf = localShelfStr ? JSON.parse(localShelfStr) : [];
+    } catch (e) {
+        console.error("Sync Local Read Error:", e);
+        return;
+    }
 
     const docRef = doc(db, "users", auth.currentUser.uid);
     const docSnap = await getDoc(docRef);
@@ -148,8 +172,12 @@ export const syncLocalToCloud = async () => {
         // 3. Otherwise -> Pull from Cloud
         else {
             console.log("Cloud data is up-to-date. Syncing to Local.");
-            localStorage.setItem(USER_KEY, JSON.stringify(cloudProfile));
-            localStorage.setItem(SHELF_KEY, JSON.stringify(cloudData.shelf || []));
+            try {
+                localStorage.setItem(USER_KEY, JSON.stringify(cloudProfile));
+                localStorage.setItem(SHELF_KEY, JSON.stringify(cloudData.shelf || []));
+            } catch (e) {
+                console.error("Sync Local Write Error:", e);
+            }
         }
     }
 };

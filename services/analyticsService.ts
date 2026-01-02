@@ -52,6 +52,20 @@ const getAnonymousId = () => {
     return id;
 };
 
+// Safe stringify that handles circular references
+const safeStringify = (obj: any) => {
+    const cache = new Set();
+    return JSON.stringify(obj, (key, value) => {
+        if (typeof value === 'object' && value !== null) {
+            if (cache.has(value)) {
+                return '[Circular]';
+            }
+            cache.add(value);
+        }
+        return value;
+    });
+};
+
 // --- GLOBAL EVENT TRACKING (FIRESTORE) ---
 export const trackEvent = async (eventName: string, meta: any = {}) => {
     if (!db) return;
@@ -60,7 +74,7 @@ export const trackEvent = async (eventName: string, meta: any = {}) => {
         const payload = {
             action: eventName,
             timestamp: Date.now(),
-            meta: typeof meta === 'string' ? meta : JSON.stringify(meta),
+            meta: typeof meta === 'string' ? meta : safeStringify(meta),
             userId: localStorage.getItem('skinos_user_uid') || 'unauth', // If logged in
             anonId: getAnonymousId(), // Always present for unique visitor tracking
             userAgent: navigator.userAgent

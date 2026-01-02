@@ -212,6 +212,7 @@ function calculateWrinkleScore(img: ImageData): number {
 
 // 5. HYDRATION: Specular Reflection
 // Optimal Glow (High Score) vs Dull/Oily (Low Score)
+// UPDATED: Relaxed scoring logic. Only significantly dull or extremely oily skin gets low scores.
 function calculateHydrationScore(img: ImageData): number {
     let glowPixels = 0;
     const total = img.data.length / 4;
@@ -233,8 +234,8 @@ function calculateHydrationScore(img: ImageData): number {
     const glowDensity = glowPixels / total;
     const deviation = Math.abs(glowDensity - 0.12); 
     
-    // CALIBRATED: Multiplier 250 (Midpoint between 300 and 200)
-    return Math.max(20, 100 - (deviation * 250)); 
+    // RELAXED: Multiplier reduced from 250 to 160. Floor raised from 20 to 45.
+    return Math.max(45, 100 - (deviation * 160)); 
 }
 
 // 6. DARK CIRCLES: Luma Contrast

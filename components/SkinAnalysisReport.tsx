@@ -441,20 +441,36 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({ userProf
       const agingScore = (metrics.pigmentation + metrics.darkCircles + metrics.wrinkleFine + metrics.wrinkleDeep + metrics.sagging) / 5;
 
       const scores = [{ name: 'Blemishes', val: blemishScore }, { name: 'Skin Health', val: healthScore }, { name: 'Vitality', val: agingScore }].sort((a,b) => a.val - b.val);
-      const lowestGroup = scores[0];
+      let lowestGroup = scores[0];
+
+      // --- SMART PRIORITIZATION LOGIC ---
+      // If Vitality (which includes Dark Circles) is the lowest group, we check if it's truly critical.
+      // If Dark Circles are above 45 (not severe) AND another actionable group (Health or Blemishes) is also low (< 85),
+      // we swap priority to the actionable group. This prevents "Dark Circles" from dominating the advice when they are just genetic/structural.
+      if (lowestGroup.name === 'Vitality') {
+          const isDarkCircleSevere = metrics.darkCircles < 45; // Critical threshold
+          if (!isDarkCircleSevere) {
+              // Find next lowest that is actionable (not perfect)
+              const alternative = scores.find(s => s.name !== 'Vitality' && s.val < 85);
+              if (alternative) {
+                  lowestGroup = alternative;
+              }
+          }
+      }
 
       let summary: any = "";
       if (metrics.analysisSummary) {
           summary = metrics.analysisSummary;
       } else {
-          if (lowestGroup.val > 80) {
-              summary = "Your skin demonstrates excellent resilience. **Maintenance is your primary goal** to preserve barrier integrity and elasticity.";
+          if (lowestGroup.val > 85) {
+              summary = "Your skin demonstrates excellent resilience. **Holistic maintenance** involving hydration, sleep, and SPF is your primary goal.";
           } else if (lowestGroup.name === 'Blemishes') {
               summary = "Analysis detects congestion and active blemish markers. **Deep pore cleansing and oil control** should be the primary focus of your routine.";
           } else if (lowestGroup.name === 'Skin Health') {
               summary = "Your moisture barrier appears compromised. **Immediate hydration and soothing** are required to reduce sensitivity and restore balance.";
           } else {
-              summary = "Early structural changes are visible. **Collagen support and sun protection** are critical to prevent deepening of fine lines.";
+              // Vitality fallback - simplified holistic advice
+              summary = "Signs of fatigue or structural change detected. **Restorative care** focusing on hydration, sleep quality, and collagen support is recommended.";
           }
       }
 

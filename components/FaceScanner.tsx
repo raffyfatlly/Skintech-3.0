@@ -667,14 +667,14 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
       </div>
       
       <div className="absolute inset-0 z-20 flex flex-col justify-between pointer-events-none">
-          {/* UPDATED: ADDED pt-safe-top + mt-2 for top safety */}
+          {/* UPDATED: Branding Header with Mint Teal */}
           <div className="w-full p-6 pt-safe-top mt-2 flex justify-between items-start pointer-events-auto">
-             <div className="bg-white/10 backdrop-blur-md rounded-full px-4 py-2 border border-white/10 flex items-center gap-2">
-                <ScanFace size={16} className="text-white" />
-                <span className="text-white text-xs font-bold tracking-wider">SKIN AI</span>
+             <div className="bg-teal-950/40 backdrop-blur-md rounded-full px-4 py-2 border border-teal-500/30 flex items-center gap-2 shadow-lg">
+                <ScanFace size={16} className="text-teal-400" />
+                <span className="text-teal-50 text-xs font-bold tracking-widest uppercase">SkinOS AI</span>
              </div>
 
-             {/* Close Button - ADDED */}
+             {/* Close Button */}
              {onCancel && (
                <button 
                  onClick={onCancel}
@@ -705,13 +705,13 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
                    <circle
                       ref={circleRef}
                       cx="150" cy="150" r={radius}
-                      stroke={statusColor === 'warning' ? '#FBBF24' : '#10B981'} 
+                      stroke={statusColor === 'warning' ? '#FBBF24' : '#2DD4BF'} 
                       strokeWidth="6"
                       fill="transparent"
                       strokeDasharray={circumference}
                       strokeDashoffset={circumference}
                       strokeLinecap="round"
-                      className="transition-all duration-300 shadow-[0_0_15px_rgba(255,255,255,0.2)]" 
+                      className="transition-all duration-300 shadow-[0_0_15px_rgba(45,212,191,0.4)]" 
                    />
                 </svg>
               )}

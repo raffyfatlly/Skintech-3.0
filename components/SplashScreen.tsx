@@ -1,60 +1,46 @@
 
 import React from 'react';
-import { ScanFace, Sparkles } from 'lucide-react';
+import { ScanFace } from 'lucide-react';
 
 const SplashScreen = ({ message }: { message?: string }) => {
   return (
     <div className="fixed inset-0 z-[100] bg-white flex flex-col items-center justify-center p-6 select-none cursor-wait overflow-hidden font-sans">
       
-      {/* Decorative Gradients */}
-      <div className="absolute top-0 left-0 w-full h-2/3 bg-gradient-to-b from-teal-50/60 to-transparent pointer-events-none" />
-      <div className="absolute bottom-0 right-0 w-64 h-64 bg-teal-100/20 rounded-full blur-3xl translate-y-1/2 translate-x-1/2 pointer-events-none" />
-
-      {/* Main Logo Container */}
-      <div className="relative mb-14">
-        {/* Pulsing Rings */}
-        <div className="absolute inset-0 bg-teal-500/5 rounded-3xl animate-[ping_3s_cubic-bezier(0,0,0.2,1)_infinite]" />
+      <div className="flex flex-col items-center gap-10 animate-in fade-in duration-700 ease-out">
         
-        {/* Rotating Elements */}
-        <div className="absolute inset-[-20px] border border-teal-100/50 rounded-full animate-[spin_8s_linear_infinite]" />
-        <div className="absolute inset-[-35px] border border-dashed border-teal-200/30 rounded-full animate-[spin_12s_linear_infinite_reverse]" />
-        
-        {/* Icon Container */}
-        <div className="relative z-10 w-28 h-28 bg-white rounded-[2rem] shadow-[0_20px_50px_-12px_rgba(20,184,166,0.25)] flex items-center justify-center border border-zinc-50 overflow-hidden">
-           <ScanFace size={52} className="text-zinc-900" strokeWidth={1.5} />
+        {/* Premium Brand Icon (Mint Teal) */}
+        <div className="relative group">
+           {/* Soft Glow */}
+           <div className="absolute inset-0 bg-teal-400/30 blur-3xl rounded-full opacity-60 animate-pulse"></div>
            
-           {/* Scanner Beam Animation */}
-           <div className="absolute inset-0 bg-gradient-to-b from-transparent via-teal-400/20 to-transparent animate-[scan_2s_ease-in-out_infinite] z-20" />
+           {/* Icon Container (Squircle) */}
+           <div className="w-28 h-28 bg-gradient-to-br from-teal-400 to-teal-600 rounded-[2.5rem] flex items-center justify-center shadow-2xl shadow-teal-500/20 relative z-10 ring-1 ring-white/20">
+               <ScanFace size={56} className="text-white drop-shadow-sm" strokeWidth={1.5} />
+           </div>
         </div>
 
-        {/* Floating Sparkle Badge */}
-        <div className="absolute -top-3 -right-3 z-30 bg-teal-500 text-white p-2 rounded-xl shadow-lg animate-bounce border-2 border-white">
-            <Sparkles size={14} fill="currentColor" />
+        {/* Typography */}
+        <div className="text-center space-y-4">
+            <h1 className="text-4xl font-black tracking-tighter text-zinc-900">
+                SkinOS
+            </h1>
+            
+            <div className="flex flex-col items-center gap-3">
+                <div className="w-12 h-1 bg-zinc-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-teal-500 w-1/2 animate-[loading_1s_ease-in-out_infinite] rounded-full shadow-[0_0_10px_#14b8a6]" />
+                </div>
+                <p className="text-[10px] font-bold text-teal-600 uppercase tracking-[0.2em] animate-pulse">
+                    {message || "Initializing"}
+                </p>
+            </div>
         </div>
-      </div>
 
-      {/* Typography & Status */}
-      <div className="text-center relative z-10 space-y-4">
-          <h1 className="text-4xl font-black tracking-tighter text-zinc-900 animate-in slide-in-from-bottom-4 fade-in duration-700 drop-shadow-sm">
-              Skin<span className="text-teal-500">OS</span>
-          </h1>
-          
-          <div className="flex flex-col items-center gap-3">
-              {/* Custom Loading Bar */}
-              <div className="h-1 w-36 bg-zinc-100 rounded-full overflow-hidden relative">
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-teal-500 to-transparent w-1/2 animate-[shimmer_1.5s_infinite] -translate-x-full" />
-              </div>
-              
-              <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-[0.2em] animate-pulse">
-                  {message || "Initializing System..."}
-              </p>
-          </div>
       </div>
       
       {/* Footer Branding */}
-      <div className="absolute bottom-8 text-[9px] font-bold text-zinc-300 uppercase tracking-widest flex items-center gap-2">
-          <div className="w-1.5 h-1.5 bg-teal-400 rounded-full animate-pulse"></div>
-          Powered by Gemini 3 Flash
+      <div className="absolute bottom-12 flex items-center gap-2 opacity-40">
+          <div className="w-1.5 h-1.5 bg-teal-500 rounded-full"></div>
+          <span className="text-[9px] font-bold text-zinc-400 tracking-[0.2em] uppercase">AI Dermatologist</span>
       </div>
     </div>
   );

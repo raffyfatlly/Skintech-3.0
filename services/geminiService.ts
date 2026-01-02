@@ -371,6 +371,9 @@ export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, 
         You are SkinOS. Analyze this face image for dermatological health.
         
         INPUT CV METRICS (Reference Only): ${JSON.stringify(localMetrics)}. 
+        CRITICAL: Use your visual judgment to override CV metrics if they seem wrong. 
+        - Hydration: If skin looks matte but smooth, score high (80+). Only score low (<60) if you see visible flaking, cracking, or severe dullness.
+        - Oiliness: If skin looks shiny/greasy in T-zone, lower the Oiliness score (closer to 0 is bad/oily).
         
         OUTPUT JSON (Strict):
         {
@@ -394,7 +397,7 @@ export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, 
             "generalCondition": "2 sentences summary. Mention the scale (High is Good).",
             "points": [{ "subtitle": "Concern", "content": "Details" }]
           },
-          "immediateAction": "One tip",
+          "immediateAction": "One holistic skincare tip. Do not focus on dark circles unless score < 50.",
           "observations": { "acneActive": "Details" }
         }
         `;

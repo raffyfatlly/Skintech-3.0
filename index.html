@@ -170,21 +170,15 @@
         <!-- CRITICAL: Immediate Loader CSS to prevent white flash -->
         <style>
             .app-loader { position: fixed; inset: 0; z-index: 9999; background: #ffffff; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: system-ui, sans-serif; overflow: hidden; }
-            .loader-logo { width: 90px; height: 90px; background: #fff; border-radius: 24px; display: flex; align-items: center; justify-content: center; box-shadow: 0 20px 50px -10px rgba(20, 184, 166, 0.25); border: 1px solid #f4f4f5; position: relative; margin-bottom: 40px; overflow: hidden; }
-            .loader-logo svg { color: #18181b; width: 44px; height: 44px; }
-            .scan-beam { position: absolute; top: 0; left: 0; right: 0; height: 100%; background: linear-gradient(to bottom, transparent, rgba(20, 184, 166, 0.2), transparent); animation: scan 2s ease-in-out infinite; }
-            .loader-text { font-size: 32px; font-weight: 900; letter-spacing: -1px; color: #18181b; }
-            .loader-sub { font-size: 10px; font-weight: 700; color: #a1a1aa; text-transform: uppercase; letter-spacing: 3px; margin-top: 12px; animation: pulse 1.5s infinite; }
-            @keyframes scan { 0%, 100% { transform: translateY(-100%); } 50% { transform: translateY(100%); } }
+            .loader-logo { width: 48px; height: 48px; margin-bottom: 24px; color: #0d9488; }
+            .loader-text { font-size: 24px; font-weight: 700; letter-spacing: -0.02em; color: #18181b; }
+            .loader-sub { font-size: 10px; font-weight: 600; color: #0d9488; text-transform: uppercase; letter-spacing: 0.2em; margin-top: 12px; animation: pulse 1.5s infinite; }
             @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
         </style>
         <div class="app-loader">
-            <div class="loader-logo">
-                <div class="scan-beam"></div>
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><rect width="10" height="8" x="7" y="8" rx="1"/></svg>
-            </div>
-            <div class="loader-text">Skin<span style="color: #14b8a6">OS</span></div>
-            <div class="loader-sub">Initializing...</div>
+            <svg class="loader-logo" xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><rect width="10" height="8" x="7" y="8" rx="1"/></svg>
+            <div class="loader-text">SkinOS</div>
+            <div class="loader-sub">INITIALIZING</div>
         </div>
     </div>
     <!-- CRITICAL FIX: Entry point for Vite/React -->
