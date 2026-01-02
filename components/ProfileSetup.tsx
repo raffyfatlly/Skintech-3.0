@@ -1,6 +1,7 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { UserProfile, UserPreferences, SkinMetrics, Product } from '../types';
-import { ArrowLeft, ArrowRight, Check, Sparkles, Target, Zap, Activity, TrendingUp, LineChart, X, Trash2, Settings2, ChevronDown, ChevronRight, Minus, Trophy, LogOut, AlertCircle, Clock, Calendar, Edit2, Loader, CheckCircle2, MessageCircle, Download, Eraser } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Sparkles, Target, Zap, Activity, TrendingUp, LineChart, X, Trash2, Settings2, ChevronDown, ChevronRight, Minus, Trophy, LogOut, AlertCircle, Clock, Calendar, Edit2, Loader, CheckCircle2, MessageCircle, Baby, Pill, ShieldCheck, ShieldAlert, Feather } from 'lucide-react';
 import { signOut, auth } from '../services/firebase';
 
 // Helper to parse markdown-style bolding from string
@@ -84,7 +85,6 @@ interface ProfileSetupProps {
   onBack: () => void;
   onReset: () => void;
   onLoginRequired: (trigger: string) => void;
-  installPrompt?: any;
 }
 
 // --- SUB-COMPONENT: MONTH GROUP (Expandable) ---
@@ -169,6 +169,11 @@ const GoalEditModal: React.FC<{
 }> = ({ currentPreferences, onSave, onClose }) => {
     const [goals, setGoals] = useState<string[]>(currentPreferences.goals || []);
     const [sensitivity, setSensitivity] = useState(currentPreferences.sensitivity || 'MILD');
+    
+    // New States for Safety Flags
+    const [isPregnant, setIsPregnant] = useState(!!currentPreferences.isPregnant);
+    const [hasEczema, setHasEczema] = useState(!!currentPreferences.hasEczema);
+    const [onMedication, setOnMedication] = useState(!!currentPreferences.onMedication);
 
     const goalOptions = [
         { label: "Clear Acne & Blemishes", icon: <Target size={16} /> },
@@ -187,10 +192,10 @@ const GoalEditModal: React.FC<{
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-zinc-900/60 backdrop-blur-md animate-in fade-in">
-            <div className="w-full max-w-sm bg-white rounded-[2.5rem] p-6 shadow-2xl animate-in zoom-in-95 relative overflow-hidden">
+            <div className="w-full max-w-sm bg-white rounded-[2.5rem] p-6 shadow-2xl animate-in zoom-in-95 relative overflow-hidden max-h-[90vh] overflow-y-auto no-scrollbar">
                 <div className="flex justify-between items-center mb-6">
                     <div>
-                        <h3 className="text-xl font-black text-zinc-900">Tracking Goals</h3>
+                        <h3 className="text-xl font-black text-zinc-900">Preferences</h3>
                         <p className="text-xs text-zinc-400 font-medium">Customize your analysis focus</p>
                     </div>
                     <button onClick={onClose} className="p-2 bg-zinc-50 rounded-full text-zinc-400 hover:text-zinc-900 transition-colors">
@@ -198,9 +203,10 @@ const GoalEditModal: React.FC<{
                     </button>
                 </div>
                 
-                <div className="space-y-6">
+                <div className="space-y-8">
+                    {/* Goals */}
                     <div>
-                        <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest block mb-3 pl-1">Select your priorities</label>
+                        <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest block mb-3 pl-1">Skin Goals</label>
                         <div className="grid grid-cols-1 gap-2">
                             {goalOptions.map(opt => {
                                 const isSelected = goals.includes(opt.label);
@@ -221,6 +227,35 @@ const GoalEditModal: React.FC<{
                         </div>
                     </div>
 
+                    {/* Safety Profile */}
+                    <div>
+                        <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest block mb-3 pl-1">Safety & Conditions</label>
+                        <div className="space-y-2">
+                             {[
+                                 { label: 'Pregnancy / Breastfeeding', state: isPregnant, setter: setIsPregnant, icon: <Baby size={16} /> },
+                                 { label: 'Eczema / Rosacea', state: hasEczema, setter: setHasEczema, icon: <ShieldAlert size={16} /> },
+                                 { label: 'On Medication', state: onMedication, setter: setOnMedication, icon: <Pill size={16} /> },
+                             ].map((item, i) => (
+                                <button
+                                    key={i}
+                                    onClick={() => item.setter(!item.state)}
+                                    className={`w-full flex items-center justify-between p-4 rounded-2xl border transition-all ${item.state ? 'bg-rose-50 border-rose-200 shadow-sm' : 'bg-white border-zinc-100 hover:bg-zinc-50'}`}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${item.state ? 'bg-rose-500 text-white' : 'bg-zinc-100 text-zinc-400'}`}>
+                                            {item.icon}
+                                        </div>
+                                        <span className={`text-sm font-bold ${item.state ? 'text-rose-900' : 'text-zinc-600'}`}>{item.label}</span>
+                                    </div>
+                                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${item.state ? 'bg-rose-500 border-rose-500' : 'border-zinc-200 bg-white'}`}>
+                                        {item.state && <Check size={14} className="text-white" strokeWidth={3} />}
+                                    </div>
+                                </button>
+                             ))}
+                        </div>
+                    </div>
+
+                    {/* Sensitivity */}
                     <div>
                          <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest block mb-3 pl-1">Skin Sensitivity</label>
                          <div className="flex bg-zinc-100/50 p-1 rounded-2xl border border-zinc-100">
@@ -237,7 +272,14 @@ const GoalEditModal: React.FC<{
                     </div>
 
                     <button 
-                        onClick={() => onSave({ ...currentPreferences, goals, sensitivity })}
+                        onClick={() => onSave({ 
+                            ...currentPreferences, 
+                            goals, 
+                            sensitivity,
+                            isPregnant,
+                            hasEczema,
+                            onMedication
+                        })}
                         className="w-full py-4 rounded-[1.5rem] bg-zinc-900 text-white font-bold text-sm uppercase tracking-widest hover:scale-[1.02] active:scale-[0.98] transition-all shadow-xl shadow-zinc-900/10"
                     >
                         Save Preferences
@@ -507,7 +549,7 @@ const ScanDetailModal: React.FC<{ scan: SkinMetrics; onClose: () => void }> = ({
     );
 };
 
-const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplete, onBack, onReset, onLoginRequired, installPrompt }) => {
+const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplete, onBack, onReset, onLoginRequired }) => {
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
   const [selectedScan, setSelectedScan] = useState<SkinMetrics | null>(null);
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
@@ -585,7 +627,7 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
   const handleGoalsSave = (newPrefs: UserPreferences) => {
       onComplete({ ...user, preferences: newPrefs });
       setIsGoalModalOpen(false);
-      showToast("Goals updated");
+      showToast("Preferences updated");
   };
   
   const handleSaveProfile = async () => {
@@ -666,17 +708,6 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
     await signOut();
     onReset(); // Clear local state in App
   }
-
-  const handleInstall = () => {
-    if (installPrompt) {
-      installPrompt.prompt();
-      installPrompt.userChoice.then((choiceResult: any) => {
-        if (choiceResult.outcome === 'accepted') {
-          console.log('User accepted the install prompt');
-        }
-      });
-    }
-  };
 
   // --- RENDER: OVERVIEW ---
   const sortedHistory = [...history].sort((a, b) => b.timestamp - a.timestamp);
@@ -804,10 +835,10 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
                   {auth && auth.currentUser && (
                       <button 
                         onClick={handleSignOut}
-                        className="p-2 bg-white/20 rounded-full text-white hover:bg-white/30 transition-colors shadow-sm border border-white/20"
+                        className="px-4 py-2 bg-white/20 rounded-full text-white hover:bg-white/30 transition-colors shadow-sm border border-white/20 text-xs font-bold uppercase tracking-wider"
                         title="Sign Out"
                       >
-                          <LogOut size={18} />
+                          Sign Out
                       </button>
                   )}
               </div>
@@ -857,7 +888,7 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
                              </div>
                              {/* HIDE Unknown Skin Text Logic */}
                              <p className="text-sm font-bold text-white mt-1 drop-shadow-sm opacity-95">
-                                 {user.age} Years{user.skinType !== 'UNKNOWN' ? ` • ${user.skinType.charAt(0) + user.skinType.slice(1).toLowerCase()} Skin` : ''}
+                                 {user.age} Years
                              </p>
                           </>
                       )}
@@ -989,6 +1020,55 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
                </div>
           </section>
 
+          {/* SAFETY PROFILE SECTION */}
+          <section className="mt-6">
+               <div className="flex justify-between items-end mb-4 px-1">
+                   <h3 className="text-xs font-bold text-teal-800/60 uppercase tracking-widest flex items-center gap-2">
+                      <ShieldCheck size={14} /> Safety Profile
+                   </h3>
+                   <button 
+                      onClick={() => setIsGoalModalOpen(true)}
+                      className="text-[10px] font-bold text-zinc-400 hover:text-teal-600 transition-colors"
+                   >
+                      Edit
+                   </button>
+               </div>
+               
+               <div className="bg-white rounded-[1.5rem] p-5 border border-zinc-100 shadow-sm">
+                   {(!user.preferences?.isPregnant && !user.preferences?.hasEczema && !user.preferences?.onMedication && user.preferences?.sensitivity !== 'VERY_SENSITIVE') ? (
+                       <div className="flex items-center gap-3 opacity-60">
+                           <div className="w-10 h-10 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-400">
+                               <ShieldCheck size={18} />
+                           </div>
+                           <p className="text-xs text-zinc-500 font-medium">No specific safety restrictions active.</p>
+                       </div>
+                   ) : (
+                       <div className="flex flex-wrap gap-2">
+                           {user.preferences?.isPregnant && (
+                               <span className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-rose-50 text-rose-700 text-[10px] font-bold uppercase tracking-wide border border-rose-100">
+                                   <Baby size={14} /> Pregnancy Safe
+                               </span>
+                           )}
+                           {user.preferences?.hasEczema && (
+                               <span className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-indigo-50 text-indigo-700 text-[10px] font-bold uppercase tracking-wide border border-indigo-100">
+                                   <ShieldAlert size={14} /> Eczema Friendly
+                               </span>
+                           )}
+                           {user.preferences?.onMedication && (
+                               <span className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50 text-amber-700 text-[10px] font-bold uppercase tracking-wide border border-amber-100">
+                                   <Pill size={14} /> Medication
+                               </span>
+                           )}
+                           {user.preferences?.sensitivity === 'VERY_SENSITIVE' && (
+                               <span className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-teal-50 text-teal-700 text-[10px] font-bold uppercase tracking-wide border border-teal-100">
+                                   <Feather size={14} /> Sensitive Skin
+                               </span>
+                           )}
+                       </div>
+                   )}
+               </div>
+          </section>
+
           {/* SKIN HEALTH JOURNEY */}
           <section className="bg-white rounded-[2rem] border border-teal-50 shadow-sm overflow-hidden transition-all duration-500">
               <div className="p-6">
@@ -1060,15 +1140,7 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
           </section>
 
           {/* DANGER ZONE */}
-          <div className="mt-12 text-center pb-8 space-y-3">
-               {installPrompt && (
-                  <button 
-                      onClick={handleInstall}
-                      className="inline-flex items-center gap-2 text-xs font-bold text-teal-600 uppercase tracking-widest hover:text-teal-800 transition-colors px-6 py-3 rounded-full hover:bg-teal-50 w-full justify-center"
-                  >
-                      <Download size={14} /> Install App
-                  </button>
-               )}
+          <div className="mt-12 text-center pb-8">
                <button 
                   onClick={() => {
                       if (user.isAnonymous) {
@@ -1077,7 +1149,7 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
                           setShowClearConfirm(true);
                       }
                   }}
-                  className="inline-flex items-center gap-2 text-xs font-bold text-rose-400 uppercase tracking-widest hover:text-rose-600 transition-colors px-6 py-3 rounded-full hover:bg-rose-50 w-full justify-center"
+                  className="inline-flex items-center gap-2 text-xs font-bold text-rose-400 uppercase tracking-widest hover:text-rose-600 transition-colors px-6 py-3 rounded-full hover:bg-rose-50"
                >
                    <Trash2 size={14} /> Clear Local Data
                </button>

@@ -1,7 +1,7 @@
 
 import { GoogleGenAI } from "@google/genai";
 import type { Chat } from "@google/genai";
-import { SkinMetrics, Product, UserProfile } from '../types';
+import { SkinMetrics, Product, UserProfile, UserPreferences } from '../types';
 
 let aiInstance: GoogleGenAI | null = null;
 
@@ -456,26 +456,28 @@ export const auditProduct = (product: Product, user: UserProfile) => {
     const ingStr = product.ingredients.join(' ').toLowerCase();
     const bio = user.biometrics;
 
-    if (bio.hydration < 50) {
+    const prefs = user.preferences || {} as Partial<UserPreferences>;
+
+    if (bio.hydration < 50 || prefs.onMedication) {
         const dryingAgents = ['alcohol denat', 'sd alcohol', 'isopropyl alcohol', 'sodium lauryl sulfate', 'sls'];
         const found = dryingAgents.find(a => ingStr.includes(a));
         if (found) {
             adjustedScore -= 30;
-            warnings.unshift({ severity: 'CRITICAL', reason: `Contains ${found}, which dehydrates dry skin.` });
+            warnings.unshift({ severity: 'CRITICAL', reason: `Contains ${found}, which dehydrates skin (Risky with medication/dryness).` });
         }
     }
 
-    if (bio.redness < 50 || user.preferences?.sensitivity === 'VERY_SENSITIVE' || user.preferences?.hasEczema) {
-        const irritants = ['fragrance', 'parfum', 'alcohol denat', 'essential oil', 'menthol'];
+    if (bio.redness < 50 || prefs.sensitivity === 'VERY_SENSITIVE' || prefs.hasEczema || prefs.onMedication) {
+        const irritants = ['fragrance', 'parfum', 'alcohol denat', 'essential oil', 'menthol', 'peppermint'];
         const found = irritants.find(a => ingStr.includes(a));
         if (found) {
             adjustedScore = Math.min(adjustedScore, 40);
-            warnings.unshift({ severity: 'CRITICAL', reason: `Contains ${found}, a known trigger.` });
+            warnings.unshift({ severity: 'CRITICAL', reason: `Contains ${found}, a known trigger for sensitive/medicated skin.` });
         }
     }
 
     if (bio.acneActive < 55) {
-        const cloggers = ['coconut oil', 'cocoa butter', 'isopropyl myristate', 'algae extract', 'palm oil'];
+        const cloggers = ['coconut oil', 'cocoa butter', 'isopropyl myristate', 'algae extract', 'palm oil', 'wheat germ'];
         const found = cloggers.find(a => ingStr.includes(a));
         if (found) {
             adjustedScore = Math.min(adjustedScore, 35);
@@ -483,12 +485,12 @@ export const auditProduct = (product: Product, user: UserProfile) => {
         }
     }
 
-    if (user.preferences?.isPregnant) {
-        const unsafe = ['retinol', 'retinyl', 'tretinoin', 'hydroquinone', 'arbutin', 'salicylic acid']; 
+    if (prefs.isPregnant) {
+        const unsafe = ['retinol', 'retinyl', 'tretinoin', 'hydroquinone', 'arbutin', 'salicylic acid', 'adapalene', 'tazarotene', 'isotretinoin']; 
         const found = unsafe.find(a => ingStr.includes(a));
         if (found) {
             adjustedScore = 0;
-            warnings.unshift({ severity: 'CRITICAL', reason: `Not recommended during pregnancy (${found}).` });
+            warnings.unshift({ severity: 'CRITICAL', reason: `Contains ${found}, not recommended during pregnancy.` });
         }
     }
 
@@ -619,12 +621,22 @@ export const generateTargetedRecommendations = async (
 ): Promise<any> => {
     return runWithTimeout<any>(async (ai) => {
         const m = user.biometrics;
+        const prefs = user.preferences || {} as Partial<UserPreferences>;
+        
+        // Build safety string
+        const safetyConstraints = [];
+        if (prefs.isPregnant) safetyConstraints.push("PREGNANCY SAFE (No Retinoids/Salicylic/Hydroquinone)");
+        if (prefs.hasEczema) safetyConstraints.push("ECZEMA FRIENDLY (No Fragrance/Alcohol)");
+        if (prefs.onMedication) safetyConstraints.push("MEDICATION SAFE (Gentle/No harsh actives)");
+        if (prefs.sensitivity === 'VERY_SENSITIVE') safetyConstraints.push("SENSITIVE SKIN (Hypoallergenic)");
+
         const prompt = `
         TASK: Recommend 3 ${category} products available in ${location} or Globally.
         USER GOALS: ${goals.join(', ')}.
         BUDGET: ${maxPrice} (Approximate in local currency).
         SKIN TYPE: ${user.skinType}
         SAFETY: Acne Score: ${m.acneActive}, Sensitivity: ${m.redness}.
+        CRITICAL SAFETY CONSTRAINTS: ${safetyConstraints.join(', ') || 'None'}.
         Output strict JSON: [{ "name": "string", "brand": "string", "price": "string", "reason": "string", "rating": number }]
         `;
         
