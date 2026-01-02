@@ -1,20 +1,38 @@
 
-// ... existing imports ...
 import { GoogleGenAI, Type, SchemaShared } from "@google/genai";
 import type { Chat } from "@google/genai";
 import { SkinMetrics, Product, UserProfile } from '../types';
 
 let aiInstance: GoogleGenAI | null = null;
 
+const getApiKey = (): string => {
+    // 1. Try injected process.env (Vite 'define')
+    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+        return process.env.API_KEY;
+    }
+    // 2. Try Vite standard import.meta.env
+    // @ts-ignore
+    if (typeof import.meta !== 'undefined' && import.meta.env) {
+        // @ts-ignore
+        if (import.meta.env.VITE_API_KEY) return import.meta.env.VITE_API_KEY;
+        // @ts-ignore
+        if (import.meta.env.VITE_GEMINI_API_KEY) return import.meta.env.VITE_GEMINI_API_KEY;
+        // @ts-ignore
+        if (import.meta.env.API_KEY) return import.meta.env.API_KEY;
+    }
+    return '';
+}
+
 const getAi = (): GoogleGenAI => {
     if (!aiInstance) {
-        aiInstance = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const key = getApiKey();
+        if (!key) {
+            console.error("API Key is missing. Please set VITE_API_KEY or API_KEY.");
+        }
+        aiInstance = new GoogleGenAI({ apiKey: key });
     }
     return aiInstance;
 };
-
-// ... keep existing helpers and analysis functions ...
-// (Retaining parseJSONFromText, extractSources, runWithTimeout, runWithRetry, analyzeProductFromSearch, analyzeProductImage, searchProducts, analyzeFaceSkin, compareFaceIdentity, auditProduct, analyzeShelfHealth, analyzeProductContext, getClinicalTreatmentSuggestions, createDermatologistSession, isQuotaError)
 
 // --- CONFIGURATION ---
 // Upgraded to Gemini 3 Flash for improved speed and reasoning
@@ -335,23 +353,39 @@ export const analyzeProductImage = async (
 
 export const searchProducts = async (query: string): Promise<{ name: string, brand: string }[]> => {
     return runWithRetry(async (ai) => {
-        const response = await ai.models.generateContent({
-            model: MODEL_FAST,
-            contents: `Find 5 specific skincare products that strictly match the user search query: "${query}".
-            
-            STRICT RULES:
-            1. If the query is a Brand Name, return their most popular products.
-            2. If the query is a Product Name, return the exact match.
-            3. Do NOT suggest competitors or alternatives.
-            4. Do NOT filter by skin type - return exactly what was searched.
-            
-            Return strictly a JSON array: [{"brand": "Brand Name", "name": "Product Name"}]`,
-            config: { 
-                tools: [{ googleSearch: {} }],
-            }
-        });
-        const res = parseJSONFromText(response.text || "[]");
-        return Array.isArray(res) ? res : [];
+        try {
+            // Attempt 1: With Search Tool (Ideal)
+            const response = await ai.models.generateContent({
+                model: MODEL_FAST,
+                contents: `Find 5 specific skincare products that strictly match the user search query: "${query}".
+                
+                STRICT RULES:
+                1. If the query is a Brand Name, return their most popular products.
+                2. If the query is a Product Name, return the exact match.
+                3. Do NOT suggest competitors or alternatives.
+                4. Do NOT filter by skin type - return exactly what was searched.
+                
+                Return strictly a JSON array: [{"brand": "Brand Name", "name": "Product Name"}]`,
+                config: { 
+                    tools: [{ googleSearch: {} }],
+                }
+            });
+            const res = parseJSONFromText(response.text || "[]");
+            if (Array.isArray(res) && res.length > 0) return res;
+            throw new Error("Empty search results from tool");
+        } catch (e) {
+            console.warn("Search tool failed or empty, using knowledge base fallback", e);
+            // Attempt 2: Internal Knowledge Base (Fallback for when Tools fail/blocked)
+            // This ensures the user at least gets results even if Search Grounding is unavailable
+            const response = await ai.models.generateContent({
+                model: MODEL_FAST,
+                contents: `List 5 real skincare products matching "${query}". 
+                Return strictly a JSON array: [{"brand": "Brand Name", "name": "Product Name"}]`,
+                config: { responseMimeType: 'application/json' }
+            });
+            const res = parseJSONFromText(response.text || "[]");
+            return Array.isArray(res) ? res : [];
+        }
     }, [{ name: query, brand: "Generic" }]);
 };
 
@@ -657,3 +691,4 @@ export const generateTargetedRecommendations = async (
         return parseJSONFromText(response.text || "[]");
     }, 240000);
 };
+    
