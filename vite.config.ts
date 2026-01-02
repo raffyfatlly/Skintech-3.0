@@ -4,20 +4,18 @@ import process from 'node:process';
 
 export default defineConfig(({ mode }) => {
   // Load env file based on `mode` in the current working directory.
-  // Set the third parameter to '' to load all env regardless of the `VITE_` prefix.
+  // The third parameter '' loads ALL env vars, not just those with VITE_ prefix.
   const env = loadEnv(mode, process.cwd(), '');
 
   // Aggressively find the API Key from common naming conventions
   const apiKey = 
     env.VITE_GEMINI_API_KEY || 
-    env.VITE_GOOGLE_API_KEY || 
     env.VITE_API_KEY || 
-    env.GOOGLE_API_KEY || 
-    env.API_KEY ||
+    env.VITE_GOOGLE_API_KEY || 
+    env.API_KEY || 
+    env.GOOGLE_API_KEY ||
     process.env.VITE_GEMINI_API_KEY ||
-    process.env.VITE_GOOGLE_API_KEY ||
     process.env.VITE_API_KEY ||
-    process.env.GOOGLE_API_KEY ||
     process.env.API_KEY ||
     '';
 
@@ -25,6 +23,7 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     define: {
       // Define `process.env.API_KEY` globally for the client build
+      // This allows the app to use process.env.API_KEY even in the browser
       'process.env.API_KEY': JSON.stringify(apiKey),
     },
     build: {
