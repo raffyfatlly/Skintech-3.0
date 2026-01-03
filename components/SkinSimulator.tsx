@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { UserProfile } from '../types';
 import { generateImprovementPlan } from '../services/geminiService';
-import { ArrowLeft, Sparkles, Loader, Eye, Activity, Microscope, Sun, Moon, Beaker, Syringe, Zap, PlayCircle, Sliders } from 'lucide-react';
+import { ArrowLeft, Sparkles, Loader, Activity, Microscope, Sun, Moon, Beaker, MoveHorizontal, Sliders } from 'lucide-react';
 
 declare global {
     interface Window {
@@ -28,15 +28,16 @@ const VERTEX_SHADER = `
     }
 `;
 
-// Advanced Shader: Bilateral Smoothing + Unsharp Masking
+// Guided Smoothing + Frequency Separation
 const FRAGMENT_SHADER = `
     precision mediump float;
     varying vec2 v_texCoord;
     uniform sampler2D u_image;
     uniform sampler2D u_mask;
     uniform vec2 u_resolution;
-    uniform float u_sigma; // Spatial spread
-    uniform float u_bsigma; // Range spread
+    uniform float u_sigma;
+    uniform float u_bsigma;
+    uniform float u_slider; // Split position (0.0 to 1.0)
 
     float normpdf(in float x, in float sigma) {
         return 0.39894 * exp(-0.5 * x * x / (sigma * sigma)) / sigma;
@@ -44,19 +45,39 @@ const FRAGMENT_SHADER = `
 
     void main() {
         vec4 c = texture2D(u_image, v_texCoord);
-        float maskVal = texture2D(u_mask, v_texCoord).r;
         
-        // Optimize: If fully transparent mask or 0 intensity, just draw original
-        if (u_bsigma < 0.001) {
+        // --- SPLIT SCREEN (BEFORE / AFTER) ---
+        // Right side (x > slider) = Original (Before)
+        // Left side (x < slider) = Processed (After)
+        
+        // Draw the separator line
+        float dist = abs(v_texCoord.x - u_slider);
+        if (dist < 0.002) {
+            gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+            return;
+        }
+        
+        // If on the right side, just show original
+        if (v_texCoord.x > u_slider) {
+            // Slight dimming for "Before" state to make "After" pop? No, keep true to original.
             gl_FragColor = c;
             return;
         }
 
-        vec3 bilateral_color = vec3(0.0);
-        float bilateral_Z = 0.0;
+        // --- PROCESSING (Left Side) ---
+        
+        float maskVal = texture2D(u_mask, v_texCoord).r;
+        
+        if (maskVal < 0.01) {
+            gl_FragColor = c;
+            return;
+        }
 
+        vec3 accum_color = vec3(0.0);
+        float accum_weight = 0.0;
+        
         vec3 gauss_color = vec3(0.0);
-        float gauss_Z = 0.0;
+        float gauss_weight = 0.0;
         
         // 9x9 Kernel
         const int kSize = 9; 
@@ -67,40 +88,41 @@ const FRAGMENT_SHADER = `
                 vec2 offset = vec2(float(i), float(j)) / u_resolution;
                 vec3 cc = texture2D(u_image, v_texCoord + offset).rgb;
                 
-                // Spatial Factor
-                float factor = normpdf(float(i), u_sigma) * normpdf(float(j), u_sigma);
+                // Spatial Weight (Gaussian)
+                float sw = normpdf(float(i), u_sigma) * normpdf(float(j), u_sigma);
                 
-                // Range Factor (Bilateral)
-                float bZ = normpdf(distance(c.rgb, cc), u_bsigma);
+                // Range Weight (Guided / Bilateral)
+                // We calculate luminance distance for better perceptual edges
+                float lumaC = dot(c.rgb, vec3(0.299, 0.587, 0.114));
+                float lumaCC = dot(cc, vec3(0.299, 0.587, 0.114));
+                float rw = normpdf(lumaC - lumaCC, u_bsigma);
                 
-                // Accumulate Bilateral (Smoothing)
-                float bW = factor * bZ;
-                bilateral_Z += bW;
-                bilateral_color += cc * bW;
+                float w = sw * rw;
+                
+                accum_color += cc * w;
+                accum_weight += w;
 
-                // Accumulate Gaussian (Blur for Unsharp Mask)
-                gauss_Z += factor;
-                gauss_color += cc * factor;
+                gauss_color += cc * sw;
+                gauss_weight += sw;
             }
         }
         
-        vec3 smoothed = bilateral_color / bilateral_Z;
-        vec3 blurred = gauss_color / gauss_Z;
+        vec3 smoothed = accum_color / accum_weight;
+        vec3 blurred = gauss_color / gauss_weight;
 
-        // Calculate High Frequency Detail (Edges/Texture)
+        // High Pass Detail (Texture)
         vec3 detail = c.rgb - blurred;
 
-        // 1. Sharpen Features (Eyes, Lips, Hair - where mask is 0)
-        // Add detail back strongly to pop features
-        vec3 sharpened_features = c.rgb + detail * 0.8;
+        // "Guided" Refinement:
+        // We want smoothed skin but distinct features.
+        // 1. Feature sharpening (Eyes, etc - Mask 0)
+        vec3 sharpened_features = c.rgb + detail * 1.2; // Stronger pop
 
-        // 2. Refine Skin (Smoothed + faint texture - where mask is 1)
-        // Add a tiny bit of detail back to smoothed skin to avoid plastic look
-        vec3 refined_skin = smoothed + detail * 0.05;
+        // 2. Skin Smoothing (Mask 1)
+        // Add back a fraction of detail to avoid plastic look
+        vec3 refined_skin = smoothed + detail * 0.08; 
 
-        // Blend based on mask
-        // Mask 1.0 = Skin (Uses refined_skin)
-        // Mask 0.0 = Features (Uses sharpened_features)
+        // Final mix based on mask
         gl_FragColor = vec4(mix(sharpened_features, refined_skin, maskVal), 1.0);
     }
 `;
@@ -108,14 +130,15 @@ const FRAGMENT_SHADER = `
 const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [statusText, setStatusText] = useState("Loading AI Model...");
-    const [intensity, setIntensity] = useState(60); // Default higher for effect visibility
-    const [isCompare, setIsCompare] = useState(false);
+    const [intensity, setIntensity] = useState(65);
+    const [sliderPos, setSliderPos] = useState(0.5); // 0 to 1
     
     // Plan State
     const [plan, setPlan] = useState<any>(null);
     const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
 
-    // Refs for WebGL
+    // Refs
+    const canvasContainerRef = useRef<HTMLDivElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const glRef = useRef<WebGLRenderingContext | null>(null);
     const programRef = useRef<WebGLProgram | null>(null);
@@ -130,8 +153,6 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
     const LEFT_EYE = [33, 246, 161, 160, 159, 158, 157, 173, 133, 155, 154, 153, 145, 144, 163, 7];
     const RIGHT_EYE = [263, 466, 388, 387, 386, 385, 384, 398, 362, 382, 381, 380, 374, 373, 390, 249];
     const LIPS = [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 308, 324, 318, 402, 317, 14, 87, 178, 88, 95, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291];
-    
-    // Add eyebrows to exclusion
     const LEFT_EYEBROW = [70, 63, 105, 66, 107, 55, 65, 52, 53, 46];
     const RIGHT_EYEBROW = [336, 296, 334, 293, 300, 276, 283, 282, 295, 285];
 
@@ -147,7 +168,25 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
     useEffect(() => {
         if (!glRef.current || !programRef.current) return;
         renderFrame();
-    }, [intensity, isCompare]);
+    }, [intensity, sliderPos]); // Re-render on slider move
+
+    const handleInteraction = (clientX: number) => {
+        if (!canvasContainerRef.current) return;
+        const rect = canvasContainerRef.current.getBoundingClientRect();
+        const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
+        setSliderPos(x / rect.width);
+    };
+
+    const handleTouchMove = (e: React.TouchEvent) => {
+        handleInteraction(e.touches[0].clientX);
+    };
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        // Only if primary button pressed? Or always? Usually drag.
+        if (e.buttons === 1) {
+            handleInteraction(e.clientX);
+        }
+    };
 
     const initializeSystem = async (imageUrl: string) => {
         try {
@@ -249,10 +288,8 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
             ctx.filter = "none";
         };
 
-        // Draw skin (White) with nice feathering
         drawShape(FACE_OVAL, "white", 15);
 
-        // Erase Features (Black)
         ctx.globalCompositeOperation = 'destination-out';
         drawShape(LEFT_EYE, "black", 10);
         drawShape(RIGHT_EYE, "black", 10);
@@ -348,14 +385,16 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
         const uRes = gl.getUniformLocation(program, "u_resolution");
         const uSigma = gl.getUniformLocation(program, "u_sigma");
         const uBsigma = gl.getUniformLocation(program, "u_bsigma");
+        const uSlider = gl.getUniformLocation(program, "u_slider");
 
         gl.uniform2f(uRes, gl.canvas.width, gl.canvas.height);
         
-        const val = isCompare ? 0 : intensity;
+        // Pass slider (0.0 to 1.0)
+        gl.uniform1f(uSlider, sliderPos);
         
-        // Tuned Params for 9x9 kernel
-        const sigma = 1.5 + (val / 100) * 4.0; // Moderate spatial spread
-        const bsigma = 0.02 + (val / 100) * 0.08; // Tight range spread for edge preservation
+        // Tuned Params
+        const sigma = 1.5 + (intensity / 100) * 4.0; 
+        const bsigma = 0.02 + (intensity / 100) * 0.08;
 
         gl.uniform1f(uSigma, sigma);
         gl.uniform1f(uBsigma, bsigma);
@@ -396,7 +435,7 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                 >
                     <ArrowLeft size={20} />
                 </button>
-                <div className="bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 shadow-lg">
+                <div className="bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 shadow-lg pointer-events-auto">
                     <span className="text-white text-xs font-bold uppercase tracking-widest flex items-center gap-2">
                         <Sparkles size={12} className="text-teal-400" /> Skin Simulator
                     </span>
@@ -406,14 +445,20 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
             {/* MAIN CONTENT */}
             <div className="flex-1 relative flex flex-col">
                 
-                {/* CANVAS AREA */}
-                <div className="h-[60vh] w-full relative shrink-0 bg-zinc-900 overflow-hidden sticky top-0 z-0">
+                {/* CANVAS AREA - Full Screen Max Size */}
+                <div 
+                    ref={canvasContainerRef}
+                    className="flex-1 w-full bg-zinc-900 relative overflow-hidden cursor-col-resize touch-none"
+                    onTouchMove={handleTouchMove}
+                    onMouseMove={handleMouseMove}
+                    onClick={handleMouseMove} // Jump on click
+                >
                     <div className="w-full h-full flex items-center justify-center relative">
                         
                         {/* THE CANVAS (WebGL) */}
                         <canvas 
                             ref={canvasRef} 
-                            className={`max-w-full max-h-full object-contain transition-opacity duration-500 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
+                            className={`w-full h-full object-contain transition-opacity duration-500 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
                         />
 
                         {/* Loader Overlay */}
@@ -427,102 +472,100 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                             </div>
                         )}
                         
+                        {/* Comparison Labels */}
+                        {!isLoading && (
+                            <>
+                                <div className="absolute top-1/2 left-4 -translate-y-1/2 bg-black/40 backdrop-blur-md text-white/80 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest pointer-events-none transition-opacity duration-300" style={{ opacity: sliderPos > 0.1 ? 1 : 0 }}>
+                                    After
+                                </div>
+                                <div className="absolute top-1/2 right-4 -translate-y-1/2 bg-black/40 backdrop-blur-md text-white/80 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest pointer-events-none transition-opacity duration-300" style={{ opacity: sliderPos < 0.9 ? 1 : 0 }}>
+                                    Before
+                                </div>
+                                
+                                {/* Draggable Handle Indicator (Visual Only) */}
+                                <div 
+                                    className="absolute top-1/2 w-8 h-8 -ml-4 -mt-4 bg-white rounded-full shadow-lg flex items-center justify-center text-zinc-400 pointer-events-none z-30"
+                                    style={{ left: `${sliderPos * 100}%` }}
+                                >
+                                    <MoveHorizontal size={16} />
+                                </div>
+                            </>
+                        )}
                     </div>
                 </div>
 
-                {/* CONTROLS SHEET */}
-                <div className="bg-zinc-50 min-h-[50vh] relative z-20 -mt-8 rounded-t-[2.5rem] p-6 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.5)]">
+                {/* CONTROLS SHEET - Minimized */}
+                <div className="bg-zinc-50 relative z-20 rounded-t-[2rem] p-6 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.5)] shrink-0 pb-safe">
                     
-                    <div className="mb-10">
-                        {/* Compare Button */}
-                        <div className="flex justify-center -mt-10 mb-6">
-                             <button
-                                onMouseDown={() => setIsCompare(true)}
-                                onMouseUp={() => setIsCompare(false)}
-                                onTouchStart={() => setIsCompare(true)}
-                                onTouchEnd={() => setIsCompare(false)}
-                                disabled={isLoading}
-                                className="flex items-center gap-2 bg-zinc-900 text-white px-6 py-3 rounded-full font-bold text-[10px] uppercase tracking-widest hover:scale-105 transition-all active:scale-95 disabled:opacity-50 select-none touch-manipulation shadow-xl shadow-zinc-900/30"
-                            >
-                                <Eye size={14} /> Hold to Compare
-                            </button>
-                        </div>
-
+                    <div className="mb-6">
                         {/* Intensity Slider */}
-                        <div className="bg-white border border-zinc-200 rounded-[2rem] p-4 mb-2 shadow-sm relative flex flex-col justify-center h-24">
-                            <div className="flex justify-between items-center mb-3 px-2">
-                                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
-                                    <Sliders size={12} /> Smoothing Strength
-                                </span>
-                                <span className={`text-sm font-black ${intensity > 0 ? 'text-teal-600' : 'text-zinc-300'}`}>
-                                    {intensity}%
-                                </span>
-                            </div>
-                            <div className="relative h-6 flex items-center px-2">
-                                <input 
-                                    type="range"
-                                    min="0"
-                                    max="100"
-                                    step="1"
-                                    value={intensity}
-                                    disabled={isLoading}
-                                    onChange={(e) => setIntensity(parseInt(e.target.value))}
-                                    className="w-full h-1.5 bg-zinc-100 rounded-full appearance-none cursor-pointer z-20 relative disabled:cursor-not-allowed accent-teal-600 focus:outline-none"
-                                />
-                                {/* Custom Track Fill */}
-                                <div className="absolute left-2 right-2 h-1.5 rounded-full overflow-hidden pointer-events-none z-10">
-                                     <div className="h-full bg-gradient-to-r from-teal-400 to-teal-600" style={{ width: `${intensity}%` }}></div>
-                                </div>
-                            </div>
+                        <div className="flex justify-between items-center mb-3 px-1">
+                            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+                                <Sliders size={12} /> Effect Strength
+                            </span>
+                            <span className="text-sm font-black text-teal-600">{intensity}%</span>
+                        </div>
+                        <div className="relative h-6 flex items-center">
+                            <input 
+                                type="range"
+                                min="0"
+                                max="100"
+                                step="1"
+                                value={intensity}
+                                disabled={isLoading}
+                                onChange={(e) => setIntensity(parseInt(e.target.value))}
+                                className="w-full h-1.5 bg-zinc-200 rounded-full appearance-none cursor-pointer z-20 relative disabled:cursor-not-allowed accent-teal-600 focus:outline-none"
+                            />
                         </div>
                     </div>
 
                     {/* ROADMAP HEADER */}
-                    <div className="flex items-center justify-between border-b border-zinc-200 pb-4 mb-6">
-                        <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 rounded-full bg-teal-50 flex items-center justify-center text-teal-600 border border-teal-100">
-                                <Activity size={16} />
+                    <div className="flex items-center justify-between border-t border-zinc-200 pt-4">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center text-teal-600 border border-teal-100">
+                                <Activity size={18} />
                             </div>
                             <div>
-                                <h3 className="text-lg font-black text-zinc-900 tracking-tight leading-none">Clinical Protocol</h3>
-                                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-0.5">Your path to results</p>
+                                <h3 className="text-sm font-black text-zinc-900 tracking-tight leading-none">Clinical Protocol</h3>
+                                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-0.5">Achieve this result</p>
                             </div>
                         </div>
                         {!plan && !isGeneratingPlan && !isLoading && (
                             <button 
                                 onClick={handleGeneratePlan}
-                                className="bg-teal-600 text-white px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-teal-600/20 hover:bg-teal-700 transition-colors flex items-center gap-2 animate-pulse"
+                                className="bg-zinc-900 text-white px-5 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg hover:bg-zinc-800 transition-colors flex items-center gap-2"
                             >
-                                <Sparkles size={12} /> Generate Plan
+                                <Sparkles size={12} className="text-amber-300" /> Generate Plan
                             </button>
                         )}
                     </div>
 
                     {/* CONTENT AREA */}
                     {isGeneratingPlan && (
-                        <div className="py-12 text-center animate-in fade-in">
-                            <div className="w-16 h-16 bg-teal-50 rounded-full flex items-center justify-center mx-auto mb-4 text-teal-600 shadow-sm border border-teal-100">
-                                <Loader size={24} className="animate-spin" />
+                        <div className="py-8 text-center animate-in fade-in">
+                            <div className="flex justify-center gap-2 mb-3">
+                                <div className="w-2 h-2 bg-teal-500 rounded-full animate-bounce"></div>
+                                <div className="w-2 h-2 bg-teal-500 rounded-full animate-bounce delay-100"></div>
+                                <div className="w-2 h-2 bg-teal-500 rounded-full animate-bounce delay-200"></div>
                             </div>
-                            <p className="text-sm font-bold text-zinc-900 mb-1">Consulting AI Dermatologist...</p>
-                            <p className="text-xs text-zinc-500">Analyzing the gap between current and goal skin.</p>
+                            <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Designing Protocol...</p>
                         </div>
                     )}
 
                     {plan && (
-                        <div className="space-y-8 animate-in slide-in-from-bottom-8 duration-700 pb-10">
+                        <div className="space-y-6 mt-6 animate-in slide-in-from-bottom-8 duration-700">
                             
-                            <div className="bg-white p-6 rounded-[2rem] border border-zinc-100 shadow-xl shadow-zinc-100/50 relative overflow-hidden">
+                            <div className="bg-white p-5 rounded-2xl border border-zinc-100 shadow-sm relative overflow-hidden">
                                 <div className="absolute top-0 right-0 w-24 h-24 bg-teal-50 rounded-bl-full -mr-4 -mt-4 opacity-50 pointer-events-none"></div>
-                                <h4 className="text-xs font-bold text-zinc-900 uppercase tracking-widest mb-3 flex items-center gap-2 relative z-10">
-                                    <Microscope size={14} className="text-teal-500" /> Assessment
+                                <h4 className="text-xs font-bold text-zinc-900 uppercase tracking-widest mb-2 flex items-center gap-2 relative z-10">
+                                    <Microscope size={14} className="text-teal-500" /> AI Analysis
                                 </h4>
-                                <p className="text-sm text-zinc-600 font-medium leading-relaxed relative z-10">
+                                <p className="text-xs text-zinc-600 font-medium leading-relaxed relative z-10">
                                     {plan.analysis}
                                 </p>
                             </div>
 
-                            <div className="relative pl-4 space-y-8">
+                            <div className="relative pl-4 space-y-6">
                                 <div className="absolute left-[27px] top-4 bottom-4 w-0.5 bg-zinc-200 border-l border-dashed border-zinc-300"></div>
 
                                 {plan.weeks?.map((week: any, i: number) => (
@@ -531,44 +574,32 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                                             {i + 1}
                                         </div>
 
-                                        <div className="ml-16 bg-white rounded-[2rem] p-6 border border-zinc-100 shadow-sm relative overflow-hidden group hover:border-teal-100 transition-colors">
-                                            <div className="flex justify-between items-start mb-4 border-b border-zinc-50 pb-4">
-                                                <div>
-                                                    <span className="text-[9px] font-bold text-teal-600 bg-teal-50 px-2 py-1 rounded mb-1.5 inline-block uppercase tracking-wide border border-teal-100">
-                                                        {week.title}
-                                                    </span>
-                                                    <h4 className="text-lg font-black text-zinc-900 tracking-tight leading-none">
-                                                        {week.phaseName || "Treatment Phase"}
-                                                    </h4>
+                                        <div className="ml-16 bg-white rounded-2xl p-5 border border-zinc-100 shadow-sm relative group hover:border-teal-100 transition-colors">
+                                            <div className="mb-3">
+                                                <span className="text-[9px] font-bold text-teal-600 bg-teal-50 px-2 py-1 rounded mb-1 inline-block uppercase tracking-wide border border-teal-100">
+                                                    {week.title}
+                                                </span>
+                                                <h4 className="text-sm font-black text-zinc-900 tracking-tight">
+                                                    {week.phaseName || "Treatment Phase"}
+                                                </h4>
+                                            </div>
+
+                                            <div className="space-y-3">
+                                                <div className="flex gap-3 items-start">
+                                                    <Sun size={14} className="text-amber-500 shrink-0 mt-0.5" />
+                                                    <p className="text-xs text-zinc-600 font-medium leading-snug">{week.morning}</p>
+                                                </div>
+                                                <div className="flex gap-3 items-start">
+                                                    <Moon size={14} className="text-indigo-500 shrink-0 mt-0.5" />
+                                                    <p className="text-xs text-zinc-600 font-medium leading-snug">{week.evening}</p>
                                                 </div>
                                             </div>
 
-                                            <div className="space-y-4">
-                                                <div className="flex gap-3 items-start">
-                                                    <div className="mt-0.5 p-1.5 rounded-full bg-amber-50 text-amber-500 shrink-0">
-                                                        <Sun size={14} />
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-0.5">AM Routine</span>
-                                                        <p className="text-xs text-zinc-600 font-medium leading-snug">{week.morning}</p>
-                                                    </div>
-                                                </div>
-                                                <div className="flex gap-3 items-start">
-                                                    <div className="mt-0.5 p-1.5 rounded-full bg-indigo-50 text-indigo-500 shrink-0">
-                                                        <Moon size={14} />
-                                                    </div>
-                                                    <div>
-                                                        <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-0.5">PM Routine</span>
-                                                        <p className="text-xs text-zinc-600 font-medium leading-snug">{week.evening}</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-
-                                            <div className="mt-5 pt-4 border-t border-zinc-50 flex flex-wrap gap-2">
+                                            <div className="mt-4 pt-3 border-t border-zinc-50 flex flex-wrap gap-2">
                                                 {week.ingredients?.map((ing: string, idx: number) => (
-                                                    <div key={idx} className="flex items-center gap-1.5 bg-zinc-50 px-2.5 py-1.5 rounded-lg border border-zinc-100 text-zinc-500">
+                                                    <div key={idx} className="flex items-center gap-1.5 bg-zinc-50 px-2 py-1 rounded-lg text-zinc-500">
                                                         <Beaker size={10} />
-                                                        <span className="text-[10px] font-bold uppercase tracking-wide">{ing}</span>
+                                                        <span className="text-[9px] font-bold uppercase tracking-wide">{ing}</span>
                                                     </div>
                                                 ))}
                                             </div>
