@@ -6,11 +6,7 @@ import { SkinMetrics, Product, UserProfile, UserPreferences } from '../types';
 let aiInstance: GoogleGenAI | null = null;
 
 const getApiKey = (): string => {
-    // 1. Try injected process.env (Vite 'define')
-    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
-        return process.env.API_KEY;
-    }
-    // 2. Try Vite standard import.meta.env
+    // 1. Try Vite standard import.meta.env (Most reliable in Vite apps)
     // @ts-ignore
     if (typeof import.meta !== 'undefined' && import.meta.env) {
         // @ts-ignore
@@ -19,7 +15,17 @@ const getApiKey = (): string => {
         if (import.meta.env.VITE_GEMINI_API_KEY) return import.meta.env.VITE_GEMINI_API_KEY;
         // @ts-ignore
         if (import.meta.env.API_KEY) return import.meta.env.API_KEY;
+        // @ts-ignore
+        if (import.meta.env.GEMINI_API_KEY) return import.meta.env.GEMINI_API_KEY;
     }
+
+    // 2. Try injected process.env (Vercel/Node environment fallback)
+    if (typeof process !== 'undefined' && process.env) {
+        if (process.env.API_KEY) return process.env.API_KEY;
+        if (process.env.VITE_API_KEY) return process.env.VITE_API_KEY;
+        if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
+    }
+    
     return '';
 }
 
@@ -27,7 +33,7 @@ const getAi = (): GoogleGenAI => {
     // Always create a new instance to pick up the latest API key if it changed
     const key = getApiKey();
     if (!key) {
-        console.error("API Key is missing. Please set VITE_API_KEY or API_KEY.");
+        console.error("API Key is missing. Please set VITE_API_KEY or GEMINI_API_KEY in Vercel.");
     }
     return new GoogleGenAI({ apiKey: key });
 };
@@ -127,8 +133,8 @@ const runWithRetry = async <T>(fn: (ai: GoogleGenAI) => Promise<T>, fallback: T,
 
 export const generateRetouchedImage = async (imageBase64: string): Promise<string> => {
     return runWithTimeout<string>(async (ai) => {
-        // Strip header if present
-        const base64Data = imageBase64.replace(/^data:image\/(png|jpeg|jpg);base64,/, '');
+        // MATCHING WORKING LOGIC: Strict split at comma to remove data URI header
+        const base64Data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
 
         const response = await ai.models.generateContent({
             model: MODEL_IMAGE, // Use Nano Banana
@@ -141,9 +147,9 @@ export const generateRetouchedImage = async (imageBase64: string): Promise<strin
             // NO responseMimeType for image models
         });
 
-        const parts = response.candidates?.[0]?.content?.parts;
+        const respParts = response.candidates?.[0]?.content?.parts;
         // Search all parts for the image
-        const imagePart = parts?.find(p => p.inlineData);
+        const imagePart = respParts?.find(p => p.inlineData);
         
         if (imagePart && imagePart.inlineData) {
             return `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
@@ -204,12 +210,16 @@ export const generateImprovementPlan = async (
         }
         `;
 
+        // MATCHING WORKING LOGIC: Strict split
+        const origData = originalImage.includes(',') ? originalImage.split(',')[1] : originalImage;
+        const targetData = targetImage.includes(',') ? targetImage.split(',')[1] : targetImage;
+
         const response = await ai.models.generateContent({
             model: MODEL_FAST, // Use multimodal text model
             contents: {
                 parts: [
-                    { inlineData: { mimeType: 'image/jpeg', data: originalImage.replace(/^data:image\/\w+;base64,/, '') } },
-                    { inlineData: { mimeType: 'image/jpeg', data: targetImage.replace(/^data:image\/\w+;base64,/, '') } },
+                    { inlineData: { mimeType: 'image/jpeg', data: origData } },
+                    { inlineData: { mimeType: 'image/jpeg', data: targetData } },
                     { text: prompt }
                 ]
             },
@@ -328,11 +338,14 @@ export const analyzeProductImage = async (
         const visionPrompt = `Identify the skincare product in this image. Return JSON: { "brand": "Brand Name", "name": "Product Name" }. If unclear, return { "name": "Unknown" }`;
         
         // Use Nano Banana for fast vision ID
+        // MATCHING WORKING LOGIC
+        const base64Data = base64.includes(',') ? base64.split(',')[1] : base64;
+
         const visionResp = await ai.models.generateContent({
             model: MODEL_IMAGE, 
             contents: {
                 parts: [
-                    { inlineData: { mimeType: 'image/jpeg', data: base64.split(',')[1] } },
+                    { inlineData: { mimeType: 'image/jpeg', data: base64Data } },
                     { text: visionPrompt }
                 ]
             }
@@ -483,12 +496,14 @@ export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, 
         `;
         
         // Use Nano Banana (MODEL_IMAGE) for face analysis to fix timeouts
-        // Note: MODEL_IMAGE does NOT support responseMimeType: 'application/json'
+        // MATCHING WORKING LOGIC
+        const base64Data = image.includes(',') ? image.split(',')[1] : image;
+
         const response = await ai.models.generateContent({
             model: MODEL_IMAGE,
             contents: {
                 parts: [
-                    { inlineData: { mimeType: 'image/jpeg', data: image.split(',')[1] } },
+                    { inlineData: { mimeType: 'image/jpeg', data: base64Data } },
                     { text: prompt }
                 ]
             }
@@ -507,12 +522,16 @@ export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, 
 
 export const compareFaceIdentity = async (newImage: string, referenceImage: string): Promise<{ isMatch: boolean; confidence: number; reason: string }> => {
     return runWithRetry(async (ai) => {
+        // MATCHING WORKING LOGIC
+        const newData = newImage.includes(',') ? newImage.split(',')[1] : newImage;
+        const refData = referenceImage.includes(',') ? referenceImage.split(',')[1] : referenceImage;
+
         const response = await ai.models.generateContent({
             model: MODEL_IMAGE, // Use Nano Banana for visual comparison
             contents: {
                 parts: [
-                    { inlineData: { mimeType: 'image/jpeg', data: referenceImage.split(',')[1] } },
-                    { inlineData: { mimeType: 'image/jpeg', data: newImage.split(',')[1] } },
+                    { inlineData: { mimeType: 'image/jpeg', data: refData } },
+                    { inlineData: { mimeType: 'image/jpeg', data: newData } },
                     { text: `Compare faces. JSON: { "isMatch": boolean, "confidence": number, "reason": "string" }` }
                 ]
             }
