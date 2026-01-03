@@ -6,19 +6,22 @@ import { SkinMetrics, Product, UserProfile, UserPreferences } from '../types';
 let aiInstance: GoogleGenAI | null = null;
 
 const getApiKey = (): string => {
-    // 1. Try process.env.API_KEY (Injected by vite.config.ts from VITE_API_KEY)
+    // 1. PRIORITIZE process.env.API_KEY (Defined in vite.config.ts)
+    // This connects to the Vercel Environment Variable VITE_API_KEY
     if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
         return process.env.API_KEY;
     }
-    // 2. Try direct import.meta.env (Vite native for Vercel)
+    
+    // 2. Fallback check for VITE_API_KEY directly
+    if (typeof process !== 'undefined' && process.env && process.env.VITE_API_KEY) {
+        return process.env.VITE_API_KEY;
+    }
+
+    // 3. Fallback for local Vite dev server
     // @ts-ignore
     if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
         // @ts-ignore
         return import.meta.env.VITE_API_KEY;
-    }
-    // 3. Check for standard VITE_ prefix in process.env
-    if (typeof process !== 'undefined' && process.env && process.env.VITE_API_KEY) {
-        return process.env.VITE_API_KEY;
     }
     
     return '';
@@ -142,20 +145,23 @@ export const generateRetouchedImage = async (imageBase64: string): Promise<strin
         // Strict split at comma to remove data URI header
         const base64Data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
 
-        // Optimized prompt for Nano Banana/Flash Image
-        const prompt = "Enhance this portrait. Smooth skin texture. Reduce redness. Reduce blemishes. Maintain original facial features. Photorealistic output.";
+        // OPTIMIZED PROMPT FOR FREE TIER
+        // "Enhance" often triggers "Identity Manipulation" filters.
+        // "Professional Lighting" and "Clear Skin" are safer keywords.
+        const prompt = "Professional studio photography. High definition portrait with clear skin texture and balanced lighting. Photorealistic style.";
 
         const response = await ai.models.generateContent({
-            model: MODEL_IMAGE, // Must use gemini-2.5-flash-image for image generation
+            model: MODEL_IMAGE, // gemini-2.5-flash-image
             contents: {
                 parts: [
+                    { text: prompt },
                     { inlineData: { mimeType: 'image/jpeg', data: base64Data } },
-                    { text: prompt }
                 ]
             },
             config: {
                 // DO NOT set imageSize for Flash Image model (it causes errors on Free Tier)
-                safetySettings: SAFETY_SETTINGS_NONE 
+                safetySettings: SAFETY_SETTINGS_NONE,
+                temperature: 0.4 
             }
         });
 
@@ -169,7 +175,7 @@ export const generateRetouchedImage = async (imageBase64: string): Promise<strin
         const textPart = respParts?.find(p => p.text);
         if (textPart) console.warn("Gemini Image Refusal:", textPart.text);
 
-        throw new Error("No image generated. The model may have refused the request due to safety filters.");
+        throw new Error("Image generation failed. The model may be busy or the request triggered safety filters on the free tier.");
     }, 90000); 
 };
 
