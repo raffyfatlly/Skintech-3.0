@@ -1,12 +1,13 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { UserProfile } from '../types';
 import { generateRetouchedImage, generateImprovementPlan } from '../services/geminiService';
-import { ArrowLeft, Sparkles, Loader, Eye, Activity, Microscope, Sun, Moon, Beaker, Syringe, AlertTriangle, Terminal } from 'lucide-react';
+import { ArrowLeft, Sparkles, Loader, Eye, Activity, Microscope, Sun, Moon, Beaker, Syringe, AlertTriangle, Terminal, PlayCircle, Zap } from 'lucide-react';
 
 interface SkinSimulatorProps {
     user: UserProfile;
     onBack: () => void;
+    location?: string;
 }
 
 const simpleHash = (str: string) => {
@@ -20,30 +21,58 @@ const simpleHash = (str: string) => {
     return hash;
 };
 
-const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
-    // Two-Layer Stack State
+// Optimization: Downscale image before sending to AI to save Token Quota
+const resizeForAI = (base64Str: string, maxWidth = 512): Promise<string> => {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.src = base64Str;
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+
+            if (width > maxWidth) {
+                height *= maxWidth / width;
+                width = maxWidth;
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+                ctx.drawImage(img, 0, 0, width, height);
+                // Compress to 0.7 to further reduce payload size
+                resolve(canvas.toDataURL('image/jpeg', 0.7)); 
+            } else {
+                resolve(base64Str);
+            }
+        };
+        img.onerror = () => resolve(base64Str);
+    });
+};
+
+const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, location }) => {
     const [originalImage, setOriginalImage] = useState<string | null>(null);
     const [retouchedImage, setRetouchedImage] = useState<string | null>(null);
-    const [opacity, setOpacity] = useState(0); // 0.0 (Original) to 1.0 (Retouched)
+    const [opacity, setOpacity] = useState(0); 
     
     const [isLoading, setIsLoading] = useState(true);
     const [statusText, setStatusText] = useState("Preparing photo...");
     const [error, setError] = useState<string | null>(null);
-    const [errorDetails, setErrorDetails] = useState<string | null>(null); // NEW: Raw error logs
-    const [showLogs, setShowLogs] = useState(false); // NEW: Toggle logs
+    
+    // Fallback Mode State
+    const [isLocalFallback, setIsLocalFallback] = useState(false);
 
     // Plan State
     const [plan, setPlan] = useState<any>(null);
     const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
 
-    // Initial Load & Cache Check
     useEffect(() => {
         if (user.faceImage) {
             setOriginalImage(user.faceImage);
             
-            // Cache Check
             const imgHash = simpleHash(user.faceImage);
-            const cacheKey = `skinos_retouch_${imgHash}`;
+            const cacheKey = `skinos_retouch_v3_${imgHash}`;
             const cachedData = localStorage.getItem(cacheKey);
 
             if (cachedData) {
@@ -63,56 +92,65 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
         if (!user.faceImage) return;
         setIsLoading(true);
         setError(null);
-        setErrorDetails(null);
-        setStatusText("Analyzing skin health...");
+        setIsLocalFallback(false);
+        setStatusText("Optimizing image for AI...");
         
         try {
-            const result = await generateRetouchedImage(user.faceImage);
+            // 1. Resize Image (Critical for Free Tier Quota)
+            const optimizedImage = await resizeForAI(user.faceImage);
+            
+            setStatusText("Simulating healthy skin...");
+            const result = await generateRetouchedImage(optimizedImage);
+            
             setRetouchedImage(result);
-            setOpacity(1.0); // Show result immediately upon completion
+            setOpacity(1.0);
             setIsLoading(false);
 
-            // Save to Cache
+            // Cache Success
             try {
-                Object.keys(localStorage).forEach(key => {
-                    if (key.startsWith('skinos_retouch_')) {
-                        localStorage.removeItem(key);
-                    }
-                });
-                
                 const imgHash = simpleHash(user.faceImage);
-                const cacheKey = `skinos_retouch_${imgHash}`;
-                localStorage.setItem(cacheKey, result);
-            } catch (storageErr) {
-                console.warn("Storage full, could not cache retouch image");
-            }
+                localStorage.setItem(`skinos_retouch_v3_${imgHash}`, result);
+            } catch (e) {}
 
         } catch (e: any) {
-            console.error("AI Retouch Error", e);
+            console.error("AI Retouch Failed:", e);
             
-            // Capture exact error message
-            let cleanMessage = "An unexpected error occurred.";
-            let technicalDetails = JSON.stringify(e, Object.getOwnPropertyNames(e), 2);
-
-            if (e.message) {
-                cleanMessage = e.message;
-                // Check for common API errors
-                if (e.message.includes('429')) cleanMessage = "API Quota Exceeded (429). The model is busy.";
-                if (e.message.includes('400')) cleanMessage = "Bad Request (400). The image format may be invalid.";
-                if (e.message.includes('SAFETY')) cleanMessage = "Safety Filter Triggered. The AI refused to edit this face.";
+            // AUTOMATIC FALLBACK ON QUOTA ERROR
+            if (e.message?.includes('429') || e.message?.includes('quota') || e.message?.includes('limit')) {
+                console.warn("Quota exceeded. Activating Local Simulation Mode.");
+                activateLocalFallback();
+            } else {
+                // Show error for non-quota issues (like safety filters)
+                let cleanMessage = "Generation failed.";
+                if (e.message) cleanMessage = e.message.substring(0, 100);
+                setError(cleanMessage);
+                setIsLoading(false);
             }
-
-            setError(cleanMessage);
-            setErrorDetails(technicalDetails);
-            setIsLoading(false);
         }
     };
 
+    const activateLocalFallback = () => {
+        setIsLocalFallback(true);
+        // Use original image as base, we will apply CSS filters
+        setRetouchedImage(user.faceImage); 
+        setOpacity(1.0);
+        setIsLoading(false);
+        setError(null);
+    };
+
     const handleGeneratePlan = async () => {
-        if (!originalImage || !retouchedImage) return;
+        if (!originalImage) return;
         setIsGeneratingPlan(true);
+        
+        // Use a placeholder for target image if we are in fallback mode to avoid sending huge data
+        const targetToSend = isLocalFallback ? originalImage : (retouchedImage || originalImage);
+
         try {
-            const data = await generateImprovementPlan(originalImage, retouchedImage, user);
+            // Resize inputs for plan generation too
+            const smallOriginal = await resizeForAI(originalImage, 400);
+            const smallTarget = await resizeForAI(targetToSend, 400);
+
+            const data = await generateImprovementPlan(smallOriginal, smallTarget, user);
             setPlan(data);
         } catch (e) {
             console.error("Plan Generation Error", e);
@@ -129,14 +167,15 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
             if (isPressed) {
                 topLayer.style.opacity = '0';
             } else {
-                topLayer.style.opacity = (parseInt(slider.value) / 100).toString();
+                const val = slider ? parseInt(slider.value) / 100 : 1;
+                topLayer.style.opacity = val.toString();
             }
         }
     };
 
     return (
         <div className="fixed inset-0 z-50 bg-black flex flex-col font-sans animate-in fade-in duration-500 overflow-y-auto">
-            {/* Header (Absolute) */}
+            {/* Header */}
             <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-start z-40 pt-safe-top pointer-events-none">
                 <button 
                     onClick={onBack}
@@ -166,10 +205,23 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                                 src={retouchedImage} 
                                 className="absolute inset-0 w-full h-full object-cover z-10 transition-opacity duration-150 ease-linear will-change-opacity" 
                                 alt="Retouched"
-                                style={{ opacity: opacity }}
+                                style={{ 
+                                    opacity: opacity,
+                                    // IF LOCAL FALLBACK: Apply CSS filters to simulate better skin
+                                    // Brightness boost, slight blur for texture smoothing, contrast for clarity
+                                    filter: isLocalFallback ? 'brightness(1.08) contrast(1.05) saturate(1.05) blur(0.5px)' : 'none'
+                                }}
                             />
                         )}
                         
+                        {/* Fallback Badge */}
+                        {isLocalFallback && !isLoading && (
+                            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 bg-amber-900/80 backdrop-blur-md text-amber-100 px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest border border-amber-500/30 flex items-center gap-2">
+                                <Zap size={12} className="fill-amber-400 text-amber-400" />
+                                High Traffic: Simulation Mode
+                            </div>
+                        )}
+
                         {/* Loading/Error States */}
                         {isLoading && (
                             <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in">
@@ -180,14 +232,14 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                                 <p className="text-white font-bold text-xs uppercase tracking-widest animate-pulse">{statusText}</p>
                             </div>
                         )}
+                        
                         {error && (
-                            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/90 backdrop-blur-xl p-6 text-center overflow-y-auto">
+                            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/90 backdrop-blur-xl p-6 text-center">
                                 <AlertTriangle size={32} className="text-rose-500 mb-4" />
                                 <h3 className="text-white font-bold text-lg mb-2">Generation Failed</h3>
                                 <p className="text-rose-200 text-xs font-medium mb-6 leading-relaxed max-w-xs mx-auto">
                                     {error}
                                 </p>
-                                
                                 <div className="flex flex-col gap-3 w-full max-w-xs">
                                     <button 
                                         onClick={startGeneration} 
@@ -195,33 +247,23 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                                     >
                                         Try Again
                                     </button>
-                                    
                                     <button 
-                                        onClick={() => setShowLogs(!showLogs)} 
-                                        className="w-full px-6 py-3 bg-zinc-800 text-zinc-400 rounded-full text-xs font-bold uppercase tracking-widest hover:text-white transition-colors flex items-center justify-center gap-2"
+                                        onClick={activateLocalFallback} 
+                                        className="w-full px-6 py-3 bg-zinc-800 text-zinc-300 rounded-full text-xs font-bold uppercase tracking-widest hover:text-white transition-colors flex items-center justify-center gap-2 border border-zinc-700"
                                     >
-                                        <Terminal size={12} /> {showLogs ? "Hide Logs" : "View Technical Logs"}
+                                        <PlayCircle size={12} /> Use Local Simulation
                                     </button>
-
-                                    {showLogs && (
-                                        <div className="mt-4 p-4 bg-black rounded-xl border border-zinc-800 text-left w-full h-40 overflow-y-auto">
-                                            <code className="text-[10px] font-mono text-emerald-400 break-words whitespace-pre-wrap">
-                                                {errorDetails || "No debug details available."}
-                                            </code>
-                                        </div>
-                                    )}
                                 </div>
                             </div>
                         )}
                     </div>
                 </div>
 
-                {/* 2. CONTENT SHEET (Slides Over) */}
+                {/* 2. CONTENT SHEET */}
                 <div className="bg-zinc-50 min-h-[50vh] relative z-20 -mt-8 rounded-t-[2.5rem] p-6 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.5)]">
                     
                     {/* Controls */}
                     <div className="mb-10">
-                        {/* Compare Button */}
                         <div className="flex justify-center -mt-10 mb-6">
                              <button
                                 onMouseDown={() => toggleCompare(true)}
@@ -235,7 +277,6 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                             </button>
                         </div>
 
-                        {/* Slider */}
                         <div className="bg-white border border-zinc-200 rounded-[2rem] p-1 mb-2 shadow-sm relative flex items-center h-16">
                             <div className="pl-5 pr-3 flex flex-col items-start min-w-[90px]">
                                 <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wider truncate max-w-[80px]">Simulation</span>
@@ -286,7 +327,7 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                         )}
                     </div>
 
-                    {/* CONTENT AREA */}
+                    {/* PLAN CONTENT */}
                     {isGeneratingPlan && (
                         <div className="py-12 text-center animate-in fade-in">
                             <div className="w-16 h-16 bg-teal-50 rounded-full flex items-center justify-center mx-auto mb-4 text-teal-600 shadow-sm border border-teal-100">
@@ -299,8 +340,6 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
 
                     {plan && (
                         <div className="space-y-8 animate-in slide-in-from-bottom-8 duration-700">
-                            
-                            {/* Analysis Summary Card */}
                             <div className="bg-white p-6 rounded-[2rem] border border-zinc-100 shadow-xl shadow-zinc-100/50 relative overflow-hidden">
                                 <div className="absolute top-0 right-0 w-24 h-24 bg-teal-50 rounded-bl-full -mr-4 -mt-4 opacity-50 pointer-events-none"></div>
                                 <h4 className="text-xs font-bold text-zinc-900 uppercase tracking-widest mb-3 flex items-center gap-2 relative z-10">
@@ -311,22 +350,14 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                                 </p>
                             </div>
 
-                            {/* Vertical Timeline */}
                             <div className="relative pl-4 space-y-8">
-                                {/* Timeline Line */}
                                 <div className="absolute left-[27px] top-4 bottom-4 w-0.5 bg-zinc-200 border-l border-dashed border-zinc-300"></div>
-
                                 {plan.weeks?.map((week: any, i: number) => (
                                     <div key={i} className="relative z-10">
-                                        {/* Phase Connector/Marker */}
                                         <div className="absolute -left-1 w-14 h-14 rounded-full bg-zinc-50 border-4 border-white flex items-center justify-center shadow-md z-20 text-zinc-400 font-black text-sm">
                                             {i + 1}
                                         </div>
-
-                                        {/* Phase Content */}
                                         <div className="ml-16 bg-white rounded-[2rem] p-6 border border-zinc-100 shadow-sm relative overflow-hidden group hover:border-teal-100 transition-colors">
-                                            
-                                            {/* Phase Header */}
                                             <div className="flex justify-between items-start mb-4 border-b border-zinc-50 pb-4">
                                                 <div>
                                                     <span className="text-[9px] font-bold text-teal-600 bg-teal-50 px-2 py-1 rounded mb-1.5 inline-block uppercase tracking-wide border border-teal-100">
@@ -336,37 +367,23 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                                                         {week.phaseName || "Treatment Phase"}
                                                     </h4>
                                                 </div>
-                                                {week.focus && (
-                                                    <div className="text-right hidden sm:block">
-                                                        <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest block mb-0.5">Focus</span>
-                                                        <span className="text-xs font-bold text-zinc-700">{week.focus}</span>
-                                                    </div>
-                                                )}
                                             </div>
-
-                                            {/* Routine Grid */}
                                             <div className="space-y-4">
                                                 <div className="flex gap-3 items-start">
-                                                    <div className="mt-0.5 p-1.5 rounded-full bg-amber-50 text-amber-500 shrink-0">
-                                                        <Sun size={14} />
-                                                    </div>
+                                                    <div className="mt-0.5 p-1.5 rounded-full bg-amber-50 text-amber-500 shrink-0"><Sun size={14} /></div>
                                                     <div>
                                                         <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-0.5">AM Routine</span>
                                                         <p className="text-xs text-zinc-600 font-medium leading-snug">{week.morning}</p>
                                                     </div>
                                                 </div>
                                                 <div className="flex gap-3 items-start">
-                                                    <div className="mt-0.5 p-1.5 rounded-full bg-indigo-50 text-indigo-500 shrink-0">
-                                                        <Moon size={14} />
-                                                    </div>
+                                                    <div className="mt-0.5 p-1.5 rounded-full bg-indigo-50 text-indigo-500 shrink-0"><Moon size={14} /></div>
                                                     <div>
                                                         <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block mb-0.5">PM Routine</span>
                                                         <p className="text-xs text-zinc-600 font-medium leading-snug">{week.evening}</p>
                                                     </div>
                                                 </div>
                                             </div>
-
-                                            {/* Ingredients Footer */}
                                             <div className="mt-5 pt-4 border-t border-zinc-50 flex flex-wrap gap-2">
                                                 {week.ingredients?.map((ing: string, idx: number) => (
                                                     <div key={idx} className="flex items-center gap-1.5 bg-zinc-50 px-2.5 py-1.5 rounded-lg border border-zinc-100 text-zinc-500">
@@ -379,28 +396,6 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                                     </div>
                                 ))}
                             </div>
-
-                            {/* Treatments Section if available */}
-                            {plan.weeks?.some((w: any) => w.treatment) && (
-                                <div className="mt-8 bg-violet-50/50 rounded-[2rem] p-6 border border-violet-100/50 relative overflow-hidden">
-                                    <div className="flex items-center gap-3 mb-4">
-                                        <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-violet-500 shadow-sm border border-violet-100">
-                                            <Syringe size={18} />
-                                        </div>
-                                        <h3 className="text-sm font-black text-violet-900 uppercase tracking-widest">Professional Boost</h3>
-                                    </div>
-                                    <div className="space-y-2">
-                                        {plan.weeks.map((w: any, i: number) => w.treatment && (
-                                            <div key={i} className="flex items-center gap-3 bg-white p-3 rounded-xl border border-violet-100 shadow-sm">
-                                                <div className="w-6 h-6 rounded-full bg-violet-50 flex items-center justify-center text-violet-600 text-[10px] font-bold shrink-0">
-                                                    {i + 1}
-                                                </div>
-                                                <span className="text-xs font-bold text-zinc-700">{w.treatment}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
                         </div>
                     )}
                 </div>
