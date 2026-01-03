@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { UserProfile } from '../types';
 import { generateRetouchedImage, generateImprovementPlan } from '../services/geminiService';
-import { ArrowLeft, Sparkles, Loader, Eye, ScanFace, Calendar, Sun, Moon, Beaker, Syringe, ArrowRight, Check, Activity, Microscope } from 'lucide-react';
+import { ArrowLeft, Sparkles, Loader, Eye, Activity, Microscope, Sun, Moon, Beaker, Syringe, AlertTriangle, Terminal } from 'lucide-react';
 
 interface SkinSimulatorProps {
     user: UserProfile;
@@ -29,6 +29,8 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [statusText, setStatusText] = useState("Preparing photo...");
     const [error, setError] = useState<string | null>(null);
+    const [errorDetails, setErrorDetails] = useState<string | null>(null); // NEW: Raw error logs
+    const [showLogs, setShowLogs] = useState(false); // NEW: Toggle logs
 
     // Plan State
     const [plan, setPlan] = useState<any>(null);
@@ -60,6 +62,8 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
     const startGeneration = async () => {
         if (!user.faceImage) return;
         setIsLoading(true);
+        setError(null);
+        setErrorDetails(null);
         setStatusText("Analyzing skin health...");
         
         try {
@@ -85,11 +89,21 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
 
         } catch (e: any) {
             console.error("AI Retouch Error", e);
-            if (e.message && e.message.includes("429")) {
-                setError("Server busy. Please try again in a moment.");
-            } else {
-                setError("Could not generate simulation. Try a different photo.");
+            
+            // Capture exact error message
+            let cleanMessage = "An unexpected error occurred.";
+            let technicalDetails = JSON.stringify(e, Object.getOwnPropertyNames(e), 2);
+
+            if (e.message) {
+                cleanMessage = e.message;
+                // Check for common API errors
+                if (e.message.includes('429')) cleanMessage = "API Quota Exceeded (429). The model is busy.";
+                if (e.message.includes('400')) cleanMessage = "Bad Request (400). The image format may be invalid.";
+                if (e.message.includes('SAFETY')) cleanMessage = "Safety Filter Triggered. The AI refused to edit this face.";
             }
+
+            setError(cleanMessage);
+            setErrorDetails(technicalDetails);
             setIsLoading(false);
         }
     };
@@ -167,9 +181,36 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                             </div>
                         )}
                         {error && (
-                            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/80 backdrop-blur-md p-6 text-center">
-                                <p className="text-rose-400 font-bold text-sm mb-4">{error}</p>
-                                <button onClick={onBack} className="px-6 py-2 bg-white text-black rounded-full text-xs font-bold uppercase tracking-widest">Close</button>
+                            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/90 backdrop-blur-xl p-6 text-center overflow-y-auto">
+                                <AlertTriangle size={32} className="text-rose-500 mb-4" />
+                                <h3 className="text-white font-bold text-lg mb-2">Generation Failed</h3>
+                                <p className="text-rose-200 text-xs font-medium mb-6 leading-relaxed max-w-xs mx-auto">
+                                    {error}
+                                </p>
+                                
+                                <div className="flex flex-col gap-3 w-full max-w-xs">
+                                    <button 
+                                        onClick={startGeneration} 
+                                        className="w-full px-6 py-3 bg-white text-black rounded-full text-xs font-bold uppercase tracking-widest hover:bg-zinc-200 transition-colors"
+                                    >
+                                        Try Again
+                                    </button>
+                                    
+                                    <button 
+                                        onClick={() => setShowLogs(!showLogs)} 
+                                        className="w-full px-6 py-3 bg-zinc-800 text-zinc-400 rounded-full text-xs font-bold uppercase tracking-widest hover:text-white transition-colors flex items-center justify-center gap-2"
+                                    >
+                                        <Terminal size={12} /> {showLogs ? "Hide Logs" : "View Technical Logs"}
+                                    </button>
+
+                                    {showLogs && (
+                                        <div className="mt-4 p-4 bg-black rounded-xl border border-zinc-800 text-left w-full h-40 overflow-y-auto">
+                                            <code className="text-[10px] font-mono text-emerald-400 break-words whitespace-pre-wrap">
+                                                {errorDetails || "No debug details available."}
+                                            </code>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>

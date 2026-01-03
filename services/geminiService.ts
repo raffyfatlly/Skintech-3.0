@@ -7,7 +7,6 @@ let aiInstance: GoogleGenAI | null = null;
 
 const getApiKey = (): string => {
     // 1. PRIORITIZE process.env.API_KEY (Defined in vite.config.ts)
-    // This connects to the Vercel Environment Variable VITE_API_KEY
     if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
         return process.env.API_KEY;
     }
@@ -42,7 +41,7 @@ const getAi = (): GoogleGenAI => {
 const MODEL_FAST = 'gemini-3-flash-preview';  // Best for Text/Analysis/Chat
 const MODEL_IMAGE = 'gemini-2.5-flash-image'; // Nano Banana - Best for Image Generation/Editing
 
-// CRITICAL: Safety Settings must be set to BLOCK_NONE for Face/Skin analysis to avoid "Medical" filters
+// CRITICAL: Safety Settings must be set to BLOCK_NONE for Face/Skin analysis
 const SAFETY_SETTINGS_NONE = [
     { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
     { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -142,12 +141,9 @@ const runWithRetry = async <T>(fn: (ai: GoogleGenAI) => Promise<T>, fallback: T,
 
 export const generateRetouchedImage = async (imageBase64: string): Promise<string> => {
     return runWithTimeout<string>(async (ai) => {
-        // Strict split at comma to remove data URI header
         const base64Data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
 
-        // OPTIMIZED PROMPT FOR FREE TIER
-        // "Enhance" often triggers "Identity Manipulation" filters.
-        // "Professional Lighting" and "Clear Skin" are safer keywords.
+        // Prompt optimized to be generic to avoid face editing triggers
         const prompt = "Professional studio photography. High definition portrait with clear skin texture and balanced lighting. Photorealistic style.";
 
         const response = await ai.models.generateContent({
@@ -159,7 +155,6 @@ export const generateRetouchedImage = async (imageBase64: string): Promise<strin
                 ]
             },
             config: {
-                // DO NOT set imageSize for Flash Image model (it causes errors on Free Tier)
                 safetySettings: SAFETY_SETTINGS_NONE,
                 temperature: 0.4 
             }
@@ -173,9 +168,12 @@ export const generateRetouchedImage = async (imageBase64: string): Promise<strin
         }
         
         const textPart = respParts?.find(p => p.text);
-        if (textPart) console.warn("Gemini Image Refusal:", textPart.text);
+        if (textPart) {
+            // Throw the text refusal so UI can display it
+            throw new Error(textPart.text);
+        }
 
-        throw new Error("Image generation failed. The model may be busy or the request triggered safety filters on the free tier.");
+        throw new Error("No image generated. The model may have refused the request due to safety filters.");
     }, 90000); 
 };
 
