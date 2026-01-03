@@ -427,12 +427,6 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                             </div>
                         )}
                         
-                        {/* Compare Badge */}
-                        {isCompare && !isLoading && (
-                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-black/60 backdrop-blur-md text-white px-6 py-3 rounded-full text-sm font-black uppercase tracking-widest border border-white/20 pointer-events-none animate-in fade-in zoom-in">
-                                Original
-                            </div>
-                        )}
                     </div>
                 </div>
 
