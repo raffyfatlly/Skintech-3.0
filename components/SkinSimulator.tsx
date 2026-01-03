@@ -28,16 +28,15 @@ const VERTEX_SHADER = `
     }
 `;
 
-// Tuned Bilateral Filter (9x9 Kernel)
-// Reduced blurriness by tightening the photometric (range) sigma
+// Advanced Shader: Bilateral Smoothing + Unsharp Masking
 const FRAGMENT_SHADER = `
     precision mediump float;
     varying vec2 v_texCoord;
     uniform sampler2D u_image;
     uniform sampler2D u_mask;
     uniform vec2 u_resolution;
-    uniform float u_sigma; // Spatial spread (blur radius)
-    uniform float u_bsigma; // Range spread (color difference tolerance)
+    uniform float u_sigma; // Spatial spread
+    uniform float u_bsigma; // Range spread
 
     float normpdf(in float x, in float sigma) {
         return 0.39894 * exp(-0.5 * x * x / (sigma * sigma)) / sigma;
@@ -47,16 +46,19 @@ const FRAGMENT_SHADER = `
         vec4 c = texture2D(u_image, v_texCoord);
         float maskVal = texture2D(u_mask, v_texCoord).r;
         
-        // Optimization: If mask is black or effect is off, skip math
-        if (maskVal < 0.01 || u_bsigma < 0.001) {
+        // Optimize: If fully transparent mask or 0 intensity, just draw original
+        if (u_bsigma < 0.001) {
             gl_FragColor = c;
             return;
         }
 
-        vec3 final_color = vec3(0.0);
-        float Z = 0.0;
+        vec3 bilateral_color = vec3(0.0);
+        float bilateral_Z = 0.0;
+
+        vec3 gauss_color = vec3(0.0);
+        float gauss_Z = 0.0;
         
-        // 9x9 Kernel (Radius 4) for better feature preservation than 5x5
+        // 9x9 Kernel
         const int kSize = 9; 
         const int halfSize = kSize / 2;
         
@@ -65,36 +67,48 @@ const FRAGMENT_SHADER = `
                 vec2 offset = vec2(float(i), float(j)) / u_resolution;
                 vec3 cc = texture2D(u_image, v_texCoord + offset).rgb;
                 
-                // Spatial Factor (Gaussian)
+                // Spatial Factor
                 float factor = normpdf(float(i), u_sigma) * normpdf(float(j), u_sigma);
                 
-                // Range Factor (Intensity Difference)
-                // Using distance helps preserve color edges better than simple luma diff
+                // Range Factor (Bilateral)
                 float bZ = normpdf(distance(c.rgb, cc), u_bsigma);
                 
-                float w = factor * bZ;
-                Z += w;
-                final_color += cc * w;
+                // Accumulate Bilateral (Smoothing)
+                float bW = factor * bZ;
+                bilateral_Z += bW;
+                bilateral_color += cc * bW;
+
+                // Accumulate Gaussian (Blur for Unsharp Mask)
+                gauss_Z += factor;
+                gauss_color += cc * factor;
             }
         }
         
-        vec3 smoothed = final_color / Z;
-        
-        // Detail Preservation (Unsharp Mask Trick)
-        // Mix a tiny bit of high-pass detail back in to simulate texture
-        // vec3 highPass = c.rgb - smoothed;
-        // smoothed = smoothed + highPass * 0.1; 
+        vec3 smoothed = bilateral_color / bilateral_Z;
+        vec3 blurred = gauss_color / gauss_Z;
 
-        // Final Mix
-        // Apply mask strength to the mix
-        gl_FragColor = vec4(mix(c.rgb, smoothed, maskVal), 1.0);
+        // Calculate High Frequency Detail (Edges/Texture)
+        vec3 detail = c.rgb - blurred;
+
+        // 1. Sharpen Features (Eyes, Lips, Hair - where mask is 0)
+        // Add detail back strongly to pop features
+        vec3 sharpened_features = c.rgb + detail * 0.8;
+
+        // 2. Refine Skin (Smoothed + faint texture - where mask is 1)
+        // Add a tiny bit of detail back to smoothed skin to avoid plastic look
+        vec3 refined_skin = smoothed + detail * 0.05;
+
+        // Blend based on mask
+        // Mask 1.0 = Skin (Uses refined_skin)
+        // Mask 0.0 = Features (Uses sharpened_features)
+        gl_FragColor = vec4(mix(sharpened_features, refined_skin, maskVal), 1.0);
     }
 `;
 
 const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [statusText, setStatusText] = useState("Loading AI Model...");
-    const [intensity, setIntensity] = useState(50); // 0-100
+    const [intensity, setIntensity] = useState(60); // Default higher for effect visibility
     const [isCompare, setIsCompare] = useState(false);
     
     // Plan State
@@ -117,7 +131,7 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
     const RIGHT_EYE = [263, 466, 388, 387, 386, 385, 384, 398, 362, 382, 381, 380, 374, 373, 390, 249];
     const LIPS = [61, 146, 91, 181, 84, 17, 314, 405, 321, 375, 291, 308, 324, 318, 402, 317, 14, 87, 178, 88, 95, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291];
     
-    // Add eyebrows to exclusion to prevent blurry brows
+    // Add eyebrows to exclusion
     const LEFT_EYEBROW = [70, 63, 105, 66, 107, 55, 65, 52, 53, 46];
     const RIGHT_EYEBROW = [336, 296, 334, 293, 300, 276, 283, 282, 295, 285];
 
@@ -130,7 +144,6 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
         };
     }, [user.faceImage]);
 
-    // Update shader when slider changes
     useEffect(() => {
         if (!glRef.current || !programRef.current) return;
         renderFrame();
@@ -138,14 +151,12 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
 
     const initializeSystem = async (imageUrl: string) => {
         try {
-            // 1. Load Image
             const img = new Image();
             img.crossOrigin = "Anonymous";
             img.src = imageUrl;
             await new Promise((resolve) => { img.onload = resolve; });
             
-            // Resize for Performance & Consistency (Max 1280px)
-            // This ensures the 9x9 kernel behaves similarly on all devices
+            // Limit resolution for performance (max 1280px)
             const maxDim = 1280;
             let w = img.naturalWidth;
             let h = img.naturalHeight;
@@ -157,7 +168,6 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                 h = Math.round(h * scale);
             }
 
-            // Create a resized internal image
             const resizedCanvas = document.createElement('canvas');
             resizedCanvas.width = w;
             resizedCanvas.height = h;
@@ -171,11 +181,10 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
             
             originalImageRef.current = processedImg;
 
-            // 2. Initialize MediaPipe
             setStatusText("Mapping Face Geometry...");
             
             if (!window.FaceMesh) {
-                throw new Error("MediaPipe FaceMesh not loaded. Please refresh.");
+                throw new Error("MediaPipe FaceMesh not loaded.");
             }
 
             const faceMesh = new window.FaceMesh({
@@ -192,8 +201,6 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
             });
 
             faceMesh.onResults(handleResults);
-            
-            // Send processed image to MediaPipe
             await faceMesh.send({ image: processedImg });
 
         } catch (e) {
@@ -224,11 +231,9 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        // Fill Black (Default)
         ctx.fillStyle = "black";
         ctx.fillRect(0, 0, width, height);
 
-        // Helper to draw shape
         const drawShape = (indices: number[], color: string, blur: number = 0) => {
             ctx.beginPath();
             const first = landmarks[indices[0]];
@@ -238,23 +243,22 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                 ctx.lineTo(pt.x * width, pt.y * height);
             }
             ctx.closePath();
-            // Heavy feathering for smooth blending
             if (blur > 0) ctx.filter = `blur(${blur}px)`;
             ctx.fillStyle = color;
             ctx.fill();
             ctx.filter = "none";
         };
 
-        // 1. Draw Face Oval (White) - The skin area
-        drawShape(FACE_OVAL, "white", 12);
+        // Draw skin (White) with nice feathering
+        drawShape(FACE_OVAL, "white", 15);
 
-        // 2. Erase Features (Black)
+        // Erase Features (Black)
         ctx.globalCompositeOperation = 'destination-out';
-        drawShape(LEFT_EYE, "black", 8);
-        drawShape(RIGHT_EYE, "black", 8);
-        drawShape(LIPS, "black", 6);
-        drawShape(LEFT_EYEBROW, "black", 5);
-        drawShape(RIGHT_EYEBROW, "black", 5);
+        drawShape(LEFT_EYE, "black", 10);
+        drawShape(RIGHT_EYE, "black", 10);
+        drawShape(LIPS, "black", 8);
+        drawShape(LEFT_EYEBROW, "black", 6);
+        drawShape(RIGHT_EYEBROW, "black", 6);
         
         ctx.globalCompositeOperation = 'source-over';
 
@@ -266,7 +270,6 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
         const img = originalImageRef.current;
         if (!canvas || !img) return;
 
-        // Set dimensions match image
         canvas.width = img.width;
         canvas.height = img.height;
 
@@ -274,7 +277,6 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
         if (!gl) return;
         glRef.current = gl;
 
-        // Create Program
         const vs = createShader(gl, gl.VERTEX_SHADER, VERTEX_SHADER);
         const fs = createShader(gl, gl.FRAGMENT_SHADER, FRAGMENT_SHADER);
         if (!vs || !fs) return;
@@ -287,7 +289,6 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
         gl.useProgram(program);
         programRef.current = program;
 
-        // Setup Geometry (Quad)
         const positionBuffer = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, positionBuffer);
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
@@ -310,7 +311,6 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
         gl.enableVertexAttribArray(texCoordLocation);
         gl.vertexAttribPointer(texCoordLocation, 2, gl.FLOAT, false, 0, 0);
 
-        // Upload Textures
         imageTextureRef.current = createTexture(gl, img);
         if (maskCanvasRef.current) {
             maskTextureRef.current = createTexture(gl, maskCanvasRef.current);
@@ -353,17 +353,9 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
         
         const val = isCompare ? 0 : intensity;
         
-        // TUNED PARAMETERS FOR NATURAL SKIN
-        // Sigma (Spatial): Controls how wide the blur is.
-        // Needs to be large enough to cover pores (radius ~4-5px).
-        // Range: 2.0 to 10.0
-        const sigma = 2.0 + (val / 100) * 8.0; 
-        
-        // BSigma (Range): Controls edge preservation.
-        // CRITICAL: Must be small (0.01 - 0.1) to avoid blurring real features.
-        // Lower = more plastic but sharp edges. Higher = blurry photo.
-        // We want it to increase slightly with intensity but cap out early.
-        const bsigma = 0.02 + (val / 100) * 0.08; 
+        // Tuned Params for 9x9 kernel
+        const sigma = 1.5 + (val / 100) * 4.0; // Moderate spatial spread
+        const bsigma = 0.02 + (val / 100) * 0.08; // Tight range spread for edge preservation
 
         gl.uniform1f(uSigma, sigma);
         gl.uniform1f(uBsigma, bsigma);
