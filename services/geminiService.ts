@@ -6,38 +6,40 @@ import { SkinMetrics, Product, UserProfile, UserPreferences } from '../types';
 let aiInstance: GoogleGenAI | null = null;
 
 const getApiKey = (): string => {
-    // 1. Try Vite standard import.meta.env (Priority as per user Vercel config)
-    // @ts-ignore
-    if (typeof import.meta !== 'undefined' && import.meta.env) {
-        // @ts-ignore
-        if (import.meta.env.VITE_API_KEY) return import.meta.env.VITE_API_KEY;
-        // @ts-ignore
-        if (import.meta.env.VITE_GEMINI_API_KEY) return import.meta.env.VITE_GEMINI_API_KEY;
+    // 1. Try process.env.API_KEY (Injected by vite.config.ts from VITE_API_KEY)
+    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+        return process.env.API_KEY;
     }
-
-    // 2. Try injected process.env (Fallback)
-    if (typeof process !== 'undefined' && process.env) {
-        if (process.env.API_KEY) return process.env.API_KEY;
-        if (process.env.VITE_API_KEY) return process.env.VITE_API_KEY;
+    // 2. Try direct import.meta.env (Vite native for Vercel)
+    // @ts-ignore
+    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
+        // @ts-ignore
+        return import.meta.env.VITE_API_KEY;
+    }
+    // 3. Check for standard VITE_ prefix in process.env
+    if (typeof process !== 'undefined' && process.env && process.env.VITE_API_KEY) {
+        return process.env.VITE_API_KEY;
     }
     
     return '';
 }
 
 const getAi = (): GoogleGenAI => {
-    // Always create a new instance to pick up the latest API key if it changed
-    const key = getApiKey();
-    if (!key) {
-        console.error("API Key is missing. Please set VITE_API_KEY in Vercel.");
+    if (!aiInstance) {
+        const key = getApiKey();
+        if (!key) {
+            console.error("API Key is missing. Please set VITE_API_KEY in your Vercel Environment Variables.");
+        }
+        aiInstance = new GoogleGenAI({ apiKey: key });
     }
-    return new GoogleGenAI({ apiKey: key });
+    return aiInstance;
 };
 
 // --- CONFIGURATION ---
-const MODEL_FAST = 'gemini-3-flash-preview';  // Best for Text/Analysis/Multimodal
+const MODEL_FAST = 'gemini-3-flash-preview';  // Best for Text/Analysis/Chat
 const MODEL_IMAGE = 'gemini-2.5-flash-image'; // Nano Banana - Best for Image Generation/Editing
 
-// CRITICAL: Safety Settings must be set to BLOCK_NONE for Face/Skin analysis
+// CRITICAL: Safety Settings must be set to BLOCK_NONE for Face/Skin analysis to avoid "Medical" filters
 const SAFETY_SETTINGS_NONE = [
     { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
     { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -133,7 +135,7 @@ const runWithRetry = async <T>(fn: (ai: GoogleGenAI) => Promise<T>, fallback: T,
     }
 };
 
-// --- GEN AI IMAGE MANIPULATION (Uses MODEL_IMAGE) ---
+// --- GEN AI IMAGE MANIPULATION (Must use MODEL_IMAGE) ---
 
 export const generateRetouchedImage = async (imageBase64: string): Promise<string> => {
     return runWithTimeout<string>(async (ai) => {
@@ -144,7 +146,7 @@ export const generateRetouchedImage = async (imageBase64: string): Promise<strin
         const prompt = "Enhance this portrait. Smooth skin texture. Reduce redness. Reduce blemishes. Maintain original facial features. Photorealistic output.";
 
         const response = await ai.models.generateContent({
-            model: MODEL_IMAGE, // Must use Image model for generation
+            model: MODEL_IMAGE, // Must use gemini-2.5-flash-image for image generation
             contents: {
                 parts: [
                     { inlineData: { mimeType: 'image/jpeg', data: base64Data } },
@@ -238,6 +240,11 @@ export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, 
         INPUT CV METRICS (Reference Only): ${JSON.stringify(localMetrics)}. 
         CRITICAL: Use your visual judgment to override CV metrics if they seem wrong. 
         
+        SCORING SCALE (CRITICAL):
+        - 100 = PERFECT / CLEAR / HEALTHY (Good)
+        - 0 = SEVERE / INFLAMED / DAMAGED (Bad)
+        - Example: 'acneActive': 90 means NO ACNE. 'acneActive': 20 means SEVERE ACNE.
+        
         OUTPUT JSON (Strict):
         {
           "overallScore": number,
@@ -265,12 +272,11 @@ export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, 
         }
         `;
         
-        // SWITCHED TO MODEL_FAST (gemini-3-flash-preview) for better analysis capabilities
-        // This matches the Chat Assistant setup which works.
         const base64Data = image.includes(',') ? image.split(',')[1] : image;
 
+        // Use MODEL_FAST (gemini-3-flash-preview) for robust analysis
         const response = await ai.models.generateContent({
-            model: MODEL_FAST, // gemini-3-flash-preview
+            model: MODEL_FAST, 
             contents: {
                 parts: [
                     { inlineData: { mimeType: 'image/jpeg', data: base64Data } },
@@ -374,7 +380,7 @@ export const analyzeProductFromSearch = async (
             type: detectedType,
             ingredients: hasIngredients ? data.ingredients : [],
             estimatedPrice: typeof data.estimatedPrice === 'number' ? data.estimatedPrice : 0,
-            suitabilityScore: (typeof data.suitabilityScore === 'number' && hasIngredients) ? data.suitabilityScore : 0,
+            suitabilityScore: (typeof data.suitabilityScore === 'number' && hasIngredients) ? data.suitabilityScore : 50,
             risks: Array.isArray(data.risks) ? data.risks : [],
             benefits: Array.isArray(data.benefits) ? data.benefits : [],
             dateScanned: Date.now(),
