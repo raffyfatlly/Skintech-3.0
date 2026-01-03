@@ -6,24 +6,19 @@ import { SkinMetrics, Product, UserProfile, UserPreferences } from '../types';
 let aiInstance: GoogleGenAI | null = null;
 
 const getApiKey = (): string => {
-    // 1. Try Vite standard import.meta.env (Most reliable in Vite apps)
+    // 1. Try Vite standard import.meta.env (Priority as per user Vercel config)
     // @ts-ignore
     if (typeof import.meta !== 'undefined' && import.meta.env) {
         // @ts-ignore
         if (import.meta.env.VITE_API_KEY) return import.meta.env.VITE_API_KEY;
         // @ts-ignore
         if (import.meta.env.VITE_GEMINI_API_KEY) return import.meta.env.VITE_GEMINI_API_KEY;
-        // @ts-ignore
-        if (import.meta.env.API_KEY) return import.meta.env.API_KEY;
-        // @ts-ignore
-        if (import.meta.env.GEMINI_API_KEY) return import.meta.env.GEMINI_API_KEY;
     }
 
-    // 2. Try injected process.env (Vercel/Node environment fallback)
+    // 2. Try injected process.env (Fallback)
     if (typeof process !== 'undefined' && process.env) {
         if (process.env.API_KEY) return process.env.API_KEY;
         if (process.env.VITE_API_KEY) return process.env.VITE_API_KEY;
-        if (process.env.GEMINI_API_KEY) return process.env.GEMINI_API_KEY;
     }
     
     return '';
@@ -33,17 +28,16 @@ const getAi = (): GoogleGenAI => {
     // Always create a new instance to pick up the latest API key if it changed
     const key = getApiKey();
     if (!key) {
-        console.error("API Key is missing. Please set VITE_API_KEY or GEMINI_API_KEY in Vercel.");
+        console.error("API Key is missing. Please set VITE_API_KEY in Vercel.");
     }
     return new GoogleGenAI({ apiKey: key });
 };
 
 // --- CONFIGURATION ---
-const MODEL_FAST = 'gemini-3-flash-preview'; 
-const MODEL_IMAGE = 'gemini-2.5-flash-image'; // Nano Banana (Free Tier Friendly)
+const MODEL_FAST = 'gemini-3-flash-preview';  // Best for Text/Analysis/Multimodal
+const MODEL_IMAGE = 'gemini-2.5-flash-image'; // Nano Banana - Best for Image Generation/Editing
 
 // CRITICAL: Safety Settings must be set to BLOCK_NONE for Face/Skin analysis
-// Otherwise the Free Tier model will refuse to process "Medical" or "Face" images.
 const SAFETY_SETTINGS_NONE = [
     { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
     { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -139,7 +133,7 @@ const runWithRetry = async <T>(fn: (ai: GoogleGenAI) => Promise<T>, fallback: T,
     }
 };
 
-// --- GEN AI IMAGE MANIPULATION ---
+// --- GEN AI IMAGE MANIPULATION (Uses MODEL_IMAGE) ---
 
 export const generateRetouchedImage = async (imageBase64: string): Promise<string> => {
     return runWithTimeout<string>(async (ai) => {
@@ -147,11 +141,10 @@ export const generateRetouchedImage = async (imageBase64: string): Promise<strin
         const base64Data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
 
         // Optimized prompt for Nano Banana/Flash Image
-        // It responds better to direct "Enhance" commands than "Edit" or "Do not"
         const prompt = "Enhance this portrait. Smooth skin texture. Reduce redness. Reduce blemishes. Maintain original facial features. Photorealistic output.";
 
         const response = await ai.models.generateContent({
-            model: MODEL_IMAGE, // gemini-2.5-flash-image
+            model: MODEL_IMAGE, // Must use Image model for generation
             contents: {
                 parts: [
                     { inlineData: { mimeType: 'image/jpeg', data: base64Data } },
@@ -160,7 +153,6 @@ export const generateRetouchedImage = async (imageBase64: string): Promise<strin
             },
             config: {
                 // DO NOT set imageSize for Flash Image model (it causes errors on Free Tier)
-                // DO NOT set responseMimeType
                 safetySettings: SAFETY_SETTINGS_NONE 
             }
         });
@@ -172,7 +164,6 @@ export const generateRetouchedImage = async (imageBase64: string): Promise<strin
             return `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
         }
         
-        // Debugging: Check for text refusal
         const textPart = respParts?.find(p => p.text);
         if (textPart) console.warn("Gemini Image Refusal:", textPart.text);
 
@@ -198,34 +189,18 @@ export const generateImprovementPlan = async (
         Compare the images to identify specific issues (e.g., active acne, PIH, dehydration lines).
         Create a high-end clinical protocol to bridge the gap from Current to Target.
         
-        TIMELINE RULES:
-        - The timeline must be realistic based on the severity of the condition.
-        - Mild (Dehydration/Dullness): 4 Weeks.
-        - Moderate (Mild Acne/Texture): 8 Weeks.
-        - Severe (Deep Acne/Hyper-pigmentation): 12+ Weeks.
-        - Break the plan into logical PHASES (e.g. "Phase 1: Repair", "Phase 2: Correct").
-        
         OUTPUT JSON (Strict):
         {
-          "analysis": "Clinical observation of the primary difference (e.g., 'Grade 2 inflammation visible on cheeks vs clear target').",
+          "analysis": "Clinical observation of the primary difference.",
           "weeks": [
             {
               "title": "Weeks 1-4",
               "phaseName": "Stabilize & Repair",
               "focus": "Barrier Support",
-              "morning": "Gentle cleanser, Vitamin C (if tolerated), SPF 50.",
-              "evening": "Double cleanse, Niacinamide, Ceramide moisturizer.",
+              "morning": "Morning routine details.",
+              "evening": "Evening routine details.",
               "ingredients": ["Ceramides", "Niacinamide"],
               "treatment": "LED Light Therapy (Blue)"
-            },
-            {
-              "title": "Weeks 5-8",
-              "phaseName": "Active Correction",
-              "focus": "Turnover & Brightening",
-              "morning": "Add Azelaic Acid, SPF.",
-              "evening": "Introduce Retinoid (start slow).",
-              "ingredients": ["Retinol", "Azelaic Acid"],
-              "treatment": "Mild Chemical Peel"
             }
           ]
         }
@@ -235,7 +210,7 @@ export const generateImprovementPlan = async (
         const targetData = targetImage.includes(',') ? targetImage.split(',')[1] : targetImage;
 
         const response = await ai.models.generateContent({
-            model: MODEL_FAST, // Use multimodal text model
+            model: MODEL_FAST, // Use Flash Preview for Analysis (Better reasoning)
             contents: {
                 parts: [
                     { inlineData: { mimeType: 'image/jpeg', data: origData } },
@@ -245,7 +220,7 @@ export const generateImprovementPlan = async (
             },
             config: { 
                 responseMimeType: 'application/json',
-                safetySettings: SAFETY_SETTINGS_NONE // Prevent blocking of medical analysis
+                safetySettings: SAFETY_SETTINGS_NONE
             }
         });
 
@@ -254,6 +229,69 @@ export const generateImprovementPlan = async (
 };
 
 // --- CORE ANALYSIS FUNCTIONS ---
+
+export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, shelf: string[] = [], history?: SkinMetrics[]): Promise<SkinMetrics> => {
+    return runWithTimeout<SkinMetrics>(async (ai) => {
+        const prompt = `
+        You are SkinOS. Analyze this face image for dermatological health.
+        
+        INPUT CV METRICS (Reference Only): ${JSON.stringify(localMetrics)}. 
+        CRITICAL: Use your visual judgment to override CV metrics if they seem wrong. 
+        
+        OUTPUT JSON (Strict):
+        {
+          "overallScore": number,
+          "acneActive": number,
+          "acneScars": number,
+          "poreSize": number,
+          "blackheads": number,
+          "wrinkleFine": number,
+          "wrinkleDeep": number,
+          "sagging": number,
+          "pigmentation": number,
+          "redness": number,
+          "texture": number,
+          "hydration": number,
+          "oiliness": number,
+          "darkCircles": number,
+          "skinAge": number,
+          "analysisSummary": {
+            "headline": "Short clinical headline",
+            "generalCondition": "2 sentences summary. Mention the scale (High is Good).",
+            "points": [{ "subtitle": "Concern", "content": "Details" }]
+          },
+          "immediateAction": "One holistic skincare tip. Do not focus on dark circles unless score < 50.",
+          "observations": { "acneActive": "Details" }
+        }
+        `;
+        
+        // SWITCHED TO MODEL_FAST (gemini-3-flash-preview) for better analysis capabilities
+        // This matches the Chat Assistant setup which works.
+        const base64Data = image.includes(',') ? image.split(',')[1] : image;
+
+        const response = await ai.models.generateContent({
+            model: MODEL_FAST, // gemini-3-flash-preview
+            contents: {
+                parts: [
+                    { inlineData: { mimeType: 'image/jpeg', data: base64Data } },
+                    { text: prompt }
+                ]
+            },
+            config: { 
+                responseMimeType: 'application/json',
+                safetySettings: SAFETY_SETTINGS_NONE 
+            }
+        });
+        
+        const data = parseJSONFromText(response.text || "{}");
+        if (!data.overallScore && !data.analysisSummary) throw new Error("Incomplete analysis");
+
+        const observations = data.observations || {};
+        if (data.immediateAction) observations.advice = data.immediateAction;
+
+        return { ...localMetrics, ...data, observations, timestamp: Date.now() };
+    }, 60000); 
+};
 
 export const analyzeProductFromSearch = async (
     productName: string, 
@@ -264,7 +302,6 @@ export const analyzeProductFromSearch = async (
     location: string = "Global"
 ): Promise<Product> => {
     return runWithTimeout<Product>(async (ai) => {
-        
         const prompt = `
         ACT AS AN EXPERT COSMETIC CHEMIST.
         PRODUCT: "${productName}" ${knownBrand ? `by ${knownBrand}` : ''}
@@ -276,8 +313,6 @@ export const analyzeProductFromSearch = async (
         1. Find ingredients and price.
         2. Analyze against user profile.
         3. Output strict JSON.
-
-        STYLE: Simple, concise. Explain technical terms in brackets [like this].
 
         OUTPUT JSON SCHEMA:
         \`\`\`json
@@ -359,20 +394,20 @@ export const analyzeProductImage = async (
 ): Promise<Product> => {
     return runWithTimeout<Product>(async (ai) => {
         const visionPrompt = `Identify the skincare product in this image. Return JSON: { "brand": "Brand Name", "name": "Product Name" }. If unclear, return { "name": "Unknown" }`;
-        
-        // Use Nano Banana for fast vision ID
         const base64Data = base64.includes(',') ? base64.split(',')[1] : base64;
 
         const visionResp = await ai.models.generateContent({
-            model: MODEL_IMAGE, 
+            model: MODEL_FAST, // Use Flash Preview for better vision reasoning
             contents: {
                 parts: [
                     { inlineData: { mimeType: 'image/jpeg', data: base64Data } },
                     { text: visionPrompt }
                 ]
             },
-            // Vision ID usually safe, but good to unblock just in case
-            config: { safetySettings: SAFETY_SETTINGS_NONE }
+            config: { 
+                responseMimeType: 'application/json',
+                safetySettings: SAFETY_SETTINGS_NONE 
+            }
         });
         
         const visionData = parseJSONFromText(visionResp.text || "{}");
@@ -395,66 +430,8 @@ export const analyzeProductImage = async (
              }
         }
 
-        const refinementPrompt = `
-        ACT AS AN EXPERT COSMETIC CHEMIST.
-        PRODUCT: "${detectedBrand} ${detectedName}"
-        USER PROFILE: ${JSON.stringify(userMetrics)}.
-        
-        TASK: Search for ingredients, analyze safety, output JSON.
-        
-        OUTPUT JSON SCHEMA:
-        {
-          "name": "${detectedName}",
-          "brand": "${detectedBrand}",
-          "type": "CLEANSER" | "TONER" | "SERUM" | "MOISTURIZER" | "SPF" | "TREATMENT" | "UNKNOWN",
-          "ingredients": ["string"],
-          "estimatedPrice": number,
-          "suitabilityScore": number,
-          "risks": [{ "ingredient": "string", "riskLevel": "LOW"|"MEDIUM"|"HIGH", "reason": "string" }],
-          "benefits": [{ "ingredient": "string", "target": "string", "description": "string", "relevance": "HIGH" }],
-          "usageTips": "string",
-          "expertReview": "string"
-        }
-        `;
-
-        let searchResponse;
-        let sources: string[] = [];
-
-        try {
-            searchResponse = await ai.models.generateContent({
-                model: MODEL_FAST,
-                contents: refinementPrompt,
-                config: { tools: [{ googleSearch: {} }] }
-            });
-            sources = extractSources(searchResponse);
-        } catch (e) {
-            console.warn("Vision Refinement Tool failed, falling back", e);
-            searchResponse = await ai.models.generateContent({
-                model: MODEL_FAST,
-                contents: refinementPrompt,
-                config: { responseMimeType: 'application/json' }
-            });
-        }
-
-        const data = parseJSONFromText(searchResponse.text || "{}");
-        const hasIngredients = Array.isArray(data.ingredients) && data.ingredients.length > 0;
-
-        return {
-            id: Date.now().toString(),
-            name: data.name || detectedName,
-            brand: data.brand || detectedBrand,
-            type: data.type || "UNKNOWN",
-            ingredients: hasIngredients ? data.ingredients : [],
-            estimatedPrice: typeof data.estimatedPrice === 'number' ? data.estimatedPrice : 0,
-            suitabilityScore: (typeof data.suitabilityScore === 'number' && hasIngredients) ? data.suitabilityScore : 0,
-            risks: Array.isArray(data.risks) ? data.risks : [],
-            benefits: Array.isArray(data.benefits) ? data.benefits : [],
-            dateScanned: Date.now(),
-            sources: sources,
-            usageTips: data.usageTips || "Usage guidelines are unavailable.",
-            expertReview: data.expertReview || "Analysis based on visual identification only."
-        };
-
+        // Pass details to search function to get ingredients
+        return analyzeProductFromSearch(detectedName, userMetrics, null, detectedBrand, routineActives, location);
     }, 60000);
 };
 
@@ -483,73 +460,13 @@ export const searchProducts = async (query: string): Promise<{ name: string, bra
     }, [{ name: query, brand: "Generic" }]);
 };
 
-export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, shelf: string[] = [], history?: SkinMetrics[]): Promise<SkinMetrics> => {
-    return runWithTimeout<SkinMetrics>(async (ai) => {
-        const prompt = `
-        You are SkinOS. Analyze this face image for dermatological health.
-        
-        INPUT CV METRICS (Reference Only): ${JSON.stringify(localMetrics)}. 
-        CRITICAL: Use your visual judgment to override CV metrics if they seem wrong. 
-        
-        OUTPUT JSON (Strict):
-        {
-          "overallScore": number,
-          "acneActive": number,
-          "acneScars": number,
-          "poreSize": number,
-          "blackheads": number,
-          "wrinkleFine": number,
-          "wrinkleDeep": number,
-          "sagging": number,
-          "pigmentation": number,
-          "redness": number,
-          "texture": number,
-          "hydration": number,
-          "oiliness": number,
-          "darkCircles": number,
-          "skinAge": number,
-          "analysisSummary": {
-            "headline": "Short clinical headline",
-            "generalCondition": "2 sentences summary. Mention the scale (High is Good).",
-            "points": [{ "subtitle": "Concern", "content": "Details" }]
-          },
-          "immediateAction": "One holistic skincare tip. Do not focus on dark circles unless score < 50.",
-          "observations": { "acneActive": "Details" }
-        }
-        `;
-        
-        // Use Nano Banana (MODEL_IMAGE) for face analysis to fix timeouts
-        const base64Data = image.includes(',') ? image.split(',')[1] : image;
-
-        const response = await ai.models.generateContent({
-            model: MODEL_IMAGE,
-            contents: {
-                parts: [
-                    { inlineData: { mimeType: 'image/jpeg', data: base64Data } },
-                    { text: prompt }
-                ]
-            },
-            // Unblock safety filters for medical/skin analysis
-            config: { safetySettings: SAFETY_SETTINGS_NONE }
-        });
-        
-        const data = parseJSONFromText(response.text || "{}");
-        if (!data.overallScore && !data.analysisSummary) throw new Error("Incomplete analysis");
-
-        const observations = data.observations || {};
-        if (data.immediateAction) observations.advice = data.immediateAction;
-
-        return { ...localMetrics, ...data, observations, timestamp: Date.now() };
-    }, 60000); // 60s timeout
-};
-
 export const compareFaceIdentity = async (newImage: string, referenceImage: string): Promise<{ isMatch: boolean; confidence: number; reason: string }> => {
     return runWithRetry(async (ai) => {
         const newData = newImage.includes(',') ? newImage.split(',')[1] : newImage;
         const refData = referenceImage.includes(',') ? referenceImage.split(',')[1] : referenceImage;
 
         const response = await ai.models.generateContent({
-            model: MODEL_IMAGE, // Use Nano Banana for visual comparison
+            model: MODEL_FAST, // Use Flash Preview for better visual reasoning
             contents: {
                 parts: [
                     { inlineData: { mimeType: 'image/jpeg', data: refData } },
@@ -557,7 +474,10 @@ export const compareFaceIdentity = async (newImage: string, referenceImage: stri
                     { text: `Compare faces. JSON: { "isMatch": boolean, "confidence": number, "reason": "string" }` }
                 ]
             },
-            config: { safetySettings: SAFETY_SETTINGS_NONE }
+            config: { 
+                responseMimeType: 'application/json',
+                safetySettings: SAFETY_SETTINGS_NONE 
+            }
         });
         return parseJSONFromText(response.text || "{}");
     }, { isMatch: true, confidence: 100, reason: "Fallback" });
