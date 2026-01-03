@@ -592,6 +592,7 @@ const App: React.FC = () => {
                   <SkinSimulator 
                       user={userProfile}
                       onBack={() => setCurrentView(AppView.DASHBOARD)}
+                      location={userLocation}
                   />
               ) : null;
           case AppView.SMART_SHELF:
@@ -716,6 +717,7 @@ const App: React.FC = () => {
               // Pass location context to Chat Assistant
               // Note: AIAssistant creates its own session, but we can't easily pass it here without prop drilling
               // So we will modify AIAssistant to accept location prop
+              location={userLocation} 
           />
       )}
       {showSaveModal && <SaveProfileModal onSave={() => {}} onClose={() => setShowSaveModal(false)} onMockLogin={handleMockLogin} mode={saveModalTrigger === 'GENERIC' ? 'LOGIN' : 'SAVE'} trigger={saveModalTrigger} />}
