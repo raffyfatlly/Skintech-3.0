@@ -1,7 +1,7 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Sparkles, Image as ImageIcon, ScanFace, BrainCircuit, Target, Lightbulb, CheckCircle2, Focus, X, ArrowRight, UserX, ShieldAlert, Fingerprint, Lock } from 'lucide-react';
-import { analyzeSkinFrame, drawBiometricOverlay, validateFrame, applyClinicalOverlays, applyMedicalProcessing, preprocessForAI } from '../services/visionService';
+import { analyzeSkinFrame, drawBiometricOverlay, validateFrame, applyClinicalOverlays, preprocessForAI } from '../services/visionService';
 import { analyzeFaceSkin, compareFaceIdentity } from '../services/geminiService';
 import { SkinMetrics, Product } from '../types';
 
@@ -239,8 +239,16 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
 
   const captureSnapshot = (source: HTMLVideoElement | HTMLImageElement, flip: boolean): string => {
       const captureCanvas = document.createElement('canvas');
-      const width = source instanceof HTMLVideoElement ? source.videoWidth : source.naturalWidth;
-      const height = source instanceof HTMLVideoElement ? source.videoHeight : source.naturalHeight;
+      // Limit resolution for storage/display to prevent quota errors
+      const MAX_DIM = 800; // Reduced from original
+      let width = source instanceof HTMLVideoElement ? source.videoWidth : source.naturalWidth;
+      let height = source instanceof HTMLVideoElement ? source.videoHeight : source.naturalHeight;
+
+      if (width > MAX_DIM || height > MAX_DIM) {
+          const ratio = Math.min(MAX_DIM / width, MAX_DIM / height);
+          width *= ratio;
+          height *= ratio;
+      }
 
       captureCanvas.width = width;
       captureCanvas.height = height;
@@ -253,19 +261,26 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
           ctx.drawImage(source, 0, 0, captureCanvas.width, captureCanvas.height);
           if (flip) ctx.setTransform(1, 0, 0, 1, 0, 0);
           
-          // Apply Clinical Overlay Logic (Lines + Dots) for Display
           applyClinicalOverlays(ctx, captureCanvas.width, captureCanvas.height);
           
-          return captureCanvas.toDataURL('image/jpeg', 0.95);
+          return captureCanvas.toDataURL('image/jpeg', 0.85); // Reduced quality for size
       }
       return '';
   };
   
-  // Capture Pre-Processed Image for AI
+  // Capture Pre-Processed Image for AI (Can be slightly larger but optimized)
   const captureProcessedImage = (source: HTMLVideoElement | HTMLImageElement, flip: boolean): string => {
       const captureCanvas = document.createElement('canvas');
-      const width = source instanceof HTMLVideoElement ? source.videoWidth : source.naturalWidth;
-      const height = source instanceof HTMLVideoElement ? source.videoHeight : source.naturalHeight;
+      const MAX_AI_DIM = 1024;
+      let width = source instanceof HTMLVideoElement ? source.videoWidth : source.naturalWidth;
+      let height = source instanceof HTMLVideoElement ? source.videoHeight : source.naturalHeight;
+
+      if (width > MAX_AI_DIM || height > MAX_AI_DIM) {
+          const ratio = Math.min(MAX_AI_DIM / width, MAX_AI_DIM / height);
+          width *= ratio;
+          height *= ratio;
+      }
+
       captureCanvas.width = width;
       captureCanvas.height = height;
       const ctx = captureCanvas.getContext('2d');
@@ -277,8 +292,6 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
           ctx.drawImage(source, 0, 0, width, height);
           if (flip) ctx.setTransform(1, 0, 0, 1, 0, 0);
 
-          // Use advanced pre-processing (Auto-exposure + Contrast + Sharpening)
-          // This normalizes lighting and makes AI scores more consistent
           return preprocessForAI(ctx, width, height);
       }
       return '';
@@ -298,6 +311,7 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
        setIsProcessingAI(true);
        
        const processedImage = captureProcessedImage(source, isFlipped);
+       // Use smaller image for display/storage
        const displayImage = captureSnapshot(source, isFlipped);
        setCapturedSnapshot(displayImage);
 
@@ -397,7 +411,8 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
       
       const check = validateFrame(ctx, canvas.width, canvas.height, lastFacePos.current);
       
-      setInstruction(check.instruction || check.message);
+      // FIX: Use check.message as instruction since check.instruction is undefined in return type
+      setInstruction(check.message);
       setStatusColor(check.status === 'ERROR' ? 'error' : check.status === 'WARNING' ? 'warning' : 'default');
 
       if (check.isGood) {
@@ -421,6 +436,7 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
       }
       
       if (cachedMetricsRef.current) {
+          // FIX: Pass metrics to match updated signature, though it might be a no-op
           drawBiometricOverlay(ctx, canvas.width, canvas.height, cachedMetricsRef.current);
       }
 

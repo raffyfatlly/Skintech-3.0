@@ -37,6 +37,7 @@ import GuideOverlay from './components/GuideOverlay';
 import AdminDashboard from './components/AdminDashboard';
 import BackgroundTaskBar from './components/BackgroundTaskBar';
 import SplashScreen from './components/SplashScreen';
+import SkinSimulator from './components/SkinSimulator'; // NEW
 
 import { ScanFace, LayoutGrid, User, Search, Home, Loader, ScanBarcode, Lock, Sparkles, Microscope, RefreshCw } from 'lucide-react';
 
@@ -505,7 +506,7 @@ const App: React.FC = () => {
 
   const renderNavBar = () => {
       if (isGlobalLoading || isAdminMode) return null;
-      if ([AppView.LANDING, AppView.ONBOARDING, AppView.FACE_SCANNER, AppView.PRODUCT_SCANNER, AppView.PRODUCT_SEARCH, AppView.BUYING_ASSISTANT, AppView.ROUTINE_BUILDER].includes(currentView)) return null;
+      if ([AppView.LANDING, AppView.ONBOARDING, AppView.FACE_SCANNER, AppView.PRODUCT_SCANNER, AppView.PRODUCT_SEARCH, AppView.BUYING_ASSISTANT, AppView.ROUTINE_BUILDER, AppView.SKIN_SIMULATOR].includes(currentView)) return null;
 
       const navItemClass = (view: AppView) => 
         `flex flex-col items-center gap-1 p-2 rounded-2xl transition-all duration-300 ${currentView === view ? 'text-teal-600 bg-teal-50 scale-105' : 'text-zinc-400 hover:text-zinc-600'}`;
@@ -582,7 +583,15 @@ const App: React.FC = () => {
                       onViewProgress={() => setCurrentView(AppView.PROFILE_SETUP)} 
                       onOpenRoutineBuilder={() => setCurrentView(AppView.ROUTINE_BUILDER)} 
                       onLoginRequired={(reason) => openAuth(reason as AuthTrigger)} 
-                      onUnlockPremium={handleUnlockPremium} 
+                      onUnlockPremium={handleUnlockPremium}
+                      onOpenSimulator={() => setCurrentView(AppView.SKIN_SIMULATOR)}
+                  />
+              ) : null;
+          case AppView.SKIN_SIMULATOR:
+              return userProfile ? (
+                  <SkinSimulator 
+                      user={userProfile}
+                      onBack={() => setCurrentView(AppView.DASHBOARD)}
                   />
               ) : null;
           case AppView.SMART_SHELF:

@@ -27,6 +27,25 @@ export const VALID_ACCESS_CODES = [
   "D6W8-N3XQ", "Y9L2-V5RP", "P4C7-M1ZG", "K3G5-F8TJ", "R1T9-Q6VB", "H5N4-X2LS", "L8S3-J7WK", "B2M6-D9RY", "X7Q2-C5ZN"
 ];
 
+// Helper: Sanitize undefined values for Firestore
+const sanitizeForFirestore = (obj: any): any => {
+  if (obj === undefined) return null;
+  if (obj === null) return null;
+  if (typeof obj !== 'object') return obj;
+  if (Array.isArray(obj)) return obj.map(sanitizeForFirestore);
+  
+  const newObj: any = {};
+  for (const key in obj) {
+    if (Object.prototype.hasOwnProperty.call(obj, key)) {
+      const val = sanitizeForFirestore(obj[key]);
+      if (val !== undefined) {
+        newObj[key] = val;
+      }
+    }
+  }
+  return newObj;
+};
+
 // --- LOAD DATA ---
 export const loadUserData = async (): Promise<{ user: UserProfile | null, shelf: Product[] }> => {
     // 1. Get Local Data First
@@ -55,20 +74,14 @@ export const loadUserData = async (): Promise<{ user: UserProfile | null, shelf:
                 const cloudShelf = data.shelf as Product[] || [];
 
                 // --- SMART CONFLICT RESOLUTION ---
-                // We compare the timestamp of the biometric scan.
-                // Whichever source has the NEWER scan wins.
-                
                 const localTs = localUser?.biometrics?.timestamp || 0;
                 const cloudTs = cloudProfile?.biometrics?.timestamp || 0;
 
                 if (localTs > cloudTs) {
                     console.log("Load: Local data is newer than Cloud. Using Local.");
-                    // Don't overwrite local with stale cloud data.
-                    // We return local, and let syncLocalToCloud() handle pushing it later.
                     return { user: localUser, shelf: localShelf };
                 } else {
                     console.log("Load: Cloud data is newer/equal. Updating Local.");
-                    // Cloud is fresher, so update local cache
                     try {
                         localStorage.setItem(USER_KEY, JSON.stringify(cloudProfile));
                         localStorage.setItem(SHELF_KEY, JSON.stringify(cloudShelf));
@@ -80,11 +93,9 @@ export const loadUserData = async (): Promise<{ user: UserProfile | null, shelf:
             }
         } catch (e) {
             console.error("Cloud Load Error:", e);
-            // If cloud fails, fallback to local silently
         }
     }
 
-    // 3. Fallback (Not logged in or Cloud failed)
     return {
         user: localUser,
         shelf: localShelf
@@ -93,27 +104,35 @@ export const loadUserData = async (): Promise<{ user: UserProfile | null, shelf:
 
 // --- SAVE DATA ---
 export const saveUserData = async (user: UserProfile, shelf: Product[]) => {
-    // 1. Always save to local storage (for offline/speed)
+    // 1. Always save to local storage (Safe Fallback)
     try {
-        // SAFEGUARD: Ensure we don't crash on circular references
         const userStr = JSON.stringify(user);
         const shelfStr = JSON.stringify(shelf);
         localStorage.setItem(USER_KEY, userStr);
         localStorage.setItem(SHELF_KEY, shelfStr);
-    } catch (e) {
-        console.error("Local Save Error (Circular Ref?):", e);
+    } catch (e: any) {
+        console.warn("Local Save Quota Exceeded (Circular Ref?):", e);
+        // Fallback: Try saving user WITHOUT the face image to save space
+        try {
+            const slimUser = { ...user, faceImage: null }; // Drop large image
+            localStorage.setItem(USER_KEY, JSON.stringify(slimUser));
+            localStorage.setItem(SHELF_KEY, JSON.stringify(shelf));
+            console.log("Fallback: Saved slim profile to LocalStorage.");
+        } catch (e2) {
+            console.error("Critical Storage Failure", e2);
+        }
     }
 
     // 2. If Logged In, Sync to Cloud
     if (auth?.currentUser && db) {
         try {
             const docRef = doc(db, "users", auth.currentUser.uid);
-            // We strip 'isAnonymous' to false when saving to cloud
-            const cloudProfile = { ...user, isAnonymous: false };
+            const cloudProfile = sanitizeForFirestore({ ...user, isAnonymous: false });
+            const cloudShelf = sanitizeForFirestore(shelf);
             
             await setDoc(docRef, {
                 profile: cloudProfile,
-                shelf: shelf,
+                shelf: cloudShelf,
                 lastUpdated: Date.now()
             }, { merge: true });
         } catch (e) {
@@ -132,7 +151,7 @@ export const syncLocalToCloud = async () => {
     try {
         const localUserStr = localStorage.getItem(USER_KEY);
         const localShelfStr = localStorage.getItem(SHELF_KEY);
-        if (!localUserStr) return; // No local data to sync
+        if (!localUserStr) return; 
         localUser = JSON.parse(localUserStr) as UserProfile;
         localShelf = localShelfStr ? JSON.parse(localShelfStr) : [];
     } catch (e) {
@@ -150,26 +169,20 @@ export const syncLocalToCloud = async () => {
         const cloudData = docSnap.data();
         const cloudProfile = cloudData.profile as UserProfile;
         
-        // Smart Merge Logic
         const localTs = localUser.biometrics?.timestamp || 0;
         const cloudTs = cloudProfile.biometrics?.timestamp || 0;
 
-        // 1. If Local Scan is Newer -> Push to Cloud
         if (localTs > cloudTs) {
             console.log("Local scan is newer. Syncing to Cloud.");
-            // Preserve Premium if Cloud had it (e.g. bought on another device)
             const isPremium = localUser.isPremium || cloudProfile.isPremium;
             const mergedProfile = { ...localUser, isPremium };
             await saveUserData(mergedProfile, localShelf);
         } 
-        // 2. If Local Premium is Newer -> Push to Cloud
         else if (localUser.isPremium && !cloudProfile.isPremium) {
             console.log("Local Premium detected. Syncing to Cloud.");
             const mergedProfile = { ...cloudProfile, isPremium: true };
-            // Use cloud shelf to avoid overwriting unless scan was also new
             await saveUserData(mergedProfile, cloudData.shelf || []);
         } 
-        // 3. Otherwise -> Pull from Cloud
         else {
             console.log("Cloud data is up-to-date. Syncing to Local.");
             try {
@@ -190,31 +203,21 @@ export const clearLocalData = () => {
 
 // --- ACCESS CODE REDEMPTION ---
 export const claimAccessCode = async (code: string): Promise<{ success: boolean; error?: string }> => {
-    // 1. Normalize Input (Remove dashes, uppercase)
-    // "A7K2-M9XP" -> "A7K2M9XP"
     const codeId = code.trim().toUpperCase().replace(/[^A-Z0-9]/g, ''); 
 
-    // 2. CHECK MAGIC CODES (Bypass DB)
     const isMagic = MAGIC_CODES.some(mc => mc.replace(/[^A-Z0-9]/g, '') === codeId);
     if (isMagic) {
         return { success: true };
     }
 
-    // 3. CHECK ALLOWLIST
-    // We check the list *before* DB to ensure we don't spam DB with invalid codes
     const validCode = VALID_ACCESS_CODES.find(vc => vc.replace(/[^A-Z0-9]/g, '') === codeId);
     
     if (!validCode) {
         return { success: false, error: "Invalid Access Code." };
     }
 
-    // 4. CHECK DATABASE
-    // If DB is offline, we can't check uniqueness, but since it's a valid code, we might proceed?
-    // Current logic: Fail if offline to prevent abuse.
     if (!db) {
         console.warn("DB Offline. Attempting soft-verification.");
-        // OPTIONAL: Return success here if you want offline support for valid codes
-        // return { success: true };
     }
     
     if (!auth?.currentUser) {
@@ -230,14 +233,12 @@ export const claimAccessCode = async (code: string): Promise<{ success: boolean;
         
         if (codeSnap.exists()) {
             const data = codeSnap.data();
-            // Allow if the current user already owns it (Idempotency)
             if (data.claimedBy === uid) {
                 return { success: true };
             }
             return { success: false, error: "Code already claimed by another user." };
         }
 
-        // Claim the code
         await setDoc(codeRef, {
             claimedBy: uid,
             claimedAt: Date.now(),
@@ -247,16 +248,10 @@ export const claimAccessCode = async (code: string): Promise<{ success: boolean;
         return { success: true };
     } catch (e: any) {
         console.error("Code Claim Error:", e);
-        
-        // --- FAIL-SAFE FIX ---
-        // If Firestore Permissions deny the check (common in dev/demo),
-        // we FALLBACK to allowing the code IF it was in our VALID_ACCESS_CODES list (checked above).
-        // This ensures the user isn't blocked by backend config issues.
         if (e.code === 'permission-denied' || e.message?.includes('permission')) {
             console.warn("DB Permission Denied. Falling back to static list validation.");
             return { success: true };
         }
-        
         return { success: false, error: "Verification failed. Check your connection." };
     }
 };

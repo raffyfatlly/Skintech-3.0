@@ -2,7 +2,7 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { SkinMetrics, Product, UserProfile } from '../types';
 import { getClinicalTreatmentSuggestions } from '../services/geminiService';
-import { RefreshCw, Sparkles, Ban, Activity, Lightbulb, TrendingUp, Crown, ChevronDown, Syringe, Zap, ArrowRight, Dna, Info, CheckCircle2, Microscope, X, ScanFace, ScanBarcode, MessageCircle, ShieldCheck } from 'lucide-react';
+import { RefreshCw, Sparkles, Ban, Activity, Lightbulb, TrendingUp, Crown, ChevronDown, Syringe, Zap, ArrowRight, Dna, Info, CheckCircle2, Microscope, X, ScanFace, ScanBarcode, MessageCircle, ShieldCheck, Play } from 'lucide-react';
 
 // --- SUB COMPONENTS ---
 
@@ -349,9 +349,10 @@ interface SkinAnalysisReportProps {
   onLoginRequired: (reason: string) => void;
   onOpenRoutineBuilder: () => void;
   onUnlockPremium: () => void;
+  onOpenSimulator: () => void; // NEW PROP
 }
 
-export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({ userProfile, shelf, onRescan, onConsultAI, onViewProgress, onLoginRequired, onOpenRoutineBuilder, onUnlockPremium }) => {
+export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({ userProfile, shelf, onRescan, onConsultAI, onViewProgress, onLoginRequired, onOpenRoutineBuilder, onUnlockPremium, onOpenSimulator }) => {
   const metrics = userProfile.biometrics;
   
   // Guard against missing data to prevent crash
@@ -560,6 +561,8 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({ userProf
                     </button>
 
                     <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-8 text-white z-10">
+                        {/* VISUALIZE BUTTON MOVED FROM HERE */}
+
                         <div className="flex justify-between items-start border-t border-white/10 pt-4 tech-reveal delay-100">
                             <HeroTooltip title="Overall Score" content="A holistic health rating (0-100) combining analysis of acne, wrinkles, texture, redness, and hydration.">
                                 <div>
@@ -681,8 +684,8 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({ userProf
                     </div>
                 )}
 
-                {onViewProgress && (
-                    <div className="mt-6 pt-4 border-t border-zinc-50">
+                <div className="mt-6 pt-4 border-t border-zinc-50 space-y-3">
+                    {onViewProgress && (
                         <button 
                             onClick={handleViewProgress}
                             className="w-full flex items-center justify-center gap-2 text-xs font-bold text-zinc-400 hover:text-teal-600 transition-colors py-2 group"
@@ -690,8 +693,16 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({ userProf
                             <TrendingUp size={14} className="group-hover:-translate-y-0.5 transition-transform" /> 
                             See Detailed Progress Report
                         </button>
-                    </div>
-                )}
+                    )}
+                    
+                    <button 
+                        onClick={onOpenSimulator}
+                        className="w-full flex items-center justify-center gap-2 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 py-3 rounded-xl transition-colors shadow-lg shadow-teal-200 group"
+                    >
+                        <Play size={14} fill="currentColor" />
+                        Visualize Progress
+                    </button>
+                </div>
             </div>
 
             {/* BALANCE MATRIX (Mobile Only) */}
