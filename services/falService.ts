@@ -2,37 +2,31 @@
 // Model: Flux Dev Image-to-Image
 const MODEL = "fal-ai/flux/dev/image-to-image";
 
-// Declare the global constant injected by Vite
-declare const __FAL_KEY__: string | undefined;
-
 const getFalKey = (): string => {
-    // 1. Try global constant defined in vite.config.ts (Most reliable for Vercel + Vite define)
-    try {
-        if (typeof __FAL_KEY__ !== 'undefined' && __FAL_KEY__) return __FAL_KEY__;
-    } catch (e) {}
-
-    // 2. Try Standard Vite Env (import.meta.env)
+    // 1. Try Standard Vite Env (Safe Access)
+    // In Vite, import.meta.env should always exist, but we check just in case.
     try {
         // @ts-ignore
-        if (import.meta.env.VITE_FAL_KEY) return import.meta.env.VITE_FAL_KEY;
-        // @ts-ignore
-        if (import.meta.env.FAL_KEY) return import.meta.env.FAL_KEY;
-    } catch (e) {}
-
-    // 3. Try Direct Process Env (Legacy/Fallback)
-    try {
-        // @ts-ignore
-        if (typeof process !== 'undefined' && process.env) {
+        if (typeof import.meta !== 'undefined' && import.meta.env) {
             // @ts-ignore
-            if (process.env.FAL_KEY) return process.env.FAL_KEY;
+            if (import.meta.env.VITE_FAL_KEY) return import.meta.env.VITE_FAL_KEY;
+        }
+    } catch (e) {}
+    
+    // 2. Try Injected Process Env (Safe Access via Vite define)
+    // Vite replaces 'process.env.FAL_KEY' with the literal string from vite.config.ts
+    try {
+        // @ts-ignore
+        if (typeof process !== 'undefined' && process.env && process.env.FAL_KEY) {
             // @ts-ignore
-            if (process.env.VITE_FAL_KEY) return process.env.VITE_FAL_KEY;
+            return process.env.FAL_KEY;
         }
     } catch (e) {}
 
     return '';
 };
 
+// Initialize once
 const FAL_KEY = getFalKey();
 
 // Helper: Resize image to reduce payload size and API cost
@@ -72,18 +66,19 @@ const resizeImage = (base64Str: string, maxDimension: number = 1024): Promise<st
 };
 
 export const upscaleImage = async (imageBase64: string): Promise<string> => {
-    // Re-check key at runtime in case of lazy loading issues
+    // Re-check key at runtime
     const currentKey = FAL_KEY || getFalKey();
 
     if (!currentKey) {
-        console.error("FAL_KEY is missing. Please check your Vercel Environment Variables.");
-        throw new Error("System Error: FAL_KEY Missing. Please configure it in Settings.");
+        console.error("FAL_KEY Missing. Please add VITE_FAL_KEY to your environment variables.");
+        throw new Error("System Error: FAL_KEY Missing.");
     }
 
     // 1. Optimize Image
     const optimizedImage = await resizeImage(imageBase64, 1024);
 
     // 2. Submit Request to Queue (Flux Dev Image-to-Image)
+    // Updated parameters based on user feedback for optimal skin texture retention
     const response = await fetch(`https://queue.fal.run/${MODEL}`, {
         method: 'POST',
         headers: {
@@ -93,17 +88,22 @@ export const upscaleImage = async (imageBase64: string): Promise<string> => {
         body: JSON.stringify({
             image_url: optimizedImage,
             prompt: "clinical dermatology photography, perfect healthy skin texture, reduced redness, reduced acne, clear pores, even skin tone, natural lighting, hyperrealistic, 8k resolution, soft focus background",
-            strength: 0.55, // Critical for Flux Image-to-Image: 0.0 = Same, 1.0 = New Image. 0.55 allows significant retouching while keeping identity.
+            strength: 0.35, // Updated to 0.35 (lower strength preserves more identity)
             guidance_scale: 3.5,
-            num_inference_steps: 28,
+            num_inference_steps: 24, // Updated to 24 steps
             enable_safety_checker: false,
-            seed: Math.floor(Math.random() * 1000000) // Random seed for variation
+            seed: Math.floor(Math.random() * 1000000) 
         }),
     });
 
     if (!response.ok) {
         const err = await response.text();
         console.error("Fal AI Error Detail:", err);
+        
+        if (response.status === 401) {
+             throw new Error("Fal AI Unauthorized: Invalid API Key.");
+        }
+        
         throw new Error(`Fal AI Error: ${response.status} ${err}`);
     }
 

@@ -5,9 +5,10 @@ import process from 'node:process';
 
 export default defineConfig(({ mode }) => {
   // Load env file based on `mode` in the current working directory.
+  // Third argument '' loads all env vars, regardless of prefix.
   const env = loadEnv(mode, process.cwd(), '');
 
-  // Aggressively find the API Key from common naming conventions
+  // Aggressively find the keys
   const apiKey = 
     env.VITE_GEMINI_API_KEY || 
     env.VITE_API_KEY || 
@@ -15,24 +16,22 @@ export default defineConfig(({ mode }) => {
     process.env.API_KEY ||
     '';
 
-  // Prioritize process.env for Vercel System Env Vars which might not have VITE_ prefix
   const falKey = 
-    process.env.FAL_KEY || 
-    env.FAL_KEY || 
+    env.VITE_FAL_KEY ||
     process.env.VITE_FAL_KEY || 
-    env.VITE_FAL_KEY || 
+    env.FAL_KEY || 
+    process.env.FAL_KEY || 
     '';
+
+  console.log(`[Vite Build] FAL_KEY Detected: ${falKey ? 'Yes (Hidden)' : 'No'}`);
 
   return {
     plugins: [react()],
     define: {
-      // Define `process.env.API_KEY` globally for the client build
-      'process.env.API_KEY': JSON.stringify(apiKey),
-      // Define both process.env and a global constant for maximum reliability
-      'process.env.FAL_KEY': JSON.stringify(falKey),
-      '__FAL_KEY__': JSON.stringify(falKey),
-      // Prevent crash if process is accessed directly in some contexts
-      'process.env': {} 
+      // Critical: JSON.stringify ensures the value is injected as a string literal
+      // We default to empty string if missing to prevent 'undefined' reference errors
+      'process.env.API_KEY': JSON.stringify(apiKey || ''),
+      'process.env.FAL_KEY': JSON.stringify(falKey || ''),
     },
     build: {
       outDir: 'dist',
