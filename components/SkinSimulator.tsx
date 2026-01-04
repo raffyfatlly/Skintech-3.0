@@ -2,7 +2,8 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { UserProfile } from '../types';
 import { generateImprovementPlan } from '../services/geminiService';
-import { ArrowLeft, Sparkles, Loader, Activity, Microscope, Sun, Moon, Beaker, MoveHorizontal, Sliders } from 'lucide-react';
+import { upscaleImage } from '../services/falService';
+import { ArrowLeft, Sparkles, Loader, Activity, Microscope, Sun, Moon, Beaker, MoveHorizontal, Sliders, Zap, Check, X, Download } from 'lucide-react';
 
 declare global {
     interface Window {
@@ -133,6 +134,10 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
     const [intensity, setIntensity] = useState(65);
     const [sliderPos, setSliderPos] = useState(0.5); // 0 to 1
     
+    // Upscale State
+    const [isUpscaling, setIsUpscaling] = useState(false);
+    const [upscaledImage, setUpscaledImage] = useState<string | null>(null);
+    
     // Plan State
     const [plan, setPlan] = useState<any>(null);
     const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
@@ -182,7 +187,6 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
     };
 
     const handleMouseMove = (e: React.MouseEvent) => {
-        // Only if primary button pressed? Or always? Usually drag.
         if (e.buttons === 1) {
             handleInteraction(e.clientX);
         }
@@ -375,7 +379,7 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
         return texture;
     };
 
-    const renderFrame = () => {
+    const renderFrame = (overrideSlider?: number) => {
         const gl = glRef.current;
         const program = programRef.current;
         if (!gl || !program || !imageTextureRef.current || !maskTextureRef.current) return;
@@ -389,8 +393,8 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
 
         gl.uniform2f(uRes, gl.canvas.width, gl.canvas.height);
         
-        // Pass slider (0.0 to 1.0)
-        gl.uniform1f(uSlider, sliderPos);
+        // Pass slider (0.0 to 1.0) - Use override if provided (for upscaling capture)
+        gl.uniform1f(uSlider, overrideSlider !== undefined ? overrideSlider : sliderPos);
         
         // Tuned Params
         const sigma = 1.5 + (intensity / 100) * 4.0; 
@@ -408,6 +412,33 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
         gl.uniform1i(uMask, 1);
 
         gl.drawArrays(gl.TRIANGLES, 0, 6);
+    };
+
+    const handleUpscale = async () => {
+        if (!canvasRef.current || !glRef.current) return;
+        
+        setIsUpscaling(true);
+        try {
+            // 1. Force render full processed image (slider = 1.0 means left side covers all, assuming logic)
+            // Shader Logic: Left side (x < slider) = Processed. So slider=1.0 covers full screen with processed.
+            renderFrame(1.0);
+            
+            // 2. Capture high quality jpeg
+            const base64 = canvasRef.current.toDataURL('image/jpeg', 0.95);
+            
+            // 3. Restore view
+            renderFrame(); 
+
+            // 4. Send to Fal
+            const hdUrl = await upscaleImage(base64);
+            setUpscaledImage(hdUrl);
+            
+        } catch (e) {
+            console.error("Upscale Failed", e);
+            // Could add toast here
+        } finally {
+            setIsUpscaling(false);
+        }
     };
 
     const handleGeneratePlan = async () => {
@@ -473,7 +504,7 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                         )}
                         
                         {/* Comparison Labels */}
-                        {!isLoading && (
+                        {!isLoading && !upscaledImage && (
                             <>
                                 <div className="absolute top-1/2 left-4 -translate-y-1/2 bg-black/40 backdrop-blur-md text-white/80 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest pointer-events-none transition-opacity duration-300" style={{ opacity: sliderPos > 0.1 ? 1 : 0 }}>
                                     After
@@ -512,7 +543,7 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                                 max="100"
                                 step="1"
                                 value={intensity}
-                                disabled={isLoading}
+                                disabled={isLoading || isUpscaling}
                                 onChange={(e) => setIntensity(parseInt(e.target.value))}
                                 className="w-full h-1.5 bg-zinc-200 rounded-full appearance-none cursor-pointer z-20 relative disabled:cursor-not-allowed accent-teal-600 focus:outline-none"
                             />
@@ -530,14 +561,27 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                                 <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-0.5">Achieve this result</p>
                             </div>
                         </div>
-                        {!plan && !isGeneratingPlan && !isLoading && (
+                        
+                        <div className="flex gap-2">
+                            {/* UPSCALE BUTTON */}
                             <button 
-                                onClick={handleGeneratePlan}
-                                className="bg-zinc-900 text-white px-5 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg hover:bg-zinc-800 transition-colors flex items-center gap-2"
+                                onClick={handleUpscale}
+                                disabled={isUpscaling || isLoading || !!upscaledImage}
+                                className="bg-white border border-teal-100 text-teal-600 px-4 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-teal-50 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:grayscale"
                             >
-                                <Sparkles size={12} className="text-amber-300" /> Generate Plan
+                                {isUpscaling ? <Loader size={12} className="animate-spin" /> : <Zap size={12} className="fill-teal-600" />}
+                                {isUpscaling ? "Enhancing..." : "HD Enhance"}
                             </button>
-                        )}
+
+                            {!plan && !isGeneratingPlan && !isLoading && (
+                                <button 
+                                    onClick={handleGeneratePlan}
+                                    className="bg-zinc-900 text-white px-5 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg hover:bg-zinc-800 transition-colors flex items-center gap-2"
+                                >
+                                    <Sparkles size={12} className="text-amber-300" /> Generate Plan
+                                </button>
+                            )}
+                        </div>
                     </div>
 
                     {/* CONTENT AREA */}
@@ -611,6 +655,43 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                     )}
                 </div>
             </div>
+
+            {/* UPSCALE RESULT MODAL */}
+            {upscaledImage && (
+                <div className="fixed inset-0 z-[60] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in zoom-in-95">
+                    <div className="relative w-full max-w-lg bg-black rounded-3xl overflow-hidden border border-white/10 shadow-2xl">
+                        <img src={upscaledImage} alt="HD Result" className="w-full h-auto object-contain max-h-[80vh]" />
+                        
+                        <div className="absolute top-4 right-4 flex gap-3">
+                            <a 
+                                href={upscaledImage} 
+                                download="skinos-hd.jpg" 
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-3 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full text-white transition-colors"
+                            >
+                                <Download size={20} />
+                            </a>
+                            <button 
+                                onClick={() => setUpscaledImage(null)}
+                                className="p-3 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full text-white transition-colors"
+                            >
+                                <X size={20} />
+                            </button>
+                        </div>
+
+                        <div className="absolute bottom-6 left-6 right-6">
+                            <div className="bg-black/60 backdrop-blur-md p-4 rounded-2xl border border-white/10">
+                                <div className="flex items-center gap-2 mb-1">
+                                    <Sparkles size={14} className="text-teal-400" />
+                                    <span className="text-xs font-bold text-white uppercase tracking-widest">High Fidelity Result</span>
+                                </div>
+                                <p className="text-[10px] text-zinc-400">AI Upscaled to 4K resolution.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

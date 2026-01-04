@@ -22,12 +22,19 @@ export default defineConfig(({ mode }) => {
     process.env.API_KEY ||
     '';
 
+  const falKey = 
+    env.VITE_FAL_KEY ||
+    env.FAL_KEY ||
+    process.env.VITE_FAL_KEY ||
+    process.env.FAL_KEY ||
+    '';
+
   return {
     plugins: [react()],
     define: {
       // Define `process.env.API_KEY` globally for the client build
-      // This allows the app to use process.env.API_KEY even in the browser
       'process.env.API_KEY': JSON.stringify(apiKey),
+      'process.env.FAL_KEY': JSON.stringify(falKey),
     },
     build: {
       outDir: 'dist',
