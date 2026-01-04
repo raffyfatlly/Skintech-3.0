@@ -1,6 +1,6 @@
 
-// Model: GPT Image 1.5 Edit
-const MODEL = "fal-ai/gpt-image-1.5/edit";
+// Model: Flux Dev Image-to-Image
+const MODEL = "fal-ai/flux/dev/image-to-image";
 
 // Declare the global constant injected by Vite
 declare const __FAL_KEY__: string | undefined;
@@ -62,7 +62,7 @@ const resizeImage = (base64Str: string, maxDimension: number = 1024): Promise<st
             const ctx = canvas.getContext('2d');
             if (ctx) {
                 ctx.drawImage(img, 0, 0, width, height);
-                resolve(canvas.toDataURL('image/jpeg', 0.9));
+                resolve(canvas.toDataURL('image/jpeg', 0.95));
             } else {
                 resolve(base64Str);
             }
@@ -83,8 +83,7 @@ export const upscaleImage = async (imageBase64: string): Promise<string> => {
     // 1. Optimize Image
     const optimizedImage = await resizeImage(imageBase64, 1024);
 
-    // 2. Submit Request to Queue
-    // NOTE: This model prefers simple instruction prompts and basic image inputs.
+    // 2. Submit Request to Queue (Flux Dev Image-to-Image)
     const response = await fetch(`https://queue.fal.run/${MODEL}`, {
         method: 'POST',
         headers: {
@@ -93,7 +92,12 @@ export const upscaleImage = async (imageBase64: string): Promise<string> => {
         },
         body: JSON.stringify({
             image_url: optimizedImage,
-            prompt: "Retouch the skin to look healthy and clear. Reduce redness, minimize acne, smooth texture, but keep facial features and lighting natural.",
+            prompt: "clinical dermatology photography, perfect healthy skin texture, reduced redness, reduced acne, clear pores, even skin tone, natural lighting, hyperrealistic, 8k resolution, soft focus background",
+            strength: 0.55, // Critical for Flux Image-to-Image: 0.0 = Same, 1.0 = New Image. 0.55 allows significant retouching while keeping identity.
+            guidance_scale: 3.5,
+            num_inference_steps: 28,
+            enable_safety_checker: false,
+            seed: Math.floor(Math.random() * 1000000) // Random seed for variation
         }),
     });
 
@@ -139,10 +143,15 @@ const pollForResult = async (requestId: string, key: string, attempts = 0): Prom
         }
 
         const resultJson = await resultResponse.json();
+        console.log("Fal Result JSON:", resultJson); // Debug log
         
-        if (resultJson.images && resultJson.images.length > 0) {
+        // Standard Fal Flux response format check based on user provided JSON
+        // Structure: { images: [ { url: "..." } ] }
+        if (resultJson.images && Array.isArray(resultJson.images) && resultJson.images.length > 0) {
             return resultJson.images[0].url;
         }
+        
+        // Fallback checks just in case schema varies
         if (resultJson.image && resultJson.image.url) {
             return resultJson.image.url;
         }
@@ -150,6 +159,7 @@ const pollForResult = async (requestId: string, key: string, attempts = 0): Prom
             return resultJson.url;
         }
         
+        console.error("Unknown Fal Response Structure:", resultJson);
         throw new Error("Invalid result format from Fal AI");
     }
 
