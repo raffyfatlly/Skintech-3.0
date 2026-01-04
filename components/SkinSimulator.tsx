@@ -26,6 +26,45 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
     // Refs
     const containerRef = useRef<HTMLDivElement>(null);
 
+    // Helper: Resize image to prevent API Payload Limit errors (Free Tier Fix)
+    const optimizeImageForFreeTier = (base64Str: string): Promise<string> => {
+        return new Promise((resolve) => {
+            const img = new Image();
+            img.src = base64Str;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                // Limit to 768px to ensure it fits comfortably within free tier payload limits
+                const MAX_DIM = 768; 
+                let width = img.width;
+                let height = img.height;
+
+                if (width > height) {
+                    if (width > MAX_DIM) {
+                        height *= MAX_DIM / width;
+                        width = MAX_DIM;
+                    }
+                } else {
+                    if (height > MAX_DIM) {
+                        width *= MAX_DIM / height;
+                        height = MAX_DIM;
+                    }
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                if (ctx) {
+                    ctx.drawImage(img, 0, 0, width, height);
+                    // Compress to JPEG 0.8 to further reduce size
+                    resolve(canvas.toDataURL('image/jpeg', 0.8));
+                } else {
+                    resolve(base64Str);
+                }
+            };
+            img.onerror = () => resolve(base64Str);
+        });
+    };
+
     // AUTO RETOUCH TRIGGER
     useEffect(() => {
         if (!hasAutoStarted && !isRetouching && !retouchedImage && user.faceImage && !errorText) {
@@ -55,15 +94,20 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
         setIsRetouching(true);
         setErrorText(null);
         try {
-            // Using Gemini Image Model (gemini-2.5-flash-image)
-            const hdUrl = await generateRetouchedImage(sourceImage);
+            // 1. Optimize Image size for Free Tier API
+            const optimizedSource = await optimizeImageForFreeTier(sourceImage);
+
+            // 2. Call Gemini Service
+            const hdUrl = await generateRetouchedImage(optimizedSource);
             setRetouchedImage(hdUrl);
         } catch (e: any) {
             console.error("Retouch Failed", e);
             if (e.message?.includes("429") || e.message?.includes("Quota")) {
-                setErrorText("Server Busy: High Traffic. Please try again later.");
+                setErrorText("Free Tier Limit Reached. Please try again in a minute.");
+            } else if (e.message?.includes("Safety")) {
+                setErrorText("AI Safety Filter triggered. Try a clearer photo.");
             } else {
-                setErrorText("Clinical Simulation Failed. Please try again.");
+                setErrorText("Simulation Failed. Server might be busy.");
             }
         } finally {
             setIsRetouching(false);
@@ -147,7 +191,7 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                                     <div className="absolute inset-0 bg-teal-500 blur-xl opacity-20 rounded-full animate-pulse"></div>
                                     <Loader size={48} className="text-teal-400 animate-spin relative z-10" />
                                 </div>
-                                <p className="text-white font-bold text-xs uppercase tracking-widest animate-pulse">Simulating Treatment Results...</p>
+                                <p className="text-white font-bold text-xs uppercase tracking-widest animate-pulse">Processing Simulation...</p>
                             </div>
                         )}
 
@@ -160,10 +204,10 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                                 <h3 className="text-white font-bold text-lg mb-2">Simulation Failed</h3>
                                 <p className="text-zinc-400 text-sm max-w-xs leading-relaxed mb-6">{errorText}</p>
                                 <button 
-                                    onClick={onBack}
+                                    onClick={() => handleAiRetouch(user.faceImage!)}
                                     className="bg-white text-zinc-900 px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest hover:bg-zinc-200 transition-colors"
                                 >
-                                    Go Back
+                                    Try Again
                                 </button>
                             </div>
                         )}

@@ -35,6 +35,15 @@ const getAi = (): GoogleGenAI => {
 const MODEL_FAST = 'gemini-3-flash-preview';  // Best for Text/Analysis/Chat
 const MODEL_IMAGE = 'gemini-2.5-flash-image'; // Nano Banana - Best for Image Generation/Editing
 
+// For Image Generation, we use BLOCK_ONLY_HIGH to allow clinical skin images which might trigger medium filters
+const SAFETY_SETTINGS_IMAGE = [
+    { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+    { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+    { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+    { category: HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+];
+
 const SAFETY_SETTINGS_NONE = [
     { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_NONE },
     { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_NONE },
@@ -113,8 +122,8 @@ export const generateRetouchedImage = async (imageBase64: string): Promise<strin
     return runWithTimeout<string>(async (ai) => {
         const base64Data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
 
-        // UPDATED PROMPT: Clinical focus on skin health
-        const prompt = "clinical dermatology photography, perfect healthy skin texture, reduced redness, reduced acne, clear pores, even skin tone, natural lighting, hyperrealistic, 8k resolution, soft focus background";
+        // UPDATED PROMPT: Specifically engineered for the model to behave as an image editor
+        const prompt = "Improve the skin texture in this image. Reduce redness, minimize acne, and smooth pores while keeping the person's identity exactly the same. Output ONLY the modified image.";
 
         // Reduced attempts for 429 to fail faster and trigger UI fallback
         let attempts = 0;
@@ -132,8 +141,8 @@ export const generateRetouchedImage = async (imageBase64: string): Promise<strin
                         ]
                     },
                     config: {
-                        safetySettings: SAFETY_SETTINGS_NONE,
-                        temperature: 0.4 
+                        safetySettings: SAFETY_SETTINGS_IMAGE, // Use specialized safety settings for skin images
+                        temperature: 0.4,
                     }
                 });
 
@@ -144,9 +153,11 @@ export const generateRetouchedImage = async (imageBase64: string): Promise<strin
                     return `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
                 }
                 
+                // If it returned text instead of image (common failure mode)
                 const textPart = respParts?.find(p => p.text);
                 if (textPart) {
-                    throw new Error(textPart.text);
+                    console.warn("Model returned text instead of image:", textPart.text);
+                    throw new Error("Model failed to generate image.");
                 }
                 
                 throw new Error("Empty response from AI model.");
@@ -158,6 +169,9 @@ export const generateRetouchedImage = async (imageBase64: string): Promise<strin
                 // CRITICAL: If it's a 429/Quota error, THROW IMMEDIATELY so UI can switch to fallback
                 if (e.message?.includes('429') || e.message?.includes('quota') || e.message?.includes('limit')) {
                     throw new Error("429 Quota Exceeded");
+                }
+                if (e.message?.includes('Safety') || e.message?.includes('blocked')) {
+                    throw new Error("Safety Blocked");
                 }
                 
                 if (attempts < maxAttempts) {
