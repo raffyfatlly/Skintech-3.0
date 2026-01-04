@@ -51,12 +51,12 @@ export const upscaleImage = async (imageBase64: string): Promise<string> => {
     const base64Data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
 
     // Prompt engineered for "Nano Banana" image editing capabilities
-    // UPDATED: Strict instructions to preserve identity
+    // UPDATED: Strict instructions to preserve identity and landmarks
     const prompt = "Edit this image to simulate healthy skin recovery. " +
-                   "Remove acne, reduce redness, smooth texture, and minimize pores. " +
-                   "CRITICAL: Do NOT change the eyes, nose, lips, or facial structure. " +
-                   "Strictly maintain the person's identity, facial features, lighting, and background. " +
-                   "Only smooth the skin surface. The result should look like a clinical 'after' photo.";
+                   "Remove acne, redness, and smooth texture. " +
+                   "CRITICAL INSTRUCTION: Do NOT change the eyes, nose, lips, mouth, or facial shape. " +
+                   "The person's identity and facial features must remain EXACTLY the same. " +
+                   "Only improve the skin surface texture and tone. Keep lighting and background identical.";
 
     try {
         const response = await ai.models.generateContent({

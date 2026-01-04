@@ -17,9 +17,14 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
     
     // AI State - Initialize from cached image if available
     const [isRetouching, setIsRetouching] = useState(false);
+    
+    // Initialize state from prop to ensure we have it immediately on mount
     const [retouchedImage, setRetouchedImage] = useState<string | null>(user.simulatedSkinImage || null);
-    const [errorText, setErrorText] = useState<string | null>(null);
+    
+    // hasAutoStarted should be true if we already have an image, preventing auto-run
     const [hasAutoStarted, setHasAutoStarted] = useState(!!user.simulatedSkinImage);
+    
+    const [errorText, setErrorText] = useState<string | null>(null);
     
     // Plan State
     const [plan, setPlan] = useState<any>(null);
@@ -65,13 +70,24 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
         });
     };
 
+    // Sync state if prop changes (e.g., fast update from parent)
+    useEffect(() => {
+        if (user.simulatedSkinImage && !retouchedImage) {
+            setRetouchedImage(user.simulatedSkinImage);
+            setHasAutoStarted(true); // Ensure we mark as started so we don't regen
+        }
+    }, [user.simulatedSkinImage]);
+
     // AUTO RETOUCH TRIGGER
     useEffect(() => {
-        if (!hasAutoStarted && !isRetouching && !retouchedImage && user.faceImage && !errorText) {
+        // STRICT CONDITION: Only run if we have NO result, NO error, NOT running, and HAVEN'T started yet.
+        const alreadyHasImage = !!retouchedImage || !!user.simulatedSkinImage;
+        
+        if (!hasAutoStarted && !isRetouching && !alreadyHasImage && user.faceImage && !errorText) {
             setHasAutoStarted(true);
             handleAiRetouch(user.faceImage);
         }
-    }, [hasAutoStarted, user.faceImage, errorText, retouchedImage]);
+    }, [hasAutoStarted, isRetouching, retouchedImage, user.faceImage, user.simulatedSkinImage, errorText]);
 
     const handleInteraction = (clientX: number) => {
         if (!containerRef.current) return;
@@ -115,6 +131,8 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
                 // Show the actual error message to help identify 403s etc
                 setErrorText(e.message || "Simulation Failed. Please try again.");
             }
+            // Allow retry by resetting auto-start if it failed
+            setHasAutoStarted(false); 
         } finally {
             setIsRetouching(false);
         }
