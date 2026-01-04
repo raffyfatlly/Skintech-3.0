@@ -1,10 +1,29 @@
 
-const FAL_KEY = process.env.FAL_KEY;
+const getFalKey = (): string => {
+    // 1. Try global process.env (injected by Vite define or Node)
+    if (typeof process !== 'undefined' && process.env && process.env.FAL_KEY) {
+        return process.env.FAL_KEY;
+    }
+    // 2. Try Vite standard import.meta.env
+    // @ts-ignore
+    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_FAL_KEY) {
+        // @ts-ignore
+        return import.meta.env.VITE_FAL_KEY;
+    }
+    // 3. Fallback check for process.env.VITE_FAL_KEY
+    if (typeof process !== 'undefined' && process.env && process.env.VITE_FAL_KEY) {
+        return process.env.VITE_FAL_KEY;
+    }
+    return '';
+};
+
+const FAL_KEY = getFalKey();
 const MODEL = "fal-ai/retoucher";
 
 export const upscaleImage = async (imageBase64: string): Promise<string> => {
     if (!FAL_KEY) {
-        throw new Error("Missing FAL_KEY. Please add it to your environment variables.");
+        console.error("FAL_KEY not found. Checked process.env.FAL_KEY and VITE_FAL_KEY.");
+        throw new Error("Missing FAL_KEY. Please add VITE_FAL_KEY to your .env file.");
     }
 
     // 1. Submit Request to Queue

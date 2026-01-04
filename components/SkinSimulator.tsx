@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { UserProfile } from '../types';
 import { generateImprovementPlan } from '../services/geminiService';
 import { upscaleImage } from '../services/falService';
-import { ArrowLeft, Sparkles, Loader, Activity, Microscope, Sun, Moon, Beaker, MoveHorizontal, Sliders, Zap, Check, X, Download, ScanFace, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Sparkles, Loader, Activity, Microscope, Sun, Moon, Beaker, MoveHorizontal, Sliders, Zap, Check, X, Download, ScanFace, RefreshCw, AlertCircle } from 'lucide-react';
 
 declare global {
     interface Window {
@@ -42,6 +42,7 @@ const FRAGMENT_SHADER = `
 const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
     const [isLoading, setIsLoading] = useState(true);
     const [statusText, setStatusText] = useState("Initializing...");
+    const [errorText, setErrorText] = useState<string | null>(null);
     const [intensity, setIntensity] = useState(65);
     const [sliderPos, setSliderPos] = useState(0.5); // 0 to 1
     
@@ -68,11 +69,11 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
 
     // AUTO RETOUCH TRIGGER
     useEffect(() => {
-        if (!isLoading && !hasAutoStarted && !isRetouching && user.faceImage) {
+        if (!isLoading && !hasAutoStarted && !isRetouching && user.faceImage && !errorText) {
             setHasAutoStarted(true);
             handleAiRetouch(user.faceImage);
         }
-    }, [isLoading, hasAutoStarted, user.faceImage]);
+    }, [isLoading, hasAutoStarted, user.faceImage, errorText]);
 
     const handleInteraction = (clientX: number) => {
         if (!canvasContainerRef.current) return;
@@ -177,11 +178,18 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
             // Send original image directly to Fal
             const hdUrl = await upscaleImage(sourceImage);
             setRetouchedImage(hdUrl);
-        } catch (e) {
+        } catch (e: any) {
             console.error("Retouch Failed", e);
+            if (e.message?.includes("Missing FAL_KEY") || e.message?.includes("not found")) {
+                setErrorText("System Error: AI Key Missing");
+                setIsRetouching(false); 
+                return;
+            }
             setStatusText("Retouch failed. Retrying...");
-        } finally {
+            // Optionally retry once, but for now just stop after error to prevent loops
             setIsRetouching(false);
+        } finally {
+            if (!errorText) setIsRetouching(false);
         }
     };
 
@@ -270,7 +278,7 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                         )}
 
                         {/* Loader Overlay (Initial or AI Processing) */}
-                        {(isLoading || isRetouching) && (
+                        {(isLoading || isRetouching) && !errorText && (
                             <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in">
                                 <div className="relative mb-6">
                                     <div className="absolute inset-0 bg-teal-500 blur-xl opacity-20 rounded-full animate-pulse"></div>
@@ -279,9 +287,26 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                                 <p className="text-white font-bold text-xs uppercase tracking-widest animate-pulse">{statusText}</p>
                             </div>
                         )}
+
+                        {/* Error Overlay */}
+                        {errorText && (
+                            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in p-6 text-center">
+                                <div className="w-16 h-16 bg-rose-500/20 rounded-full flex items-center justify-center mb-4 border border-rose-500/50">
+                                    <AlertCircle size={32} className="text-rose-500" />
+                                </div>
+                                <h3 className="text-white font-bold text-lg mb-2">Simulation Failed</h3>
+                                <p className="text-zinc-400 text-sm max-w-xs leading-relaxed mb-6">{errorText}</p>
+                                <button 
+                                    onClick={onBack}
+                                    className="bg-white text-zinc-900 px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest hover:bg-zinc-200 transition-colors"
+                                >
+                                    Go Back
+                                </button>
+                            </div>
+                        )}
                         
                         {/* Comparison Controls */}
-                        {!isLoading && (
+                        {!isLoading && !errorText && (
                             <>
                                 <div className="absolute top-1/2 left-4 -translate-y-1/2 bg-black/40 backdrop-blur-md text-white/80 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest pointer-events-none transition-opacity duration-300" style={{ opacity: sliderPos > 0.1 ? 1 : 0 }}>
                                     Target
@@ -334,7 +359,7 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                                 </a>
                             )}
 
-                            {!plan && !isGeneratingPlan && !isLoading && (
+                            {!plan && !isGeneratingPlan && !isLoading && !errorText && (
                                 <button 
                                     onClick={handleGeneratePlan}
                                     className="bg-zinc-900 text-white px-5 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg hover:bg-zinc-800 transition-colors flex items-center gap-2"
