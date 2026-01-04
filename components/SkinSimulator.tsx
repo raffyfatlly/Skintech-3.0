@@ -9,16 +9,17 @@ interface SkinSimulatorProps {
     user: UserProfile;
     onBack: () => void;
     location?: string;
+    onUpdateUser: (user: UserProfile) => void;
 }
 
-const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
+const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUser }) => {
     const [sliderPos, setSliderPos] = useState(0.5); // 0 to 1
     
-    // AI State
+    // AI State - Initialize from cached image if available
     const [isRetouching, setIsRetouching] = useState(false);
-    const [retouchedImage, setRetouchedImage] = useState<string | null>(null);
+    const [retouchedImage, setRetouchedImage] = useState<string | null>(user.simulatedSkinImage || null);
     const [errorText, setErrorText] = useState<string | null>(null);
-    const [hasAutoStarted, setHasAutoStarted] = useState(false);
+    const [hasAutoStarted, setHasAutoStarted] = useState(!!user.simulatedSkinImage);
     
     // Plan State
     const [plan, setPlan] = useState<any>(null);
@@ -70,7 +71,7 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
             setHasAutoStarted(true);
             handleAiRetouch(user.faceImage);
         }
-    }, [hasAutoStarted, user.faceImage, errorText]);
+    }, [hasAutoStarted, user.faceImage, errorText, retouchedImage]);
 
     const handleInteraction = (clientX: number) => {
         if (!containerRef.current) return;
@@ -98,7 +99,11 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
 
             // 2. Call Service (Gemini Nano)
             const hdUrl = await upscaleImage(optimizedSource);
+            
+            // 3. Save & Cache Result
             setRetouchedImage(hdUrl);
+            onUpdateUser({ ...user, simulatedSkinImage: hdUrl });
+            
         } catch (e: any) {
             console.error("Retouch Failed", e);
             // Display specific error for debugging

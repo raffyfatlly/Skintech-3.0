@@ -448,6 +448,7 @@ const App: React.FC = () => {
       const updatedUser: UserProfile = {
           ...userProfile, hasScannedFace: true, biometrics: metrics, faceImage: image,
           scanHistory: [...(userProfile.scanHistory || []), metrics],
+          simulatedSkinImage: null, // Clear old simulation
           usage: userProfile.usage || { buyingAssistantViews: 0, manualScans: 0, routineGenerations: 0 }
       };
       persistState(updatedUser, shelf);
@@ -593,6 +594,7 @@ const App: React.FC = () => {
                       user={userProfile}
                       onBack={() => setCurrentView(AppView.DASHBOARD)}
                       location={userLocation}
+                      onUpdateUser={handleProfileUpdate} // Pass handler
                   />
               ) : null;
           case AppView.SMART_SHELF:
@@ -655,7 +657,7 @@ const App: React.FC = () => {
                   />
               ) : null;
           case AppView.PROFILE_SETUP:
-              return userProfile ? <ProfileSetup user={userProfile} shelf={shelf} onComplete={handleProfileUpdate} onBack={() => setCurrentView(AppView.DASHBOARD)} onReset={handleResetApp} onLoginRequired={(trigger) => openAuth(trigger as AuthTrigger)} installPrompt={installPrompt} /> : null;
+              return userProfile ? <ProfileSetup user={userProfile} shelf={shelf} onComplete={handleProfileUpdate} onBack={() => setCurrentView(AppView.DASHBOARD)} onReset={handleResetApp} onLoginRequired={(trigger) => openAuth(trigger as AuthTrigger)} /> : null;
           case AppView.ROUTINE_BUILDER:
               return userProfile ? (
                   <PremiumRoutineBuilder 

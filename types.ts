@@ -72,6 +72,7 @@ export interface UserProfile {
   biometrics: SkinMetrics;
   scanHistory?: SkinMetrics[]; // New: Track history for progress comparison
   faceImage?: string | null; // Base64 Data URL or null if cleared
+  simulatedSkinImage?: string | null; // New: Cached simulation result
   isAnonymous?: boolean; // For lazy signup detection
   preferences?: UserPreferences;
   isPremium?: boolean; // NEW: Tracks payment status
