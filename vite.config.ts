@@ -5,28 +5,22 @@ import process from 'node:process';
 
 export default defineConfig(({ mode }) => {
   // Load env file based on `mode` in the current working directory.
-  // The third parameter '' loads ALL env vars, not just those with VITE_ prefix.
   const env = loadEnv(mode, process.cwd(), '');
 
   // Aggressively find the API Key from common naming conventions
   const apiKey = 
     env.VITE_GEMINI_API_KEY || 
     env.VITE_API_KEY || 
-    env.VITE_GOOGLE_API_KEY || 
-    env.GEMINI_API_KEY || 
-    env.API_KEY || 
-    env.GOOGLE_API_KEY ||
-    process.env.VITE_GEMINI_API_KEY ||
     process.env.VITE_API_KEY ||
-    process.env.GEMINI_API_KEY ||
     process.env.API_KEY ||
     '';
 
+  // Prioritize process.env for Vercel System Env Vars which might not have VITE_ prefix
   const falKey = 
-    env.VITE_FAL_KEY ||
-    env.FAL_KEY ||
-    process.env.VITE_FAL_KEY ||
-    process.env.FAL_KEY ||
+    process.env.FAL_KEY || 
+    env.FAL_KEY || 
+    process.env.VITE_FAL_KEY || 
+    env.VITE_FAL_KEY || 
     '';
 
   return {
