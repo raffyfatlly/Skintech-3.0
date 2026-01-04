@@ -21,8 +21,15 @@ export default defineConfig(({ mode }) => {
     env.FAL_KEY || 
     '';
 
+  const nanoApiKey = 
+    process.env.NANO_API_KEY || 
+    process.env.VITE_NANO_API_KEY || 
+    env.NANO_API_KEY || 
+    '';
+
   console.log(`[Vite Build] API Configuration:`);
   console.log(`- Google API Key: ${apiKey ? 'Found' : 'Missing'}`);
+  console.log(`- Nano API Key: ${nanoApiKey ? 'Found' : 'Missing'}`);
   console.log(`- Fal AI Key: ${falKey ? 'Found' : 'Missing'}`);
 
   return {
@@ -31,6 +38,7 @@ export default defineConfig(({ mode }) => {
       // Inject these variables into the code at build time
       'process.env.API_KEY': JSON.stringify(apiKey),
       'process.env.FAL_KEY': JSON.stringify(falKey),
+      'process.env.NANO_API_KEY': JSON.stringify(nanoApiKey),
     },
     build: {
       outDir: 'dist',

@@ -1,8 +1,16 @@
 
 import { GoogleGenAI } from "@google/genai";
 
-// Reuse the API Key logic consistent with the app's standards
-const getApiKey = (): string => {
+// Specific getter for Nano Banana model key
+const getNanoApiKey = (): string => {
+    // 1. Priority: NANO_API_KEY (from env)
+    // @ts-ignore
+    if (typeof process !== 'undefined' && process.env && process.env.NANO_API_KEY) {
+        // @ts-ignore
+        return process.env.NANO_API_KEY;
+    }
+    
+    // 2. Fallback: Standard API_KEY (reusing existing logic just in case)
     // @ts-ignore
     if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
         // @ts-ignore
@@ -25,9 +33,9 @@ const getApiKey = (): string => {
 const MODEL = 'gemini-2.5-flash-image';
 
 export const upscaleImage = async (imageBase64: string): Promise<string> => {
-    const apiKey = getApiKey();
+    const apiKey = getNanoApiKey();
     if (!apiKey) {
-        throw new Error("Missing Google API Key (VITE_API_KEY).");
+        throw new Error("Missing API Key. Please set NANO_API_KEY in your environment variables.");
     }
 
     const ai = new GoogleGenAI({ apiKey });
@@ -35,6 +43,7 @@ export const upscaleImage = async (imageBase64: string): Promise<string> => {
     // Clean the base64 string (remove data:image/jpeg;base64, prefix if present)
     const base64Data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
 
+    // Prompt engineered for "Nano Banana" image editing capabilities
     const prompt = "Edit this image to simulate healthy skin recovery. " +
                    "Remove acne, reduce redness, smooth texture, and minimize pores. " +
                    "Strictly maintain the person's identity, facial features, lighting, and background. " +
@@ -56,6 +65,7 @@ export const upscaleImage = async (imageBase64: string): Promise<string> => {
         });
 
         // Extract the generated image from the response
+        // Note: Response might be text or image. We need to find the image part.
         const parts = response.candidates?.[0]?.content?.parts;
         const imagePart = parts?.find((p: any) => p.inlineData);
 
