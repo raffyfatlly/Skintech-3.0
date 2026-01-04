@@ -136,40 +136,45 @@ const pollForResult = async (requestId: string, key: string, attempts = 0): Prom
 const processStatusResponse = async (statusData: any, requestId: string, key: string, attempts: number): Promise<string> => {
     if (statusData.status === 'COMPLETED') {
         const resultUrl = statusData.response_url;
-        if (!resultUrl) throw new Error("Completed but no result URL found");
-        
-        // Fetch Result JSON
-        const headers: HeadersInit = {};
-        if (resultUrl.includes('fal.run')) {
-             headers['Authorization'] = `Key ${key}`;
-        }
-
-        const resultResponse = await fetch(resultUrl, {
-            method: 'GET',
-            headers: headers
-        });
+        if (!resultUrl) throw new Error("Completed but no result URL found in response.");
         
         let resultJson;
-        if (!resultResponse.ok) {
-             // Retry without headers if failed (signed url case)
-             if (resultResponse.status === 403 || resultResponse.status === 401) {
-                 const retryResponse = await fetch(resultUrl);
-                 if (retryResponse.ok) {
-                     resultJson = await retryResponse.json();
-                 } else {
-                     throw new Error(`Failed to fetch result JSON: ${resultResponse.status}`);
-                 }
-             } else {
-                 throw new Error(`Failed to fetch result JSON: ${resultResponse.status}`);
-             }
-        } else {
-            resultJson = await resultResponse.json();
+
+        try {
+            // Attempt 1: Fetch WITH headers (Standard Queue URL)
+            const response = await fetch(resultUrl, {
+                method: 'GET',
+                headers: { 'Authorization': `Key ${key}` }
+            });
+
+            if (response.ok) {
+                resultJson = await response.json();
+            } else if ([400, 401, 403].includes(response.status)) {
+                // Attempt 2: Fetch WITHOUT headers (Signed URL / Public URL)
+                console.warn(`Initial fetch failed (${response.status}), retrying without headers...`);
+                const retryResponse = await fetch(resultUrl);
+                if (!retryResponse.ok) {
+                    const errText = await retryResponse.text();
+                    throw new Error(`Failed to fetch result (Retry): ${retryResponse.status} ${errText}`);
+                }
+                resultJson = await retryResponse.json();
+            } else {
+                const errText = await response.text();
+                throw new Error(`Failed to fetch result: ${response.status} ${errText}`);
+            }
+        } catch (e: any) {
+            console.warn("Fetch error, attempting fallback without headers:", e);
+            // Attempt 3: Direct fetch fallback
+            const fallbackResponse = await fetch(resultUrl);
+            if (fallbackResponse.ok) {
+                resultJson = await fallbackResponse.json();
+            } else {
+                throw e; // Rethrow original or fallback error
+            }
         }
 
         console.log("Fal Result JSON:", resultJson);
         const imageUrl = extractImageFromJson(resultJson);
-        
-        // Return URL directly. Do NOT convert to base64 here to prevent CORS blocking the display.
         return imageUrl;
     }
 
@@ -181,15 +186,23 @@ const processStatusResponse = async (statusData: any, requestId: string, key: st
 }
 
 const extractImageFromJson = (json: any): string => {
+    // 1. Standard Flux Format
     if (json.images && Array.isArray(json.images) && json.images.length > 0) {
         return json.images[0].url;
     }
+    // 2. Single Image Format
     if (json.image && json.image.url) {
         return json.image.url;
     }
+    // 3. Direct URL Format
     if (json.url) {
         return json.url;
     }
+    // 4. Fal standard file object
+    if (json.file && json.file.url) {
+        return json.file.url;
+    }
+    
     console.error("Unknown Fal Response Structure:", json);
-    throw new Error("Invalid result format from Fal AI");
+    throw new Error("Invalid result format from Fal AI. Check console for details.");
 }
