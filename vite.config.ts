@@ -34,7 +34,11 @@ export default defineConfig(({ mode }) => {
     define: {
       // Define `process.env.API_KEY` globally for the client build
       'process.env.API_KEY': JSON.stringify(apiKey),
+      // Define both process.env and a global constant for maximum reliability
       'process.env.FAL_KEY': JSON.stringify(falKey),
+      '__FAL_KEY__': JSON.stringify(falKey),
+      // Prevent crash if process is accessed directly in some contexts
+      'process.env': {} 
     },
     build: {
       outDir: 'dist',
