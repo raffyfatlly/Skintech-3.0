@@ -4,7 +4,6 @@ const MODEL = "fal-ai/flux/dev/image-to-image";
 
 const getFalKey = (): string => {
     // 1. Try Standard Vite Env (Safe Access)
-    // In Vite, import.meta.env should always exist, but we check just in case.
     try {
         // @ts-ignore
         if (typeof import.meta !== 'undefined' && import.meta.env) {
@@ -14,7 +13,6 @@ const getFalKey = (): string => {
     } catch (e) {}
     
     // 2. Try Injected Process Env (Safe Access via Vite define)
-    // Vite replaces 'process.env.FAL_KEY' with the literal string from vite.config.ts
     try {
         // @ts-ignore
         if (typeof process !== 'undefined' && process.env && process.env.FAL_KEY) {
@@ -88,9 +86,9 @@ export const upscaleImage = async (imageBase64: string): Promise<string> => {
         body: JSON.stringify({
             image_url: optimizedImage,
             prompt: "clinical dermatology photography, perfect healthy skin texture, reduced redness, reduced acne, clear pores, even skin tone, natural lighting, hyperrealistic, 8k resolution, soft focus background",
-            strength: 0.35, // Updated to 0.35 (lower strength preserves more identity)
+            strength: 0.35, 
             guidance_scale: 3.5,
-            num_inference_steps: 24, // Updated to 24 steps
+            num_inference_steps: 24, 
             enable_safety_checker: false,
             seed: Math.floor(Math.random() * 1000000) 
         }),
@@ -136,7 +134,17 @@ const pollForResult = async (requestId: string, key: string, attempts = 0): Prom
         const resultUrl = statusData.response_url;
         if (!resultUrl) throw new Error("Completed but no result URL found");
         
-        const resultResponse = await fetch(resultUrl);
+        // CRITICAL FIX: The result URL (if it points to fal.run queue) requires Authentication headers
+        const headers: HeadersInit = {};
+        if (resultUrl.includes('fal.run')) {
+             headers['Authorization'] = `Key ${key}`;
+             headers['Content-Type'] = 'application/json';
+        }
+
+        const resultResponse = await fetch(resultUrl, {
+            method: 'GET',
+            headers: headers
+        });
         
         if (!resultResponse.ok) {
              throw new Error(`Failed to fetch result JSON: ${resultResponse.status}`);
