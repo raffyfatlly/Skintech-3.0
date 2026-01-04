@@ -173,7 +173,7 @@ const processStatusResponse = async (statusData: any, requestId: string, key: st
     }
 
     if (statusData.status === 'FAILED') {
-        throw new Error(`Simulation failed: ${statusData.error || 'Unknown error'}`);
+        throw new Error(`Fal AI Failed: ${statusData.error || 'Unknown error'}`);
     }
 
     // Still processing
