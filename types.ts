@@ -73,11 +73,13 @@ export interface UserProfile {
   scanHistory?: SkinMetrics[]; // New: Track history for progress comparison
   faceImage?: string | null; // Base64 Data URL or null if cleared
   simulatedSkinImage?: string | null; // New: Cached simulation result
+  simulatedSkinPlan?: any; // New: Cached clinical plan JSON
   isAnonymous?: boolean; // For lazy signup detection
   preferences?: UserPreferences;
   isPremium?: boolean; // NEW: Tracks payment status
   usage?: UsageStats; // NEW: Track free tier usage
   wishlist?: Product[]; // NEW: Saved products for future
+  lastUpdated?: number; // NEW: Version control timestamp
 }
 
 export interface IngredientRisk {

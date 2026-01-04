@@ -9,11 +9,9 @@ const SHELF_KEY = 'skinos_shelf_v2';
 // --- ACCESS CODE CONFIGURATION ---
 
 // 1. MASTER CODES (Bypass DB, Multi-use)
-// These work instantly for anyone, even offline.
 const MAGIC_CODES = ["AK72-M9XP", "SKINOSVIP", "DEMO2025"];
 
 // 2. UNIQUE CODES (Single-use, Verified via DB)
-// These must be claimed in Firestore to ensure they are used only once per user.
 export const VALID_ACCESS_CODES = [
   "A7K2-M9XP", "AK72-M9XP", "L4W8-Q2ZR", "B9X3-Y6VM", "H2J5-T8NK", "R7C4-D1QS", "P3M9-F6GL", "X8W2-Z5VB", "K1N7-H4TJ", "Q6D9-S3RF", "V2B8-L5YM",
   "C4G7-P9XN", "M8J3-K2WQ", "T5R6-D1ZL", "F9H2-B4CS", "W3Q8-V7NP", "Z6L5-X9MK", "G2T4-J8RY", "S7P3-N1WD", "D5M9-H6BF", "Y8K2-C4VG",
@@ -46,6 +44,13 @@ const sanitizeForFirestore = (obj: any): any => {
   return newObj;
 };
 
+// Helper: Get robust version timestamp
+const getProfileVersion = (p: UserProfile | null) => {
+    if (!p) return 0;
+    // Prefer lastUpdated (tracks any change), fallback to scan timestamp (tracks scan change)
+    return p.lastUpdated || p.biometrics?.timestamp || 0;
+}
+
 // --- LOAD DATA ---
 export const loadUserData = async (): Promise<{ user: UserProfile | null, shelf: Product[] }> => {
     // 1. Get Local Data First
@@ -74,14 +79,15 @@ export const loadUserData = async (): Promise<{ user: UserProfile | null, shelf:
                 const cloudShelf = data.shelf as Product[] || [];
 
                 // --- SMART CONFLICT RESOLUTION ---
-                const localTs = localUser?.biometrics?.timestamp || 0;
-                const cloudTs = cloudProfile?.biometrics?.timestamp || 0;
+                // Uses lastUpdated to detect changes like AI simulation that don't change biometrics
+                const localTs = getProfileVersion(localUser);
+                const cloudTs = getProfileVersion(cloudProfile);
 
                 if (localTs > cloudTs) {
-                    console.log("Load: Local data is newer than Cloud. Using Local.");
+                    console.log(`Load: Local data is newer (${localTs} > ${cloudTs}). Keeping local.`);
                     return { user: localUser, shelf: localShelf };
                 } else {
-                    console.log("Load: Cloud data is newer/equal. Updating Local.");
+                    console.log(`Load: Cloud data is newer/equal (${cloudTs} >= ${localTs}). Updating Local.`);
                     try {
                         localStorage.setItem(USER_KEY, JSON.stringify(cloudProfile));
                         localStorage.setItem(SHELF_KEY, JSON.stringify(cloudShelf));
@@ -169,11 +175,11 @@ export const syncLocalToCloud = async () => {
         const cloudData = docSnap.data();
         const cloudProfile = cloudData.profile as UserProfile;
         
-        const localTs = localUser.biometrics?.timestamp || 0;
-        const cloudTs = cloudProfile.biometrics?.timestamp || 0;
+        const localTs = getProfileVersion(localUser);
+        const cloudTs = getProfileVersion(cloudProfile);
 
         if (localTs > cloudTs) {
-            console.log("Local scan is newer. Syncing to Cloud.");
+            console.log(`Local scan is newer (${localTs} > ${cloudTs}). Syncing to Cloud.`);
             const isPremium = localUser.isPremium || cloudProfile.isPremium;
             const mergedProfile = { ...localUser, isPremium };
             await saveUserData(mergedProfile, localShelf);

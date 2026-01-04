@@ -26,8 +26,8 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
     
     const [errorText, setErrorText] = useState<string | null>(null);
     
-    // Plan State
-    const [plan, setPlan] = useState<any>(null);
+    // Plan State - Init from user profile
+    const [plan, setPlan] = useState<any>(user.simulatedSkinPlan || null);
     const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
 
     // Refs
@@ -76,7 +76,10 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
             setRetouchedImage(user.simulatedSkinImage);
             setHasAutoStarted(true); // Ensure we mark as started so we don't regen
         }
-    }, [user.simulatedSkinImage]);
+        if (user.simulatedSkinPlan && !plan) {
+            setPlan(user.simulatedSkinPlan);
+        }
+    }, [user.simulatedSkinImage, user.simulatedSkinPlan]);
 
     // AUTO RETOUCH TRIGGER
     useEffect(() => {
@@ -144,6 +147,7 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
         try {
             const data = await generateImprovementPlan(user.faceImage, retouchedImage, user);
             setPlan(data);
+            onUpdateUser({ ...user, simulatedSkinPlan: data }); // PERSIST PLAN
         } catch (e) {
             console.error("Plan Gen Error", e);
         } finally {

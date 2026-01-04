@@ -163,9 +163,11 @@ const App: React.FC = () => {
   };
 
   const persistState = (newUser: UserProfile, newShelf: Product[]) => {
-      setUserProfile(newUser);
+      // CRITICAL: Update timestamp on every save to ensure sync logic respects local changes (like AI results)
+      const timestampedUser = { ...newUser, lastUpdated: Date.now() };
+      setUserProfile(timestampedUser);
       setShelf(newShelf);
-      saveUserData(newUser, newShelf);
+      saveUserData(timestampedUser, newShelf);
   };
 
   const incrementUsage = (type: keyof UsageStats) => {
@@ -429,7 +431,8 @@ const App: React.FC = () => {
           isAnonymous: !isAuth, 
           isPremium: false,
           preferences: initialPrefs,
-          usage: { buyingAssistantViews: 0, manualScans: 0, routineGenerations: 0 }
+          usage: { buyingAssistantViews: 0, manualScans: 0, routineGenerations: 0 },
+          lastUpdated: Date.now() // Initialize timestamp
       };
       
       setUserProfile(newUser);
@@ -448,7 +451,7 @@ const App: React.FC = () => {
       const updatedUser: UserProfile = {
           ...userProfile, hasScannedFace: true, biometrics: metrics, faceImage: image,
           scanHistory: [...(userProfile.scanHistory || []), metrics],
-          simulatedSkinImage: null, // Clear old simulation
+          simulatedSkinImage: null, // Clear old simulation on new scan
           usage: userProfile.usage || { buyingAssistantViews: 0, manualScans: 0, routineGenerations: 0 }
       };
       persistState(updatedUser, shelf);
@@ -692,8 +695,7 @@ const App: React.FC = () => {
               setCurrentView(AppView.DASHBOARD); 
               setTimeout(() => setActiveGuide('SCAN'), 5000);
           }
-          setUserProfile(updatedUser);
-          persistState(updatedUser, shelf);
+          persistState(updatedUser, shelf); // Saves with new timestamp
       }
       setShowSaveModal(false);
       setNotification({ type: 'GENERIC', title: 'Account Synced', description: 'Your data is now saved to the cloud.', actionLabel: 'OK', onAction: () => {}, onClose: () => setNotification(null) });
@@ -716,9 +718,6 @@ const App: React.FC = () => {
               onClose={() => setShowAIAssistant(false)} 
               triggerQuery={aiQuery} 
               onUnlockPremium={handleUnlockPremium}
-              // Pass location context to Chat Assistant
-              // Note: AIAssistant creates its own session, but we can't easily pass it here without prop drilling
-              // So we will modify AIAssistant to accept location prop
               location={userLocation} 
           />
       )}

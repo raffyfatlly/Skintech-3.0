@@ -225,20 +225,26 @@ export const generateImprovementPlan = async (
         targetData = targetData.includes(',') ? targetData.split(',')[1] : targetData;
 
         const prompt = `
-        ACT AS A TOP CLINICAL DERMATOLOGIST.
-        
+        ACT AS A TOP CLINICAL DERMATOLOGIST ANALYZING A "BEFORE" AND "AFTER" SIMULATION.
+
         INPUT:
-        1. Current Patient Skin (Image 1)
-        2. Target Result (Image 2 - simulated healthy skin)
-        3. Patient Profile: Age ${user.age}, Skin Type ${user.skinType}.
-        
-        TASK:
-        Compare the images to identify specific issues (e.g., active acne, PIH, dehydration lines).
-        Create a high-end clinical protocol to bridge the gap from Current to Target.
-        
+        Image 1: Current Patient Skin (Baseline)
+        Image 2: Simulated Goal Result (Clear/Healthy)
+        Patient: Age ${user.age}, Skin Type ${user.skinType}.
+
+        TASK 1: VISUAL DIFFERENCE ANALYSIS (Side-by-Side)
+        Compare Image 1 vs Image 2 with extreme precision. 
+        Identify EXACTLY what changed. 
+        - Location of blemishes removed (e.g., "Cystic acne on left cheek removed").
+        - Texture changes (e.g., "Roughness on forehead smoothed").
+        - Tone corrections (e.g., "Redness around nose neutralized").
+
+        TASK 2: CLINICAL PROTOCOL
+        Design a regimen to achieve the result in Image 2.
+
         OUTPUT JSON (Strict):
         {
-          "analysis": "Clinical observation of the primary difference.",
+          "analysis": "Specific observation of changes. E.g., 'The simulation shows clearance of inflammatory papules on the cheeks and significant reduction in peri-oral erythema...'",
           "weeks": [
             {
               "title": "Weeks 1-4",
