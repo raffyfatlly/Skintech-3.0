@@ -3,7 +3,6 @@
 const MODEL = "fal-ai/flux/dev/image-to-image";
 
 const getFalKey = (): string => {
-    // 1. Try Standard Vite Env (Safe Access)
     try {
         // @ts-ignore
         if (typeof import.meta !== 'undefined' && import.meta.env) {
@@ -12,7 +11,6 @@ const getFalKey = (): string => {
         }
     } catch (e) {}
     
-    // 2. Try Injected Process Env (Safe Access via Vite define)
     try {
         // @ts-ignore
         if (typeof process !== 'undefined' && process.env && process.env.FAL_KEY) {
@@ -63,24 +61,7 @@ const resizeImage = (base64Str: string, maxDimension: number = 1024): Promise<st
     });
 };
 
-// Helper: Convert Blob to Base64
-const blobToBase64 = (blob: Blob): Promise<string> => {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            if (typeof reader.result === 'string') {
-                resolve(reader.result);
-            } else {
-                reject(new Error("Failed to convert blob to base64"));
-            }
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-    });
-};
-
 export const upscaleImage = async (imageBase64: string): Promise<string> => {
-    // Re-check key at runtime
     const currentKey = FAL_KEY || getFalKey();
 
     if (!currentKey) {
@@ -88,10 +69,9 @@ export const upscaleImage = async (imageBase64: string): Promise<string> => {
         throw new Error("System Error: FAL_KEY Missing.");
     }
 
-    // 1. Optimize Image
     const optimizedImage = await resizeImage(imageBase64, 1024);
 
-    // 2. Submit Request to Queue (Flux Dev Image-to-Image)
+    // Submit Request to Queue
     const response = await fetch(`https://queue.fal.run/${MODEL}`, {
         method: 'POST',
         headers: {
@@ -112,17 +92,11 @@ export const upscaleImage = async (imageBase64: string): Promise<string> => {
     if (!response.ok) {
         const err = await response.text();
         console.error("Fal AI Error Detail:", err);
-        
-        if (response.status === 401) {
-             throw new Error("Fal AI Unauthorized: Invalid API Key.");
-        }
-        
+        if (response.status === 401) throw new Error("Fal AI Unauthorized: Invalid API Key.");
         throw new Error(`Fal AI Error: ${response.status} ${err}`);
     }
 
     const { request_id } = await response.json();
-
-    // 3. Poll for Result
     return pollForResult(request_id, currentKey);
 };
 
@@ -131,7 +105,6 @@ const pollForResult = async (requestId: string, key: string, attempts = 0): Prom
 
     await new Promise(r => setTimeout(r, 2000));
 
-    // Use specific model endpoint for status
     const statusResponse = await fetch(`https://queue.fal.run/${MODEL}/requests/${requestId}/status`, {
         method: 'GET',
         headers: {
@@ -141,9 +114,8 @@ const pollForResult = async (requestId: string, key: string, attempts = 0): Prom
     });
 
     if (!statusResponse.ok) {
-        // Fallback to generic endpoint if specific fails (404)
+        // Fallback to generic endpoint
         if (statusResponse.status === 404) {
-             console.warn("Specific status endpoint failed, trying generic...");
              const genericResponse = await fetch(`https://queue.fal.run/fal-ai/requests/${requestId}/status`, {
                 method: 'GET',
                 headers: {
@@ -154,7 +126,6 @@ const pollForResult = async (requestId: string, key: string, attempts = 0): Prom
             if (!genericResponse.ok) throw new Error(`Failed to check status: ${genericResponse.status}`);
             return processStatusResponse(await genericResponse.json(), requestId, key, attempts);
         }
-        
         throw new Error(`Failed to check status: ${statusResponse.status}`);
     }
 
@@ -169,7 +140,6 @@ const processStatusResponse = async (statusData: any, requestId: string, key: st
         
         // Fetch Result JSON
         const headers: HeadersInit = {};
-        // Only add Auth header for fal.run domains
         if (resultUrl.includes('fal.run')) {
              headers['Authorization'] = `Key ${key}`;
         }
@@ -181,9 +151,8 @@ const processStatusResponse = async (statusData: any, requestId: string, key: st
         
         let resultJson;
         if (!resultResponse.ok) {
-             // Try fetching without headers if it failed (maybe signed URL mismatch)
+             // Retry without headers if failed (signed url case)
              if (resultResponse.status === 403 || resultResponse.status === 401) {
-                 console.warn("Initial result fetch failed, retrying without auth headers...");
                  const retryResponse = await fetch(resultUrl);
                  if (retryResponse.ok) {
                      resultJson = await retryResponse.json();
@@ -199,19 +168,9 @@ const processStatusResponse = async (statusData: any, requestId: string, key: st
 
         console.log("Fal Result JSON:", resultJson);
         const imageUrl = extractImageFromJson(resultJson);
-
-        // DOWNLOAD AND CONVERT TO BASE64
-        // This ensures downstream components (like Gemini Plan Generator) receive a valid Data URL
-        // instead of a remote URL they can't access.
-        try {
-            const imageResponse = await fetch(imageUrl);
-            if (!imageResponse.ok) throw new Error(`Failed to download generated image: ${imageResponse.status}`);
-            const imageBlob = await imageResponse.blob();
-            return await blobToBase64(imageBlob);
-        } catch (e) {
-            console.error("Image Download Failed:", e);
-            throw new Error("Failed to download the generated image.");
-        }
+        
+        // Return URL directly. Do NOT convert to base64 here to prevent CORS blocking the display.
+        return imageUrl;
     }
 
     if (statusData.status === 'FAILED') {

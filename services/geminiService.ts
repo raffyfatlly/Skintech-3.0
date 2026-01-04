@@ -70,8 +70,6 @@ const parseJSONFromText = (text: string): any => {
         
         if (start === -1) return {};
         
-        // Find matching closing brace/bracket logic omitted for brevity, usually not needed if simple parse works
-        // But for robustness:
         cleanText = cleanText.substring(start);
         const endBrace = cleanText.lastIndexOf('}');
         const endBracket = cleanText.lastIndexOf(']');
@@ -116,6 +114,27 @@ const runWithRetry = async <T>(fn: (ai: GoogleGenAI) => Promise<T>, fallback: T,
     }
 };
 
+// Helper to convert URL to Base64 for Gemini
+const urlToBase64 = async (url: string): Promise<string> => {
+    try {
+        // Try simple fetch
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("Fetch failed");
+        const blob = await response.blob();
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+        });
+    } catch (e) {
+        console.error("Failed to convert URL to Base64:", e);
+        // If simple fetch fails (CORS), we can't do much on client-side without a proxy.
+        // Return empty or throw to be handled by caller
+        throw new Error("Could not download image from URL. CORS or network issue.");
+    }
+};
+
 // --- GEN AI IMAGE MANIPULATION (Must use MODEL_IMAGE) ---
 
 export const generateRetouchedImage = async (imageBase64: string): Promise<string> => {
@@ -125,23 +144,21 @@ export const generateRetouchedImage = async (imageBase64: string): Promise<strin
         // UPDATED PROMPT: Specifically engineered for the model to behave as an image editor
         const prompt = "Improve the skin texture in this image. Reduce redness, minimize acne, and smooth pores while keeping the person's identity exactly the same. Output ONLY the modified image.";
 
-        // Reduced attempts for 429 to fail faster and trigger UI fallback
         let attempts = 0;
         const maxAttempts = 2; 
 
         while (attempts < maxAttempts) {
             try {
                 const response = await ai.models.generateContent({
-                    model: MODEL_IMAGE, // gemini-2.5-flash-image
+                    model: MODEL_IMAGE, 
                     contents: {
                         parts: [
-                            // Order: Image first, then Text prompt for img2img context
                             { inlineData: { mimeType: 'image/jpeg', data: base64Data } },
                             { text: prompt },
                         ]
                     },
                     config: {
-                        safetySettings: SAFETY_SETTINGS_IMAGE, // Use specialized safety settings for skin images
+                        safetySettings: SAFETY_SETTINGS_IMAGE,
                         temperature: 0.4,
                     }
                 });
@@ -153,7 +170,6 @@ export const generateRetouchedImage = async (imageBase64: string): Promise<strin
                     return `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}`;
                 }
                 
-                // If it returned text instead of image (common failure mode)
                 const textPart = respParts?.find(p => p.text);
                 if (textPart) {
                     console.warn("Model returned text instead of image:", textPart.text);
@@ -166,7 +182,6 @@ export const generateRetouchedImage = async (imageBase64: string): Promise<strin
                 console.warn(`Attempt ${attempts + 1} failed:`, e.message);
                 attempts++;
                 
-                // CRITICAL: If it's a 429/Quota error, THROW IMMEDIATELY so UI can switch to fallback
                 if (e.message?.includes('429') || e.message?.includes('quota') || e.message?.includes('limit')) {
                     throw new Error("429 Quota Exceeded");
                 }
@@ -193,6 +208,22 @@ export const generateImprovementPlan = async (
     user: UserProfile
 ): Promise<any> => {
     return runWithTimeout<any>(async (ai) => {
+        // Prepare Target Image: If it's a URL, convert to Base64 first
+        let targetData = targetImage;
+        if (targetImage.startsWith('http')) {
+            try {
+                targetData = await urlToBase64(targetImage);
+            } catch (e) {
+                console.warn("Could not download target image for analysis. Using generic prompt context.", e);
+                // Fallback: Proceed without visual target if download fails
+                // We'll simulate target context via prompt
+            }
+        }
+        
+        // Clean Base64
+        const origData = originalImage.includes(',') ? originalImage.split(',')[1] : originalImage;
+        targetData = targetData.includes(',') ? targetData.split(',')[1] : targetData;
+
         const prompt = `
         ACT AS A TOP CLINICAL DERMATOLOGIST.
         
@@ -222,18 +253,20 @@ export const generateImprovementPlan = async (
         }
         `;
 
-        const origData = originalImage.includes(',') ? originalImage.split(',')[1] : originalImage;
-        const targetData = targetImage.includes(',') ? targetImage.split(',')[1] : targetImage;
+        const parts: any[] = [
+            { inlineData: { mimeType: 'image/jpeg', data: origData } }
+        ];
+        
+        // Only add target image if we successfully converted it to data
+        if (targetData && !targetData.startsWith('http')) {
+            parts.push({ inlineData: { mimeType: 'image/jpeg', data: targetData } });
+        }
+        
+        parts.push({ text: prompt });
 
         const response = await ai.models.generateContent({
-            model: MODEL_FAST, // Use Flash Preview for Analysis (Better reasoning)
-            contents: {
-                parts: [
-                    { inlineData: { mimeType: 'image/jpeg', data: origData } },
-                    { inlineData: { mimeType: 'image/jpeg', data: targetData } },
-                    { text: prompt }
-                ]
-            },
+            model: MODEL_FAST, // Use Flash Preview for Analysis
+            contents: { parts },
             config: { 
                 responseMimeType: 'application/json',
                 safetySettings: SAFETY_SETTINGS_NONE
