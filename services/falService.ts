@@ -63,6 +63,22 @@ const resizeImage = (base64Str: string, maxDimension: number = 1024): Promise<st
     });
 };
 
+// Helper: Convert Blob to Base64
+const blobToBase64 = (blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            if (typeof reader.result === 'string') {
+                resolve(reader.result);
+            } else {
+                reject(new Error("Failed to convert blob to base64"));
+            }
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+    });
+};
+
 export const upscaleImage = async (imageBase64: string): Promise<string> => {
     // Re-check key at runtime
     const currentKey = FAL_KEY || getFalKey();
@@ -76,7 +92,6 @@ export const upscaleImage = async (imageBase64: string): Promise<string> => {
     const optimizedImage = await resizeImage(imageBase64, 1024);
 
     // 2. Submit Request to Queue (Flux Dev Image-to-Image)
-    // Updated parameters based on user feedback for optimal skin texture retention
     const response = await fetch(`https://queue.fal.run/${MODEL}`, {
         method: 'POST',
         headers: {
@@ -116,7 +131,8 @@ const pollForResult = async (requestId: string, key: string, attempts = 0): Prom
 
     await new Promise(r => setTimeout(r, 2000));
 
-    const statusResponse = await fetch(`https://queue.fal.run/fal-ai/requests/${requestId}/status`, {
+    // Use specific model endpoint for status
+    const statusResponse = await fetch(`https://queue.fal.run/${MODEL}/requests/${requestId}/status`, {
         method: 'GET',
         headers: {
             'Authorization': `Key ${key}`,
@@ -125,20 +141,37 @@ const pollForResult = async (requestId: string, key: string, attempts = 0): Prom
     });
 
     if (!statusResponse.ok) {
-        throw new Error("Failed to check status");
+        // Fallback to generic endpoint if specific fails (404)
+        if (statusResponse.status === 404) {
+             console.warn("Specific status endpoint failed, trying generic...");
+             const genericResponse = await fetch(`https://queue.fal.run/fal-ai/requests/${requestId}/status`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Key ${key}`,
+                    'Content-Type': 'application/json',
+                },
+            });
+            if (!genericResponse.ok) throw new Error(`Failed to check status: ${genericResponse.status}`);
+            return processStatusResponse(await genericResponse.json(), requestId, key, attempts);
+        }
+        
+        throw new Error(`Failed to check status: ${statusResponse.status}`);
     }
 
     const statusData = await statusResponse.json();
+    return processStatusResponse(statusData, requestId, key, attempts);
+};
 
+const processStatusResponse = async (statusData: any, requestId: string, key: string, attempts: number): Promise<string> => {
     if (statusData.status === 'COMPLETED') {
         const resultUrl = statusData.response_url;
         if (!resultUrl) throw new Error("Completed but no result URL found");
         
-        // CRITICAL FIX: The result URL (if it points to fal.run queue) requires Authentication headers
+        // Fetch Result JSON
         const headers: HeadersInit = {};
+        // Only add Auth header for fal.run domains
         if (resultUrl.includes('fal.run')) {
              headers['Authorization'] = `Key ${key}`;
-             headers['Content-Type'] = 'application/json';
         }
 
         const resultResponse = await fetch(resultUrl, {
@@ -146,29 +179,39 @@ const pollForResult = async (requestId: string, key: string, attempts = 0): Prom
             headers: headers
         });
         
+        let resultJson;
         if (!resultResponse.ok) {
-             throw new Error(`Failed to fetch result JSON: ${resultResponse.status}`);
+             // Try fetching without headers if it failed (maybe signed URL mismatch)
+             if (resultResponse.status === 403 || resultResponse.status === 401) {
+                 console.warn("Initial result fetch failed, retrying without auth headers...");
+                 const retryResponse = await fetch(resultUrl);
+                 if (retryResponse.ok) {
+                     resultJson = await retryResponse.json();
+                 } else {
+                     throw new Error(`Failed to fetch result JSON: ${resultResponse.status}`);
+                 }
+             } else {
+                 throw new Error(`Failed to fetch result JSON: ${resultResponse.status}`);
+             }
+        } else {
+            resultJson = await resultResponse.json();
         }
 
-        const resultJson = await resultResponse.json();
-        console.log("Fal Result JSON:", resultJson); // Debug log
-        
-        // Standard Fal Flux response format check based on user provided JSON
-        // Structure: { images: [ { url: "..." } ] }
-        if (resultJson.images && Array.isArray(resultJson.images) && resultJson.images.length > 0) {
-            return resultJson.images[0].url;
+        console.log("Fal Result JSON:", resultJson);
+        const imageUrl = extractImageFromJson(resultJson);
+
+        // DOWNLOAD AND CONVERT TO BASE64
+        // This ensures downstream components (like Gemini Plan Generator) receive a valid Data URL
+        // instead of a remote URL they can't access.
+        try {
+            const imageResponse = await fetch(imageUrl);
+            if (!imageResponse.ok) throw new Error(`Failed to download generated image: ${imageResponse.status}`);
+            const imageBlob = await imageResponse.blob();
+            return await blobToBase64(imageBlob);
+        } catch (e) {
+            console.error("Image Download Failed:", e);
+            throw new Error("Failed to download the generated image.");
         }
-        
-        // Fallback checks just in case schema varies
-        if (resultJson.image && resultJson.image.url) {
-            return resultJson.image.url;
-        }
-        if (resultJson.url) {
-            return resultJson.url;
-        }
-        
-        console.error("Unknown Fal Response Structure:", resultJson);
-        throw new Error("Invalid result format from Fal AI");
     }
 
     if (statusData.status === 'FAILED') {
@@ -176,4 +219,18 @@ const pollForResult = async (requestId: string, key: string, attempts = 0): Prom
     }
 
     return pollForResult(requestId, key, attempts + 1);
-};
+}
+
+const extractImageFromJson = (json: any): string => {
+    if (json.images && Array.isArray(json.images) && json.images.length > 0) {
+        return json.images[0].url;
+    }
+    if (json.image && json.image.url) {
+        return json.image.url;
+    }
+    if (json.url) {
+        return json.url;
+    }
+    console.error("Unknown Fal Response Structure:", json);
+    throw new Error("Invalid result format from Fal AI");
+}

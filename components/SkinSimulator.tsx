@@ -101,12 +101,14 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
             setRetouchedImage(hdUrl);
         } catch (e: any) {
             console.error("Retouch Failed", e);
+            // Display specific error for debugging
             if (e.message?.includes("Missing FAL_KEY")) {
                 setErrorText("System Error: FAL Key Missing");
             } else if (e.message?.includes("timeout")) {
                 setErrorText("Server Busy. Please try again.");
             } else {
-                setErrorText("Simulation Failed. Please try again.");
+                // Show the actual error message to help identify 403s etc
+                setErrorText(e.message || "Simulation Failed. Please try again.");
             }
         } finally {
             setIsRetouching(false);
@@ -201,7 +203,7 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                                     <AlertCircle size={32} className="text-rose-500" />
                                 </div>
                                 <h3 className="text-white font-bold text-lg mb-2">Simulation Failed</h3>
-                                <p className="text-zinc-400 text-sm max-w-xs leading-relaxed mb-6">{errorText}</p>
+                                <p className="text-zinc-400 text-sm max-w-xs leading-relaxed mb-6 break-words">{errorText}</p>
                                 <button 
                                     onClick={() => handleAiRetouch(user.faceImage!)}
                                     className="bg-white text-zinc-900 px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest hover:bg-zinc-200 transition-colors"
