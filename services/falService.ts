@@ -1,6 +1,6 @@
 
 const FAL_KEY = process.env.FAL_KEY;
-const MODEL = "fal-ai/recraft/upscale/crisp";
+const MODEL = "fal-ai/retoucher";
 
 export const upscaleImage = async (imageBase64: string): Promise<string> => {
     if (!FAL_KEY) {
@@ -16,8 +16,6 @@ export const upscaleImage = async (imageBase64: string): Promise<string> => {
         },
         body: JSON.stringify({
             image_url: imageBase64,
-            // Upscale factor is implicit in this model or defaults to 2x/4x usually, 
-            // but 'crisp' model focuses on fidelity restoration.
         }),
     });
 
@@ -33,7 +31,7 @@ export const upscaleImage = async (imageBase64: string): Promise<string> => {
 };
 
 const pollForResult = async (requestId: string, attempts = 0): Promise<string> => {
-    if (attempts > 30) throw new Error("Upscale timeout"); // 30 attempts * 2s = 60s max
+    if (attempts > 30) throw new Error("Retouch timeout"); // 30 attempts * 2s = 60s max
 
     // Wait 2s
     await new Promise(r => setTimeout(r, 2000));
@@ -73,7 +71,7 @@ const pollForResult = async (requestId: string, attempts = 0): Promise<string> =
     }
 
     if (statusData.status === 'FAILED') {
-        throw new Error(`Upscale failed: ${statusData.error || 'Unknown error'}`);
+        throw new Error(`Retouch failed: ${statusData.error || 'Unknown error'}`);
     }
 
     // Still processing/queueing
