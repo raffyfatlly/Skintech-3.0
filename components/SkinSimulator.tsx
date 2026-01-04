@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { UserProfile } from '../types';
 import { generateImprovementPlan } from '../services/geminiService';
 import { upscaleImage } from '../services/falService';
-import { ArrowLeft, Sparkles, Loader, Activity, Microscope, Sun, Moon, Beaker, MoveHorizontal, Sliders, Zap, Check, X, Download, ScanFace } from 'lucide-react';
+import { ArrowLeft, Sparkles, Loader, Activity, Microscope, Sun, Moon, Beaker, MoveHorizontal, Sliders, Zap, Check, X, Download, ScanFace, RefreshCw } from 'lucide-react';
 
 declare global {
     interface Window {
@@ -139,6 +139,7 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
     // Upscale State
     const [isUpscaling, setIsUpscaling] = useState(false);
     const [upscaledImage, setUpscaledImage] = useState<string | null>(null);
+    const [hasAutoUpscaled, setHasAutoUpscaled] = useState(false);
     
     // Plan State
     const [plan, setPlan] = useState<any>(null);
@@ -176,6 +177,25 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
         if (!glRef.current || !programRef.current) return;
         renderFrame();
     }, [intensity, sliderPos]); // Re-render on slider move
+
+    // AUTO UPSCALE TRIGGER
+    useEffect(() => {
+        if (!isLoading && !hasAutoUpscaled && !isUpscaling) {
+            const t = setTimeout(() => {
+                handleUpscale();
+                setHasAutoUpscaled(true);
+            }, 1000); // 1s delay to let WebGL settle
+            return () => clearTimeout(t);
+        }
+    }, [isLoading, hasAutoUpscaled]);
+
+    // Revert to WebGL when intensity changes
+    const handleIntensityChange = (val: number) => {
+        setIntensity(val);
+        if (upscaledImage) {
+            setUpscaledImage(null); // Clear HD view to show live WebGL changes
+        }
+    };
 
     const handleInteraction = (clientX: number) => {
         if (!canvasContainerRef.current) return;
@@ -421,7 +441,7 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
         
         setIsUpscaling(true);
         try {
-            // 1. Force render full processed image by pushing slider off-screen (2.0)
+            // 1. Force render full processed image by pushing slider off-screen (2.0) to get "After"
             renderFrame(2.0);
             
             // 2. Capture high quality jpeg
@@ -436,8 +456,7 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
             
         } catch (e) {
             console.error("Upscale Failed", e);
-            setStatusText("Upscale Failed. Try again.");
-            setTimeout(() => setStatusText("Loading AI Model..."), 3000);
+            setStatusText("Enhance failed. Retrying...");
         } finally {
             setIsUpscaling(false);
         }
@@ -478,7 +497,7 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
             {/* MAIN CONTENT */}
             <div className="flex-1 relative flex flex-col">
                 
-                {/* CANVAS AREA - Full Screen Max Size */}
+                {/* CANVAS / IMAGE AREA - Full Screen Max Size */}
                 <div 
                     ref={canvasContainerRef}
                     className="flex-1 w-full bg-zinc-900 relative overflow-hidden cursor-col-resize touch-none"
@@ -488,11 +507,44 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                 >
                     <div className="w-full h-full flex items-center justify-center relative">
                         
-                        {/* THE CANVAS (WebGL) */}
-                        <canvas 
-                            ref={canvasRef} 
-                            className={`w-full h-full object-contain transition-opacity duration-500 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
-                        />
+                        {/* 1. UPSCALED IMAGE COMPARISON (HD Mode) */}
+                        {upscaledImage ? (
+                            <div className="relative w-full h-full animate-in fade-in duration-700">
+                                 {/* LAYER 1: ORIGINAL (BEFORE) - Visible everywhere initially, clipped by top later */}
+                                 {originalImageRef.current && (
+                                     <img 
+                                        src={originalImageRef.current.src} 
+                                        className="absolute inset-0 w-full h-full object-contain pointer-events-none" 
+                                        alt="Original"
+                                     />
+                                 )}
+                                 
+                                 {/* LAYER 2: UPSCALED (AFTER) - Clipped to show Left Side */}
+                                 <div 
+                                    className="absolute inset-0 w-full h-full"
+                                    style={{ 
+                                        clipPath: `inset(0 ${100 - (sliderPos * 100)}% 0 0)` // Show left side (0 to slider)
+                                    }}
+                                 >
+                                     <img 
+                                        src={upscaledImage} 
+                                        className="absolute inset-0 w-full h-full object-contain pointer-events-none" 
+                                        alt="Upscaled Result"
+                                     />
+                                 </div>
+
+                                 {/* HD Badge */}
+                                 <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-teal-500/20 backdrop-blur-md text-teal-200 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest pointer-events-none border border-teal-500/30">
+                                     4K Enhanced
+                                 </div>
+                            </div>
+                        ) : (
+                            /* 2. WEBGL CANVAS (Live Mode) */
+                            <canvas 
+                                ref={canvasRef} 
+                                className={`w-full h-full object-contain transition-opacity duration-500 ${isLoading ? 'opacity-0' : 'opacity-100'}`}
+                            />
+                        )}
 
                         {/* Loader Overlay */}
                         {isLoading && (
@@ -504,9 +556,17 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                                 <p className="text-white font-bold text-xs uppercase tracking-widest animate-pulse">{statusText}</p>
                             </div>
                         )}
+
+                        {/* Upscaling Indicator */}
+                        {isUpscaling && !isLoading && (
+                            <div className="absolute top-24 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 animate-in slide-in-from-top-4 fade-in">
+                                <Loader size={12} className="text-teal-400 animate-spin" />
+                                <span className="text-white text-[10px] font-bold uppercase tracking-widest">Enhancing Resolution...</span>
+                            </div>
+                        )}
                         
                         {/* Comparison Labels */}
-                        {!isLoading && !upscaledImage && (
+                        {!isLoading && (
                             <>
                                 <div className="absolute top-1/2 left-4 -translate-y-1/2 bg-black/40 backdrop-blur-md text-white/80 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest pointer-events-none transition-opacity duration-300" style={{ opacity: sliderPos > 0.1 ? 1 : 0 }}>
                                     After
@@ -515,6 +575,12 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                                     Before
                                 </div>
                                 
+                                {/* Separator Line */}
+                                <div 
+                                    className="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_10px_rgba(0,0,0,0.5)] pointer-events-none z-30"
+                                    style={{ left: `${sliderPos * 100}%` }}
+                                ></div>
+
                                 {/* Draggable Handle Indicator (Visual Only) */}
                                 <div 
                                     className="absolute top-1/2 w-8 h-8 -ml-4 -mt-4 bg-white rounded-full shadow-lg flex items-center justify-center text-zinc-400 pointer-events-none z-30"
@@ -546,10 +612,15 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                                 step="1"
                                 value={intensity}
                                 disabled={isLoading || isUpscaling}
-                                onChange={(e) => setIntensity(parseInt(e.target.value))}
+                                onChange={(e) => handleIntensityChange(parseInt(e.target.value))}
                                 className="w-full h-1.5 bg-zinc-200 rounded-full appearance-none cursor-pointer z-20 relative disabled:cursor-not-allowed accent-teal-600 focus:outline-none"
                             />
                         </div>
+                        {upscaledImage && (
+                            <p className="text-[9px] text-zinc-400 mt-2 text-center">
+                                Changing strength will revert to Live Preview.
+                            </p>
+                        )}
                     </div>
 
                     {/* ROADMAP HEADER */}
@@ -565,15 +636,15 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                         </div>
                         
                         <div className="flex gap-2">
-                            {/* UPSCALE BUTTON */}
-                            <button 
-                                onClick={handleUpscale}
-                                disabled={isUpscaling || isLoading || !!upscaledImage}
-                                className="bg-white border border-teal-100 text-teal-600 px-4 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-teal-50 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:grayscale"
-                            >
-                                {isUpscaling ? <Loader size={12} className="animate-spin" /> : <Zap size={12} className="fill-teal-600" />}
-                                {isUpscaling ? "Enhancing..." : "AI Upscale (4K)"}
-                            </button>
+                            {upscaledImage && (
+                                <a 
+                                    href={upscaledImage} 
+                                    download="skinos-hd.jpg" 
+                                    className="bg-white border border-teal-100 text-teal-600 px-4 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-teal-50 transition-colors flex items-center gap-2"
+                                >
+                                    <Download size={12} /> Save
+                                </a>
+                            )}
 
                             {!plan && !isGeneratingPlan && !isLoading && (
                                 <button 
@@ -657,48 +728,6 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                     )}
                 </div>
             </div>
-
-            {/* UPSCALE RESULT MODAL */}
-            {upscaledImage && (
-                <div className="fixed inset-0 z-[60] bg-black/95 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in zoom-in-95">
-                    <div className="relative w-full max-w-lg bg-black rounded-3xl overflow-hidden border border-white/10 shadow-2xl flex flex-col max-h-[90vh]">
-                        <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-start z-20 bg-gradient-to-b from-black/80 to-transparent">
-                             <div className="bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 flex items-center gap-2">
-                                 <ScanFace size={14} className="text-teal-400" />
-                                 <span className="text-[10px] font-bold text-white uppercase tracking-widest">Enhanced Result</span>
-                             </div>
-                             <button 
-                                onClick={() => setUpscaledImage(null)}
-                                className="p-2 bg-black/40 hover:bg-white/20 backdrop-blur-md rounded-full text-white transition-colors border border-white/10"
-                            >
-                                <X size={20} />
-                            </button>
-                        </div>
-
-                        <div className="flex-1 overflow-hidden relative bg-zinc-900">
-                             <img src={upscaledImage} alt="HD Result" className="w-full h-full object-contain" />
-                        </div>
-
-                        <div className="p-6 bg-zinc-900 border-t border-white/10 shrink-0">
-                            <div className="flex items-center justify-between">
-                                <div>
-                                    <h4 className="text-white font-bold text-sm mb-1">High Fidelity Render</h4>
-                                    <p className="text-zinc-500 text-[10px] font-medium">Upscaled to 4K resolution using AI.</p>
-                                </div>
-                                <a 
-                                    href={upscaledImage} 
-                                    download="skinos-hd.jpg" 
-                                    target="_blank" 
-                                    rel="noreferrer"
-                                    className="bg-white text-zinc-900 px-5 py-3 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-zinc-200 transition-colors flex items-center gap-2 shadow-lg"
-                                >
-                                    <Download size={16} /> Save Image
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };
