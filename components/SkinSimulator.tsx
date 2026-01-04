@@ -1,9 +1,7 @@
-
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserProfile } from '../types';
-import { generateImprovementPlan } from '../services/geminiService';
-import { upscaleImage } from '../services/falService'; // Using Fal Service Wrapper (Actually Gemini Nano)
-import { ArrowLeft, Sparkles, Loader, Activity, Microscope, Sun, Moon, Beaker, MoveHorizontal, Download, AlertCircle, ScanFace, ChevronDown } from 'lucide-react';
+import { ArrowLeft, ScanFace, Sparkles, Loader, RefreshCw, Save, Check } from 'lucide-react';
+import { generateRetouchedImage } from '../services/geminiService';
 
 interface SkinSimulatorProps {
     user: UserProfile;
@@ -13,158 +11,55 @@ interface SkinSimulatorProps {
 }
 
 const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUser }) => {
-    const [sliderPos, setSliderPos] = useState(0.5); // 0 to 1
-    
-    // AI State - Initialize from cached image if available
-    const [isRetouching, setIsRetouching] = useState(false);
-    
-    // Initialize state from prop to ensure we have it immediately on mount
-    const [retouchedImage, setRetouchedImage] = useState<string | null>(user.simulatedSkinImage || null);
-    
-    // hasAutoStarted should be true if we already have an image, preventing auto-run
-    const [hasAutoStarted, setHasAutoStarted] = useState(!!user.simulatedSkinImage);
-    
-    const [errorText, setErrorText] = useState<string | null>(null);
-    
-    // Plan State - Init from user profile
-    const [plan, setPlan] = useState<any>(user.simulatedSkinPlan || null);
-    const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
-    const [isPlanOpen, setIsPlanOpen] = useState(!!user.simulatedSkinPlan);
+    const [originalImage, setOriginalImage] = useState<string | null>(user.faceImage || null);
+    const [simulatedImage, setSimulatedImage] = useState<string | null>(user.simulatedSkinImage || null);
+    const [isGenerating, setIsGenerating] = useState(false);
+    const [viewMode, setViewMode] = useState<'BEFORE' | 'AFTER'>('AFTER');
+    const [error, setError] = useState<string | null>(null);
 
-    // Refs
-    const containerRef = useRef<HTMLDivElement>(null);
-
-    // Helper: Resize image to prevent API Payload Limit errors (Good for upload speed too)
-    const optimizeImageForUpload = (base64Str: string): Promise<string> => {
-        return new Promise((resolve) => {
-            const img = new Image();
-            img.src = base64Str;
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                const MAX_DIM = 1024; 
-                let width = img.width;
-                let height = img.height;
-
-                if (width > height) {
-                    if (width > MAX_DIM) {
-                        height *= MAX_DIM / width;
-                        width = MAX_DIM;
-                    }
-                } else {
-                    if (height > MAX_DIM) {
-                        width *= MAX_DIM / height;
-                        height = MAX_DIM;
-                    }
-                }
-
-                canvas.width = width;
-                canvas.height = height;
-                const ctx = canvas.getContext('2d');
-                if (ctx) {
-                    ctx.drawImage(img, 0, 0, width, height);
-                    resolve(canvas.toDataURL('image/jpeg', 0.9));
-                } else {
-                    resolve(base64Str);
-                }
-            };
-            img.onerror = () => resolve(base64Str);
-        });
-    };
-
-    // Sync state if prop changes (e.g., fast update from parent)
+    // Auto-generate if not present
     useEffect(() => {
-        if (user.simulatedSkinImage && !retouchedImage) {
-            setRetouchedImage(user.simulatedSkinImage);
-            setHasAutoStarted(true); // Ensure we mark as started so we don't regen
+        if (originalImage && !simulatedImage && !isGenerating) {
+            handleGenerate();
         }
-        if (user.simulatedSkinPlan && !plan) {
-            setPlan(user.simulatedSkinPlan);
-            // Don't auto-open if it comes in late, unless we want to force attention
-        }
-    }, [user.simulatedSkinImage, user.simulatedSkinPlan]);
+    }, [originalImage, simulatedImage]);
 
-    // AUTO RETOUCH TRIGGER
-    useEffect(() => {
-        // STRICT CONDITION: Only run if we have NO result, NO error, NOT running, and HAVEN'T started yet.
-        const alreadyHasImage = !!retouchedImage || !!user.simulatedSkinImage;
+    const handleGenerate = async () => {
+        if (!originalImage) return;
+        setIsGenerating(true);
+        setError(null);
         
-        if (!hasAutoStarted && !isRetouching && !alreadyHasImage && user.faceImage && !errorText) {
-            setHasAutoStarted(true);
-            handleAiRetouch(user.faceImage);
-        }
-    }, [hasAutoStarted, isRetouching, retouchedImage, user.faceImage, user.simulatedSkinImage, errorText]);
-
-    const handleInteraction = (clientX: number) => {
-        if (!containerRef.current) return;
-        const rect = containerRef.current.getBoundingClientRect();
-        const x = Math.max(0, Math.min(clientX - rect.left, rect.width));
-        setSliderPos(x / rect.width);
-    };
-
-    const handleTouchMove = (e: React.TouchEvent) => {
-        handleInteraction(e.touches[0].clientX);
-    };
-
-    const handleMouseMove = (e: React.MouseEvent) => {
-        if (e.buttons === 1) {
-            handleInteraction(e.clientX);
-        }
-    };
-
-    const handleAiRetouch = async (sourceImage: string) => {
-        setIsRetouching(true);
-        setErrorText(null);
         try {
-            // 1. Optimize Image
-            const optimizedSource = await optimizeImageForUpload(sourceImage);
+            const result = await generateRetouchedImage(originalImage);
+            setSimulatedImage(result);
+            setViewMode('AFTER');
+            
+            // Save to profile
+            onUpdateUser({
+                ...user,
+                simulatedSkinImage: result
+            });
 
-            // 2. Call Service (Gemini Nano)
-            const hdUrl = await upscaleImage(optimizedSource);
-            
-            // 3. Save & Cache Result
-            setRetouchedImage(hdUrl);
-            onUpdateUser({ ...user, simulatedSkinImage: hdUrl });
-            
         } catch (e: any) {
-            console.error("Retouch Failed", e);
-            // Display specific error for debugging
-            if (e.message?.includes("Missing API Key")) {
-                setErrorText("System Error: API Key Missing");
-            } else if (e.message?.includes("timeout")) {
-                setErrorText("Server Busy. Please try again.");
-            } else {
-                // Show the actual error message to help identify 403s etc
-                setErrorText(e.message || "Simulation Failed. Please try again.");
-            }
-            // Allow retry by resetting auto-start if it failed
-            setHasAutoStarted(false); 
+            console.error("Simulation failed", e);
+            setError("Could not generate simulation. Please try again.");
         } finally {
-            setIsRetouching(false);
-        }
-    };
-
-    const handleGeneratePlan = async () => {
-        if (!user.faceImage || !retouchedImage) return;
-        setIsGeneratingPlan(true);
-        try {
-            const data = await generateImprovementPlan(user.faceImage, retouchedImage, user);
-            setPlan(data);
-            setIsPlanOpen(true);
-            onUpdateUser({ ...user, simulatedSkinPlan: data }); // PERSIST PLAN
-        } catch (e) {
-            console.error("Plan Gen Error", e);
-        } finally {
-            setIsGeneratingPlan(false);
+            setIsGenerating(false);
         }
     };
 
     const handleBackNav = () => {
-        if (plan && isPlanOpen) {
-            setIsPlanOpen(false);
-        } else {
-            onBack();
-        }
+        onBack();
     };
+
+    if (!originalImage) {
+        return (
+            <div className="fixed inset-0 z-50 bg-black flex flex-col items-center justify-center p-6 text-center text-white font-sans">
+                 <p className="mb-4">No face scan available.</p>
+                 <button onClick={onBack} className="bg-white text-black px-6 py-2 rounded-full font-bold">Go Back</button>
+            </div>
+        )
+    }
 
     return (
         <div className="fixed inset-0 z-50 bg-black flex flex-col font-sans animate-in fade-in duration-500 overflow-y-auto">
@@ -178,226 +73,83 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
                 </button>
                 <div className="bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 shadow-lg pointer-events-auto">
                     <span className="text-white text-xs font-bold uppercase tracking-widest flex items-center gap-2">
-                        <ScanFace size={12} className="text-teal-400" /> Clinical Projector
+                        <ScanFace size={12} className="text-teal-400" /> Glow Up Visualizer
                     </span>
                 </div>
             </div>
 
             {/* MAIN CONTENT */}
             <div className="flex-1 relative flex flex-col">
-                
-                {/* IMAGE AREA */}
-                <div 
-                    ref={containerRef}
-                    className="flex-1 w-full bg-zinc-900 relative overflow-hidden cursor-col-resize touch-none"
-                    onTouchMove={handleTouchMove}
-                    onMouseMove={handleMouseMove}
-                    onClick={handleMouseMove}
-                >
-                    <div className="w-full h-full flex items-center justify-center relative">
-                        
-                        {/* 1. ORIGINAL IMAGE (Background / "Before") */}
-                        {user.faceImage && (
-                            <img 
-                                src={user.faceImage} 
-                                className="absolute inset-0 w-full h-full object-contain pointer-events-none opacity-80" 
-                                alt="Original"
-                            />
-                        )}
-
-                        {/* 2. RETOUCHED IMAGE (Foreground / "After") - Only if ready */}
-                        {retouchedImage && (
-                            <div 
-                                className="absolute inset-0 w-full h-full"
-                                style={{ 
-                                    clipPath: `inset(0 ${100 - (sliderPos * 100)}% 0 0)` // Show left side (0 to slider)
-                                }}
-                            >
-                                <img 
-                                    src={retouchedImage} 
-                                    className="absolute inset-0 w-full h-full object-contain pointer-events-none" 
-                                    alt="AI Result"
-                                />
+                <div className="relative flex-1 bg-zinc-900 w-full overflow-hidden">
+                    {/* IMAGE DISPLAY */}
+                    {isGenerating ? (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center z-20 bg-black/80 backdrop-blur-sm">
+                            <div className="w-20 h-20 rounded-full border-2 border-teal-500/30 flex items-center justify-center animate-spin mb-6">
+                                <div className="w-14 h-14 rounded-full border-2 border-teal-400/50"></div>
                             </div>
-                        )}
-
-                        {/* STATUS OVERLAYS */}
-                        
-                        {/* Loading / Processing */}
-                        {isRetouching && (
-                            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in">
-                                <div className="relative mb-6">
-                                    <div className="absolute inset-0 bg-teal-500 blur-xl opacity-20 rounded-full animate-pulse"></div>
-                                    <Loader size={48} className="text-teal-400 animate-spin relative z-10" />
-                                </div>
-                                <p className="text-white font-bold text-xs uppercase tracking-widest animate-pulse">Generating Projection...</p>
-                            </div>
-                        )}
-
-                        {/* Error State */}
-                        {errorText && (
-                            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in p-6 text-center">
-                                <div className="w-16 h-16 bg-rose-500/20 rounded-full flex items-center justify-center mb-4 border border-rose-500/50">
-                                    <AlertCircle size={32} className="text-rose-500" />
-                                </div>
-                                <h3 className="text-white font-bold text-lg mb-2">Simulation Failed</h3>
-                                <p className="text-zinc-400 text-sm max-w-xs leading-relaxed mb-6 break-words">{errorText}</p>
-                                <button 
-                                    onClick={() => handleAiRetouch(user.faceImage!)}
-                                    className="bg-white text-zinc-900 px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest hover:bg-zinc-200 transition-colors"
-                                >
-                                    Try Again
-                                </button>
-                            </div>
-                        )}
-                        
-                        {/* SLIDER CONTROLS (Only when result is ready) */}
-                        {retouchedImage && !isRetouching && (
-                            <>
-                                {/* Labels */}
-                                <div className="absolute top-1/2 left-4 -translate-y-1/2 bg-black/40 backdrop-blur-md text-white/90 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest pointer-events-none transition-opacity duration-300 shadow-lg border border-white/10" style={{ opacity: sliderPos > 0.1 ? 1 : 0 }}>
-                                    Projected
-                                </div>
-                                <div className="absolute top-1/2 right-4 -translate-y-1/2 bg-black/40 backdrop-blur-md text-white/90 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest pointer-events-none transition-opacity duration-300 shadow-lg border border-white/10" style={{ opacity: sliderPos < 0.9 ? 1 : 0 }}>
-                                    Current
-                                </div>
-                                
-                                {/* Separator Line */}
-                                <div 
-                                    className="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_15px_rgba(255,255,255,0.5)] pointer-events-none z-30"
-                                    style={{ left: `${sliderPos * 100}%` }}
-                                ></div>
-
-                                {/* Draggable Handle */}
-                                <div 
-                                    className="absolute top-1/2 w-10 h-10 -ml-5 -mt-5 bg-white rounded-full shadow-2xl flex items-center justify-center text-teal-600 pointer-events-none z-30 border-4 border-black/20"
-                                    style={{ left: `${sliderPos * 100}%` }}
-                                >
-                                    <MoveHorizontal size={20} />
-                                </div>
-
-                                {/* "AI Enhanced" Badge */}
-                                <div className="absolute top-24 left-1/2 -translate-x-1/2 bg-teal-500/20 backdrop-blur-md text-teal-200 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest pointer-events-none border border-teal-500/30 shadow-lg animate-in fade-in slide-in-from-top-2">
-                                     Flux Clinical Engine
-                                 </div>
-                            </>
-                        )}
-                    </div>
-                </div>
-
-                {/* CONTROLS SHEET - Minimized */}
-                <div className={`bg-zinc-50 relative z-20 rounded-t-[2rem] p-6 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.5)] shrink-0 pb-safe transition-all duration-300 ${isPlanOpen ? 'min-h-[60vh]' : 'min-h-[auto]'}`}>
-                    
-                    {/* ROADMAP HEADER */}
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center text-teal-600 border border-teal-100">
-                                <Activity size={18} />
-                            </div>
-                            <div>
-                                <h3 className="text-sm font-black text-zinc-900 tracking-tight leading-none">Clinical Protocol</h3>
-                                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-0.5">Achieve this result</p>
-                            </div>
+                            <h2 className="text-2xl font-black text-white tracking-tight mb-2">Simulating</h2>
+                            <p className="text-teal-400 text-xs font-bold uppercase tracking-widest animate-pulse">Generating your future skin...</p>
                         </div>
-                        
-                        <div className="flex gap-2">
-                            {retouchedImage && (
-                                <a 
-                                    href={retouchedImage} 
-                                    download="skinos-projection.jpg" 
-                                    className="bg-white border border-teal-100 text-teal-600 px-4 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-teal-50 transition-colors flex items-center gap-2"
-                                >
-                                    <Download size={12} /> Save
-                                </a>
-                            )}
-
-                            {!plan && !isGeneratingPlan && !isRetouching && !errorText && (
-                                <button 
-                                    onClick={handleGeneratePlan}
-                                    className="bg-zinc-900 text-white px-5 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg hover:bg-zinc-800 transition-colors flex items-center gap-2"
-                                >
-                                    <Sparkles size={12} className="text-amber-300" /> Generate Plan
-                                </button>
-                            )}
-
-                            {plan && !isPlanOpen && (
-                                <button 
-                                    onClick={() => setIsPlanOpen(true)}
-                                    className="bg-teal-600 text-white px-5 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg hover:bg-teal-700 transition-colors flex items-center gap-2"
-                                >
-                                    <ChevronDown size={12} /> View Plan
-                                </button>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* PLAN CONTENT */}
-                    {isGeneratingPlan && (
-                        <div className="py-8 text-center animate-in fade-in">
-                            <div className="flex justify-center gap-2 mb-3">
-                                <div className="w-2 h-2 bg-teal-500 rounded-full animate-bounce"></div>
-                                <div className="w-2 h-2 bg-teal-500 rounded-full animate-bounce delay-100"></div>
-                                <div className="w-2 h-2 bg-teal-500 rounded-full animate-bounce delay-200"></div>
-                            </div>
-                            <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Designing Protocol...</p>
-                        </div>
+                    ) : (
+                         <img 
+                            src={viewMode === 'AFTER' && simulatedImage ? simulatedImage : originalImage} 
+                            className="absolute inset-0 w-full h-full object-cover"
+                            alt="Skin Analysis"
+                        />
                     )}
 
-                    {isPlanOpen && plan && (
-                        <div className="space-y-6 mt-6 animate-in slide-in-from-bottom-8 duration-700">
-                            <div className="bg-white p-5 rounded-2xl border border-zinc-100 shadow-sm relative overflow-hidden">
-                                <div className="absolute top-0 right-0 w-24 h-24 bg-teal-50 rounded-bl-full -mr-4 -mt-4 opacity-50 pointer-events-none"></div>
-                                <h4 className="text-xs font-bold text-zinc-900 uppercase tracking-widest mb-2 flex items-center gap-2 relative z-10">
-                                    <Microscope size={14} className="text-teal-500" /> AI Analysis
-                                </h4>
-                                <p className="text-xs text-zinc-600 font-medium leading-relaxed relative z-10">
-                                    {plan.analysis}
-                                </p>
-                            </div>
-
-                            <div className="relative pl-4 space-y-6">
-                                <div className="absolute left-[27px] top-4 bottom-4 w-0.5 bg-zinc-200 border-l border-dashed border-zinc-300"></div>
-
-                                {plan.weeks?.map((week: any, i: number) => (
-                                    <div key={i} className="relative z-10">
-                                        <div className="absolute -left-1 w-14 h-14 rounded-full bg-zinc-50 border-4 border-white flex items-center justify-center shadow-md z-20 text-zinc-400 font-black text-sm">
-                                            {i + 1}
-                                        </div>
-
-                                        <div className="ml-16 bg-white rounded-2xl p-5 border border-zinc-100 shadow-sm relative group hover:border-teal-100 transition-colors">
-                                            <div className="mb-3">
-                                                <span className="text-[9px] font-bold text-teal-600 bg-teal-50 px-2 py-1 rounded mb-1 inline-block uppercase tracking-wide border border-teal-100">
-                                                    {week.title}
-                                                </span>
-                                                <h4 className="text-sm font-black text-zinc-900 tracking-tight">
-                                                    {week.phaseName || "Treatment Phase"}
-                                                </h4>
-                                            </div>
-
-                                            <div className="space-y-3">
-                                                <div className="flex gap-3 items-start">
-                                                    <Sun size={14} className="text-amber-500 shrink-0 mt-0.5" />
-                                                    <p className="text-xs text-zinc-600 font-medium leading-snug">{week.morning}</p>
-                                                </div>
-                                                <div className="flex gap-3 items-start">
-                                                    <Moon size={14} className="text-indigo-500 shrink-0 mt-0.5" />
-                                                    <p className="text-xs text-zinc-600 font-medium leading-snug">{week.evening}</p>
-                                                </div>
-                                            </div>
-
-                                            <div className="mt-4 pt-3 border-t border-zinc-50 flex flex-wrap gap-2">
-                                                {week.ingredients?.map((ing: string, idx: number) => (
-                                                    <div key={idx} className="flex items-center gap-1.5 bg-zinc-50 px-2 py-1 rounded-lg text-zinc-500">
-                                                        <Beaker size={10} />
-                                                        <span className="text-[9px] font-bold uppercase tracking-wide">{ing}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
+                    {/* BEFORE/AFTER TOGGLE OVERLAY */}
+                    {simulatedImage && !isGenerating && (
+                        <div className="absolute bottom-32 left-1/2 -translate-x-1/2 z-30 flex gap-2">
+                            <button 
+                                onClick={() => setViewMode('BEFORE')}
+                                className={`px-6 py-2 rounded-full text-xs font-bold uppercase tracking-widest transition-all ${viewMode === 'BEFORE' ? 'bg-white text-black scale-105' : 'bg-black/40 text-white backdrop-blur-md border border-white/10 hover:bg-black/60'}`}
+                            >
+                                Before
+                            </button>
+                             <button 
+                                onClick={() => setViewMode('AFTER')}
+                                className={`px-6 py-2 rounded-full text-xs font-bold uppercase tracking-widest transition-all ${viewMode === 'AFTER' ? 'bg-teal-500 text-white scale-105 shadow-[0_0_20px_rgba(20,184,166,0.5)]' : 'bg-black/40 text-white backdrop-blur-md border border-white/10 hover:bg-black/60'}`}
+                            >
+                                After
+                            </button>
                         </div>
+                    )}
+                    
+                    {error && (
+                        <div className="absolute bottom-32 left-6 right-6 z-30 bg-rose-900/90 text-white p-4 rounded-xl text-center border border-rose-500/50 backdrop-blur-md">
+                            <p className="text-xs font-bold mb-2">{error}</p>
+                            <button onClick={handleGenerate} className="px-4 py-2 bg-white text-rose-900 rounded-lg text-xs font-bold uppercase hover:bg-rose-50">Retry</button>
+                        </div>
+                    )}
+                </div>
+
+                {/* FOOTER ACTIONS */}
+                <div className="bg-black border-t border-zinc-800 p-6 pt-8 pb-safe space-y-4">
+                    <div className="flex items-center justify-between text-white mb-2">
+                        <div>
+                             <h3 className="text-lg font-black tracking-tight">AI Simulation</h3>
+                             <p className="text-zinc-500 text-xs font-medium">Visualizing optimal skin health.</p>
+                        </div>
+                        {simulatedImage && (
+                            <div className="flex gap-2">
+                                <button onClick={handleGenerate} className="p-3 rounded-full bg-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-700 transition-colors">
+                                    <RefreshCw size={18} />
+                                </button>
+                                <button className="p-3 rounded-full bg-teal-900/30 text-teal-400 border border-teal-500/30 flex items-center justify-center">
+                                    <Check size={18} />
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {!simulatedImage && !isGenerating && !error && (
+                         <button 
+                            onClick={handleGenerate}
+                            className="w-full py-4 bg-white text-black rounded-2xl font-bold text-sm uppercase tracking-widest flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                        >
+                            <Sparkles size={16} /> Generate Simulation
+                        </button>
                     )}
                 </div>
             </div>
