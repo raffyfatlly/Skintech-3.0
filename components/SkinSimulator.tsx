@@ -1,8 +1,7 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { UserProfile } from '../types';
-import { generateImprovementPlan } from '../services/geminiService';
-import { upscaleImage } from '../services/falService';
+import { generateImprovementPlan, generateRetouchedImage } from '../services/geminiService';
 import { ArrowLeft, Sparkles, Loader, Activity, Microscope, Sun, Moon, Beaker, MoveHorizontal, Download, AlertCircle, ScanFace } from 'lucide-react';
 
 interface SkinSimulatorProps {
@@ -56,13 +55,13 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
         setIsRetouching(true);
         setErrorText(null);
         try {
-            // Using Flux Dev model via simplified service
-            const hdUrl = await upscaleImage(sourceImage);
+            // Using Gemini Image Model (gemini-2.5-flash-image)
+            const hdUrl = await generateRetouchedImage(sourceImage);
             setRetouchedImage(hdUrl);
         } catch (e: any) {
             console.error("Retouch Failed", e);
-            if (e.message?.includes("Missing FAL_KEY") || e.message?.includes("environment")) {
-                setErrorText("System Error: AI Key Missing");
+            if (e.message?.includes("429") || e.message?.includes("Quota")) {
+                setErrorText("Server Busy: High Traffic. Please try again later.");
             } else {
                 setErrorText("Clinical Simulation Failed. Please try again.");
             }

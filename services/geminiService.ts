@@ -113,8 +113,8 @@ export const generateRetouchedImage = async (imageBase64: string): Promise<strin
     return runWithTimeout<string>(async (ai) => {
         const base64Data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
 
-        // Prompt optimized to be generic to avoid face editing triggers
-        const prompt = "Professional studio photography. High definition portrait with clear skin texture and balanced lighting. Photorealistic style.";
+        // UPDATED PROMPT: Clinical focus on skin health
+        const prompt = "clinical dermatology photography, perfect healthy skin texture, reduced redness, reduced acne, clear pores, even skin tone, natural lighting, hyperrealistic, 8k resolution, soft focus background";
 
         // Reduced attempts for 429 to fail faster and trigger UI fallback
         let attempts = 0;
@@ -126,8 +126,9 @@ export const generateRetouchedImage = async (imageBase64: string): Promise<strin
                     model: MODEL_IMAGE, // gemini-2.5-flash-image
                     contents: {
                         parts: [
-                            { text: prompt },
+                            // Order: Image first, then Text prompt for img2img context
                             { inlineData: { mimeType: 'image/jpeg', data: base64Data } },
+                            { text: prompt },
                         ]
                     },
                     config: {
@@ -229,7 +230,6 @@ export const generateImprovementPlan = async (
     }, 60000);
 };
 
-// ... (Rest of the file remains unchanged, omitted for brevity as it was correct in context) ...
 // --- CORE ANALYSIS FUNCTIONS ---
 
 export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, shelf: string[] = [], history?: SkinMetrics[]): Promise<SkinMetrics> => {
