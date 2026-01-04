@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { UserProfile } from '../types';
 import { generateImprovementPlan } from '../services/geminiService';
 import { upscaleImage } from '../services/falService';
-import { ArrowLeft, Sparkles, Loader, Activity, Microscope, Sun, Moon, Beaker, MoveHorizontal, Sliders, Zap, Check, X, Download } from 'lucide-react';
+import { ArrowLeft, Sparkles, Loader, Activity, Microscope, Sun, Moon, Beaker, MoveHorizontal, Sliders, Zap, Check, X, Download, ScanFace } from 'lucide-react';
 
 declare global {
     interface Window {
@@ -51,16 +51,17 @@ const FRAGMENT_SHADER = `
         // Right side (x > slider) = Original (Before)
         // Left side (x < slider) = Processed (After)
         
-        // Draw the separator line
-        float dist = abs(v_texCoord.x - u_slider);
-        if (dist < 0.002) {
-            gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
-            return;
+        // Draw the separator line (Only if slider is within 0-1 visible range)
+        if (u_slider >= 0.0 && u_slider <= 1.0) {
+            float dist = abs(v_texCoord.x - u_slider);
+            if (dist < 0.002) {
+                gl_FragColor = vec4(1.0, 1.0, 1.0, 1.0);
+                return;
+            }
         }
         
         // If on the right side, just show original
         if (v_texCoord.x > u_slider) {
-            // Slight dimming for "Before" state to make "After" pop? No, keep true to original.
             gl_FragColor = c;
             return;
         }
@@ -69,6 +70,7 @@ const FRAGMENT_SHADER = `
         
         float maskVal = texture2D(u_mask, v_texCoord).r;
         
+        // Optimization: If mask is black (hair, background), skip expensive calc
         if (maskVal < 0.01) {
             gl_FragColor = c;
             return;
@@ -393,7 +395,7 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
 
         gl.uniform2f(uRes, gl.canvas.width, gl.canvas.height);
         
-        // Pass slider (0.0 to 1.0) - Use override if provided (for upscaling capture)
+        // Pass slider. If override provided, use it (e.g., 2.0 to show full processed)
         gl.uniform1f(uSlider, overrideSlider !== undefined ? overrideSlider : sliderPos);
         
         // Tuned Params
@@ -419,23 +421,23 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
         
         setIsUpscaling(true);
         try {
-            // 1. Force render full processed image (slider = 1.0 means left side covers all, assuming logic)
-            // Shader Logic: Left side (x < slider) = Processed. So slider=1.0 covers full screen with processed.
-            renderFrame(1.0);
+            // 1. Force render full processed image by pushing slider off-screen (2.0)
+            renderFrame(2.0);
             
             // 2. Capture high quality jpeg
             const base64 = canvasRef.current.toDataURL('image/jpeg', 0.95);
             
-            // 3. Restore view
+            // 3. Restore view to current user slider
             renderFrame(); 
 
-            // 4. Send to Fal
+            // 4. Send to Fal for 4K Upscale
             const hdUrl = await upscaleImage(base64);
             setUpscaledImage(hdUrl);
             
         } catch (e) {
             console.error("Upscale Failed", e);
-            // Could add toast here
+            setStatusText("Upscale Failed. Try again.");
+            setTimeout(() => setStatusText("Loading AI Model..."), 3000);
         } finally {
             setIsUpscaling(false);
         }
@@ -570,7 +572,7 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                                 className="bg-white border border-teal-100 text-teal-600 px-4 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-teal-50 transition-colors flex items-center gap-2 disabled:opacity-50 disabled:grayscale"
                             >
                                 {isUpscaling ? <Loader size={12} className="animate-spin" /> : <Zap size={12} className="fill-teal-600" />}
-                                {isUpscaling ? "Enhancing..." : "HD Enhance"}
+                                {isUpscaling ? "Enhancing..." : "AI Upscale (4K)"}
                             </button>
 
                             {!plan && !isGeneratingPlan && !isLoading && (
@@ -658,35 +660,40 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
 
             {/* UPSCALE RESULT MODAL */}
             {upscaledImage && (
-                <div className="fixed inset-0 z-[60] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in zoom-in-95">
-                    <div className="relative w-full max-w-lg bg-black rounded-3xl overflow-hidden border border-white/10 shadow-2xl">
-                        <img src={upscaledImage} alt="HD Result" className="w-full h-auto object-contain max-h-[80vh]" />
-                        
-                        <div className="absolute top-4 right-4 flex gap-3">
-                            <a 
-                                href={upscaledImage} 
-                                download="skinos-hd.jpg" 
-                                target="_blank"
-                                rel="noreferrer"
-                                className="p-3 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full text-white transition-colors"
-                            >
-                                <Download size={20} />
-                            </a>
-                            <button 
+                <div className="fixed inset-0 z-[60] bg-black/95 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in zoom-in-95">
+                    <div className="relative w-full max-w-lg bg-black rounded-3xl overflow-hidden border border-white/10 shadow-2xl flex flex-col max-h-[90vh]">
+                        <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-start z-20 bg-gradient-to-b from-black/80 to-transparent">
+                             <div className="bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 flex items-center gap-2">
+                                 <ScanFace size={14} className="text-teal-400" />
+                                 <span className="text-[10px] font-bold text-white uppercase tracking-widest">Enhanced Result</span>
+                             </div>
+                             <button 
                                 onClick={() => setUpscaledImage(null)}
-                                className="p-3 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-full text-white transition-colors"
+                                className="p-2 bg-black/40 hover:bg-white/20 backdrop-blur-md rounded-full text-white transition-colors border border-white/10"
                             >
                                 <X size={20} />
                             </button>
                         </div>
 
-                        <div className="absolute bottom-6 left-6 right-6">
-                            <div className="bg-black/60 backdrop-blur-md p-4 rounded-2xl border border-white/10">
-                                <div className="flex items-center gap-2 mb-1">
-                                    <Sparkles size={14} className="text-teal-400" />
-                                    <span className="text-xs font-bold text-white uppercase tracking-widest">High Fidelity Result</span>
+                        <div className="flex-1 overflow-hidden relative bg-zinc-900">
+                             <img src={upscaledImage} alt="HD Result" className="w-full h-full object-contain" />
+                        </div>
+
+                        <div className="p-6 bg-zinc-900 border-t border-white/10 shrink-0">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h4 className="text-white font-bold text-sm mb-1">High Fidelity Render</h4>
+                                    <p className="text-zinc-500 text-[10px] font-medium">Upscaled to 4K resolution using AI.</p>
                                 </div>
-                                <p className="text-[10px] text-zinc-400">AI Upscaled to 4K resolution.</p>
+                                <a 
+                                    href={upscaledImage} 
+                                    download="skinos-hd.jpg" 
+                                    target="_blank" 
+                                    rel="noreferrer"
+                                    className="bg-white text-zinc-900 px-5 py-3 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-zinc-200 transition-colors flex items-center gap-2 shadow-lg"
+                                >
+                                    <Download size={16} /> Save Image
+                                </a>
                             </div>
                         </div>
                     </div>
