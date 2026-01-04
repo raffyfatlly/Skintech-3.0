@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { UserProfile } from '../types';
 import { generateImprovementPlan } from '../services/geminiService';
 import { upscaleImage } from '../services/falService'; // Using Fal Service Wrapper (Actually Gemini Nano)
-import { ArrowLeft, Sparkles, Loader, Activity, Microscope, Sun, Moon, Beaker, MoveHorizontal, Download, AlertCircle, ScanFace } from 'lucide-react';
+import { ArrowLeft, Sparkles, Loader, Activity, Microscope, Sun, Moon, Beaker, MoveHorizontal, Download, AlertCircle, ScanFace, ChevronDown } from 'lucide-react';
 
 interface SkinSimulatorProps {
     user: UserProfile;
@@ -29,6 +29,7 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
     // Plan State - Init from user profile
     const [plan, setPlan] = useState<any>(user.simulatedSkinPlan || null);
     const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
+    const [isPlanOpen, setIsPlanOpen] = useState(!!user.simulatedSkinPlan);
 
     // Refs
     const containerRef = useRef<HTMLDivElement>(null);
@@ -78,6 +79,7 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
         }
         if (user.simulatedSkinPlan && !plan) {
             setPlan(user.simulatedSkinPlan);
+            // Don't auto-open if it comes in late, unless we want to force attention
         }
     }, [user.simulatedSkinImage, user.simulatedSkinPlan]);
 
@@ -147,6 +149,7 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
         try {
             const data = await generateImprovementPlan(user.faceImage, retouchedImage, user);
             setPlan(data);
+            setIsPlanOpen(true);
             onUpdateUser({ ...user, simulatedSkinPlan: data }); // PERSIST PLAN
         } catch (e) {
             console.error("Plan Gen Error", e);
@@ -155,12 +158,20 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
         }
     };
 
+    const handleBackNav = () => {
+        if (plan && isPlanOpen) {
+            setIsPlanOpen(false);
+        } else {
+            onBack();
+        }
+    };
+
     return (
         <div className="fixed inset-0 z-50 bg-black flex flex-col font-sans animate-in fade-in duration-500 overflow-y-auto">
             {/* Header */}
             <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-start z-40 pt-safe-top pointer-events-none">
                 <button 
-                    onClick={onBack}
+                    onClick={handleBackNav}
                     className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/60 transition-colors border border-white/10 pointer-events-auto"
                 >
                     <ArrowLeft size={20} />
@@ -275,7 +286,7 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
                 </div>
 
                 {/* CONTROLS SHEET - Minimized */}
-                <div className="bg-zinc-50 relative z-20 rounded-t-[2rem] p-6 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.5)] shrink-0 pb-safe">
+                <div className={`bg-zinc-50 relative z-20 rounded-t-[2rem] p-6 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.5)] shrink-0 pb-safe transition-all duration-300 ${isPlanOpen ? 'min-h-[60vh]' : 'min-h-[auto]'}`}>
                     
                     {/* ROADMAP HEADER */}
                     <div className="flex items-center justify-between">
@@ -308,6 +319,15 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
                                     <Sparkles size={12} className="text-amber-300" /> Generate Plan
                                 </button>
                             )}
+
+                            {plan && !isPlanOpen && (
+                                <button 
+                                    onClick={() => setIsPlanOpen(true)}
+                                    className="bg-teal-600 text-white px-5 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg hover:bg-teal-700 transition-colors flex items-center gap-2"
+                                >
+                                    <ChevronDown size={12} /> View Plan
+                                </button>
+                            )}
                         </div>
                     </div>
 
@@ -323,7 +343,7 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
                         </div>
                     )}
 
-                    {plan && (
+                    {isPlanOpen && plan && (
                         <div className="space-y-6 mt-6 animate-in slide-in-from-bottom-8 duration-700">
                             <div className="bg-white p-5 rounded-2xl border border-zinc-100 shadow-sm relative overflow-hidden">
                                 <div className="absolute top-0 right-0 w-24 h-24 bg-teal-50 rounded-bl-full -mr-4 -mt-4 opacity-50 pointer-events-none"></div>
