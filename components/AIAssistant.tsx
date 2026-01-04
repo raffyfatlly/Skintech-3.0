@@ -2,18 +2,15 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, Product } from '../types';
 import { createDermatologistSession, isQuotaError } from '../services/geminiService';
-import { Sparkles, Send, RotateCcw, X, Lock, Crown } from 'lucide-react';
+import { Sparkles, Send, RotateCcw, Lock, Crown } from 'lucide-react';
 import type { Chat, GenerateContentResponse } from "@google/genai";
 
 interface AIAssistantProps {
   user: UserProfile;
   shelf: Product[];
-  isOpen: boolean;
-  onOpen: () => void;
-  onClose: () => void;
   triggerQuery?: string | null;
   onUnlockPremium: () => void;
-  location?: string; // New Prop
+  location?: string; 
 }
 
 interface Message {
@@ -57,7 +54,7 @@ const MessageContent: React.FC<{ text: string }> = ({ text }) => {
     );
 }
 
-const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, isOpen, onOpen, onClose, triggerQuery, onUnlockPremium, location = "Global" }) => {
+const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, onUnlockPremium, location = "Global" }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -81,18 +78,16 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, isOpen, onOpen, 
 
   // Handle Trigger Query
   useEffect(() => {
-      if (isOpen && isChatEnabled && triggerQuery && triggerQuery !== processedTriggerRef.current && session) {
+      if (isChatEnabled && triggerQuery && triggerQuery !== processedTriggerRef.current && session) {
           processedTriggerRef.current = triggerQuery;
           handleSend(triggerQuery);
       }
-  }, [isOpen, triggerQuery, session, isChatEnabled]);
+  }, [triggerQuery, session, isChatEnabled]);
 
   // Auto-scroll
   useEffect(() => {
-      if (isOpen) {
-          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }
-  }, [messages, isTyping, isOpen]);
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, isTyping]);
 
   const handleSend = async (textOverride?: string) => {
       const msgText = textOverride || inputText;
@@ -143,13 +138,12 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, isOpen, onOpen, 
   };
 
   return (
-    <div 
-        className={`fixed inset-0 z-50 bg-white transform transition-transform duration-300 ease-in-out flex flex-col ${isOpen ? 'translate-y-0' : 'translate-y-full'}`}
-    >
-          {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-50 bg-white shrink-0 pt-safe-top pb-4">
+    <div className="fixed inset-0 z-40 bg-zinc-50 flex flex-col animate-in fade-in duration-500 overflow-hidden">
+          
+          {/* Header (Fixed Height) */}
+          <div className="flex shrink-0 items-center justify-between px-6 py-6 border-b border-zinc-200/50 bg-white pt-safe-top z-30">
               <div className="flex items-center gap-2">
-                   <div className="w-10 h-10 rounded-full bg-teal-50 flex items-center justify-center text-teal-600">
+                   <div className="w-10 h-10 rounded-full bg-teal-50 flex items-center justify-center text-teal-600 border border-teal-100/50">
                        <Sparkles size={20} /> 
                    </div>
                    <div>
@@ -161,17 +155,14 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, isOpen, onOpen, 
               </div>
               <div className="flex items-center gap-2">
                   {isChatEnabled && (
-                      <button onClick={handleReset} className="text-zinc-400 hover:text-zinc-600 transition-colors p-2 bg-zinc-50 rounded-full" title="Reset Chat">
+                      <button onClick={handleReset} className="text-zinc-400 hover:text-zinc-600 transition-colors p-2 bg-zinc-50 rounded-full active:scale-95 border border-zinc-100" title="Reset Chat">
                           <RotateCcw size={20} />
                       </button>
                   )}
-                  <button onClick={onClose} className="text-zinc-400 hover:text-zinc-600 transition-colors p-2 bg-zinc-50 rounded-full">
-                      <X size={20} />
-                  </button>
               </div>
           </div>
 
-          {/* CHAT AREA */}
+          {/* CHAT AREA (Flex Grow) */}
           {!isChatEnabled ? (
               <div className="flex-1 flex flex-col items-center justify-center p-8 bg-zinc-50 text-center">
                   <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mb-6 shadow-xl border border-zinc-100">
@@ -190,7 +181,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, isOpen, onOpen, 
               </div>
           ) : (
               <>
-                <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-zinc-50/30">
+                <div className="flex-1 overflow-y-auto p-6 space-y-6 pb-4">
                     {messages.map((msg, idx) => (
                         <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                             <div 
@@ -226,8 +217,8 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, isOpen, onOpen, 
                     <div ref={messagesEndRef} />
                 </div>
 
-                {/* INPUT AREA */}
-                <div className="p-4 bg-white border-t border-zinc-100 shrink-0 pb-safe">
+                {/* INPUT AREA - Sticky to bottom of flex container */}
+                <div className="shrink-0 p-4 bg-white/80 backdrop-blur-md border-t border-zinc-100 z-40 relative">
                     <div className="relative flex items-center">
                         <input 
                             type="text" 
@@ -246,6 +237,9 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, isOpen, onOpen, 
                         </button>
                     </div>
                 </div>
+
+                {/* Spacer for Floating Nav (approx 80px - reduced from 96px to reduce gap) */}
+                <div className="shrink-0 h-[80px] w-full bg-zinc-50" />
               </>
           )}
     </div>

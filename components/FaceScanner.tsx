@@ -1,6 +1,6 @@
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { Sparkles, Image as ImageIcon, ScanFace, BrainCircuit, Target, Lightbulb, CheckCircle2, Focus, X, ArrowRight, UserX, ShieldAlert, Fingerprint, Lock } from 'lucide-react';
+import { Sparkles, Image as ImageIcon, ScanFace, BrainCircuit, Target, Lightbulb, CheckCircle2, Focus, X, ArrowRight, UserX, Fingerprint } from 'lucide-react';
 import { analyzeSkinFrame, drawBiometricOverlay, validateFrame, applyClinicalOverlays, preprocessForAI } from '../services/visionService';
 import { analyzeFaceSkin, compareFaceIdentity } from '../services/geminiService';
 import { SkinMetrics, Product } from '../types';
@@ -110,26 +110,18 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
       let tipInterval: ReturnType<typeof setInterval>;
 
       if (isProcessingAI && !showIdentityWarning) {
-          // Helper to get random tip excluding current
           const getRandomTip = (exclude?: string) => {
               const available = exclude ? SCAN_TIPS.filter(t => t !== exclude) : SCAN_TIPS;
               return available[Math.floor(Math.random() * available.length)];
           };
-
-          // Set initial tip
           setCurrentTip(getRandomTip());
-          
           setAiProgress(0);
-          
-          // Progress Bar Simulation (Slower to allow reading tips)
           progressInterval = setInterval(() => {
               setAiProgress(prev => {
                   if (prev >= 90) return prev; 
-                  return prev + 0.8; // Approx 5-6 seconds to reach 90%
+                  return prev + 0.8;
               });
           }, 50);
-
-          // Cycle Tips every 4 seconds (Slowed down from 2s)
           tipInterval = setInterval(() => {
               setCurrentTip(prev => getRandomTip(prev));
           }, 4000);
@@ -151,7 +143,7 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
       const animate = (time: number) => {
         const elapsed = time - startTime;
         const progress = Math.min(elapsed / duration, 1);
-        const ease = 1 - Math.pow(1 - progress, 4); // EaseOutQuart
+        const ease = 1 - Math.pow(1 - progress, 4);
         setAnimatedScore(Math.round(start + (end - start) * ease));
         if (progress < 1) requestAnimationFrame(animate);
       };
@@ -159,7 +151,6 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
     }
   }, [showResult, resultMetrics]);
 
-  // Handle Manual Focus Tap
   const handleTapToFocus = async (e: React.MouseEvent<HTMLDivElement> | React.TouchEvent<HTMLDivElement>) => {
       const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
       const clientX = 'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
@@ -175,12 +166,8 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
           const capabilities = track.getCapabilities() as any;
           if (capabilities.focusMode) {
               try {
-                  await track.applyConstraints({
-                      advanced: [{ focusMode: 'continuous' }] as any 
-                  });
-              } catch (err) {
-                  console.debug("Focus constraint not supported", err);
-              }
+                  await track.applyConstraints({ advanced: [{ focusMode: 'continuous' }] as any });
+              } catch (err) {}
           }
       }
   };
@@ -207,7 +194,7 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
           hydration: acc.hydration + curr.hydration,
           oiliness: acc.oiliness + curr.oiliness,
           darkCircles: acc.darkCircles + curr.darkCircles,
-          skinAge: (acc.skinAge || 0) + (curr.skinAge || 25), // Average skin age
+          skinAge: (acc.skinAge || 0) + (curr.skinAge || 25),
           timestamp: 0
       }), { 
           overallScore: 0, acneActive: 0, acneScars: 0, poreSize: 0, blackheads: 0, 
@@ -239,8 +226,7 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
 
   const captureSnapshot = (source: HTMLVideoElement | HTMLImageElement, flip: boolean): string => {
       const captureCanvas = document.createElement('canvas');
-      // Limit resolution for storage/display to prevent quota errors
-      const MAX_DIM = 800; // Reduced from original
+      const MAX_DIM = 800;
       let width = source instanceof HTMLVideoElement ? source.videoWidth : source.naturalWidth;
       let height = source instanceof HTMLVideoElement ? source.videoHeight : source.naturalHeight;
 
@@ -260,15 +246,12 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
           }
           ctx.drawImage(source, 0, 0, captureCanvas.width, captureCanvas.height);
           if (flip) ctx.setTransform(1, 0, 0, 1, 0, 0);
-          
           applyClinicalOverlays(ctx, captureCanvas.width, captureCanvas.height);
-          
-          return captureCanvas.toDataURL('image/jpeg', 0.85); // Reduced quality for size
+          return captureCanvas.toDataURL('image/jpeg', 0.85);
       }
       return '';
   };
   
-  // Capture Pre-Processed Image for AI (Can be slightly larger but optimized)
   const captureProcessedImage = (source: HTMLVideoElement | HTMLImageElement, flip: boolean): string => {
       const captureCanvas = document.createElement('canvas');
       const MAX_AI_DIM = 1024;
@@ -291,7 +274,6 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
           }
           ctx.drawImage(source, 0, 0, width, height);
           if (flip) ctx.setTransform(1, 0, 0, 1, 0, 0);
-
           return preprocessForAI(ctx, width, height);
       }
       return '';
@@ -309,47 +291,33 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
 
   const handleAIProcess = async (source: HTMLVideoElement | HTMLImageElement, isFlipped: boolean, localMetrics: SkinMetrics) => {
        setIsProcessingAI(true);
-       
        const processedImage = captureProcessedImage(source, isFlipped);
-       // Use smaller image for display/storage
        const displayImage = captureSnapshot(source, isFlipped);
        setCapturedSnapshot(displayImage);
-
-       // Flatten shelf data for AI
        const shelfNames = shelf.map(p => `${p.brand || ''} ${p.name}`);
-
-       // Parallel Execution: Skin Analysis + Identity Verification
        const skinAnalysisPromise = analyzeFaceSkin(processedImage, localMetrics, shelfNames, scanHistory);
-       
        let identityPromise: Promise<{ isMatch: boolean; confidence: number; reason: string }> | null = null;
        if (referenceImage) {
            setIdentityStatus('CHECKING');
            identityPromise = compareFaceIdentity(processedImage, referenceImage);
        }
-
        try {
            const [aiMetrics, identityResult] = await Promise.all([
                skinAnalysisPromise,
                identityPromise ? identityPromise : Promise.resolve(null)
            ]);
-
            if (identityResult) {
-               console.log("Identity Result:", identityResult);
                if (!identityResult.isMatch) {
                    setIdentityStatus('MISMATCH');
-                   setResultMetrics(aiMetrics); // Store metrics but pause for confirmation
+                   setResultMetrics(aiMetrics);
                    setShowIdentityWarning(true);
-                   return; // Stop here, wait for user confirmation
+                   return;
                }
                setIdentityStatus('MATCH');
            }
-           
            finalizeScan(aiMetrics, displayImage);
-
        } catch (err) {
            console.error("AI Analysis Failed", err);
-           // Fallback Removed per requirement. 
-           // Show friendly error and prompt retry.
            setIsProcessingAI(false);
            setAiProgress(0);
            setStreamError("We couldn't capture a clear analysis. Please ensure good lighting and try again.");
@@ -378,8 +346,6 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
               const ctx = canvas.getContext('2d');
               if (ctx) {
                   ctx.drawImage(img, 0, 0, w, h);
-                  
-                  // Run local analysis on the uploaded image to get deterministic anchor data
                   const localMetrics = analyzeSkinFrame(ctx, w, h);
                   handleAIProcess(img, false, localMetrics);
               }
@@ -391,11 +357,9 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
 
   const scanFrame = useCallback(() => {
     if (!videoRef.current || !canvasRef.current || !isScanning || isProcessingAI) return;
-
     const video = videoRef.current;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    
     const now = performance.now();
     const deltaTime = now - lastTimeRef.current;
     lastTimeRef.current = now;
@@ -403,15 +367,12 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
     if (ctx && video.readyState === 4) {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-      
       ctx.translate(canvas.width, 0);
       ctx.scale(-1, 1);
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       
       const check = validateFrame(ctx, canvas.width, canvas.height, lastFacePos.current);
-      
-      // FIX: Use check.message as instruction since check.instruction is undefined in return type
       setInstruction(check.message);
       setStatusColor(check.status === 'ERROR' ? 'error' : check.status === 'WARNING' ? 'warning' : 'default');
 
@@ -419,24 +380,20 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
           const SCAN_DURATION = 3000; 
           const increment = (deltaTime / SCAN_DURATION) * 100;
           progressRef.current = Math.min(100, progressRef.current + increment);
-          
           if (check.facePos) lastFacePos.current = check.facePos;
       }
 
-      // Sample more frequently for better averaging (100ms instead of 200ms)
       if (now - lastAnalysisTimeRef.current > 100) {
           const metrics = analyzeSkinFrame(ctx, canvas.width, canvas.height);
           cachedMetricsRef.current = metrics;
           lastAnalysisTimeRef.current = now;
           if (check.isGood) {
               metricsBuffer.current.push(metrics);
-              // Increase buffer size to 30 for smoother average
               if (metricsBuffer.current.length > 30) metricsBuffer.current.shift();
           }
       }
       
       if (cachedMetricsRef.current) {
-          // FIX: Pass metrics to match updated signature, though it might be a no-op
           drawBiometricOverlay(ctx, canvas.width, canvas.height, cachedMetricsRef.current);
       }
 
@@ -484,52 +441,28 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
   };
 
   const getStatusColor = () => {
-      if (statusColor === 'error') return 'bg-rose-500 border-rose-600 text-white';
-      if (statusColor === 'warning') return 'bg-amber-400 border-amber-500 text-amber-900';
-      return 'bg-white/90 border-white text-zinc-900';
+      // Biomarker glass style for instruction pill
+      return 'backdrop-blur-md bg-black/30 border border-white/10 text-white shadow-lg';
   }
 
   // --- RENDER: IDENTITY WARNING ---
   if (showIdentityWarning) {
       return (
-        <div className="h-screen w-full bg-black flex flex-col items-center justify-center relative overflow-hidden font-sans p-6 animate-in fade-in duration-300">
+        <div className="h-[100dvh] w-full bg-black flex flex-col items-center justify-center relative overflow-hidden font-sans p-6 animate-in fade-in duration-300">
              {capturedSnapshot && (
                  <img src={capturedSnapshot} className="absolute inset-0 w-full h-full object-cover opacity-20 blur-md grayscale" />
              )}
-             
              <div className="relative z-10 w-full max-w-sm bg-zinc-900 border border-red-900/50 rounded-3xl p-8 text-center shadow-2xl">
                  <div className="w-20 h-20 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-6 border border-red-500/30">
                      <UserX size={40} className="text-red-500" />
                  </div>
-                 
                  <h2 className="text-2xl font-black text-white mb-2">Identity Mismatch</h2>
                  <p className="text-zinc-400 text-sm mb-8 leading-relaxed">
-                     Biometrics indicate this face does not match the account owner. 
-                     This helps prevent your history from being polluted by other people's data.
+                     Biometrics indicate this face does not match the account owner.
                  </p>
-
                  <div className="flex flex-col gap-3">
-                     <button 
-                         onClick={() => {
-                             setShowIdentityWarning(false);
-                             if (resultMetrics && capturedSnapshot) {
-                                 finalizeScan(resultMetrics, capturedSnapshot);
-                             }
-                         }}
-                         className="w-full py-3.5 rounded-xl bg-white text-zinc-900 font-bold text-xs uppercase tracking-widest hover:bg-zinc-100 transition-colors"
-                     >
-                         It's Me (Override)
-                     </button>
-                     <button 
-                         onClick={() => {
-                             setShowIdentityWarning(false);
-                             setIsProcessingAI(false);
-                             setIsScanning(false);
-                         }}
-                         className="w-full py-3.5 rounded-xl bg-red-900/30 text-red-400 font-bold text-xs uppercase tracking-widest hover:bg-red-900/50 transition-colors border border-red-900/50"
-                     >
-                         Cancel
-                     </button>
+                     <button onClick={() => { setShowIdentityWarning(false); if (resultMetrics && capturedSnapshot) finalizeScan(resultMetrics, capturedSnapshot); }} className="w-full py-3.5 rounded-xl bg-white text-zinc-900 font-bold text-xs uppercase tracking-widest hover:bg-zinc-100 transition-colors">It's Me (Override)</button>
+                     <button onClick={() => { setShowIdentityWarning(false); setIsProcessingAI(false); setIsScanning(false); }} className="w-full py-3.5 rounded-xl bg-red-900/30 text-red-400 font-bold text-xs uppercase tracking-widest hover:bg-red-900/50 transition-colors border border-red-900/50">Cancel</button>
                  </div>
              </div>
         </div>
@@ -539,57 +472,29 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
   // --- RENDER: RESULT OVERLAY ---
   if (showResult && resultMetrics && capturedSnapshot) {
       return (
-        <div className="relative h-screen w-full bg-black font-sans overflow-hidden animate-in fade-in duration-700">
-            {/* Background Image */}
+        <div className="relative h-[100dvh] w-full bg-black font-sans overflow-hidden animate-in fade-in duration-700">
             <img src={capturedSnapshot} className="absolute inset-0 w-full h-full object-cover opacity-80" alt="Scan Result" />
-            
-            {/* Gradient Overlay */}
             <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/90" />
-            <div className="absolute inset-0 bg-teal-900/10 mix-blend-overlay" />
-
             <div className="relative z-10 h-full flex flex-col items-center justify-between py-safe pt-12 pb-12 px-6">
-                
-                {/* Header */}
                 <div className="animate-in slide-in-from-top-8 duration-700 delay-100">
                     <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 shadow-xl">
                         <CheckCircle2 size={16} className="text-emerald-400" />
                         <span className="text-xs font-bold text-white uppercase tracking-widest">Analysis Complete</span>
                     </div>
                 </div>
-
-                {/* Main Score Display */}
                 <div className="flex flex-col items-center justify-center relative w-full">
-                    {/* Rotating Rings */}
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] border border-white/10 rounded-full animate-[spin_20s_linear_infinite]" />
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[240px] h-[240px] border border-white/5 rounded-full animate-[spin_15s_linear_infinite_reverse]" />
-                    
-                    {/* Glow effect */}
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[180px] h-[180px] bg-teal-500/20 blur-[60px] rounded-full" />
-
                     <div className="relative z-10 flex flex-col items-center">
                         <span className="text-xs font-bold text-teal-200 uppercase tracking-[0.3em] mb-4 animate-in fade-in duration-1000 delay-300 shadow-black drop-shadow-md">Overall Score</span>
-                        
-                        {/* Big Number */}
-                        <div className="text-[9rem] leading-[0.85] font-black text-white tracking-tighter drop-shadow-2xl animate-in zoom-in-50 duration-1000 ease-out select-none">
-                            {animatedScore}
-                        </div>
+                        <div className="text-[9rem] leading-[0.85] font-black text-white tracking-tighter drop-shadow-2xl animate-in zoom-in-50 duration-1000 ease-out select-none">{animatedScore}</div>
                     </div>
                 </div>
-
-                {/* Footer / Continue */}
                 <div className="w-full max-w-xs animate-in slide-in-from-bottom-8 duration-700 delay-500 flex flex-col items-center">
-                    <p className="text-center text-white/90 text-sm font-medium mb-8 leading-relaxed max-w-[260px] drop-shadow-md">
-                        Your clinical metrics are ready. <br/> Let's breakdown your skin health.
-                    </p>
-                    <button 
-                        onClick={() => onScanComplete(resultMetrics, capturedSnapshot)}
-                        className="w-full h-16 bg-white text-teal-950 rounded-[2rem] font-black text-sm uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-[0_0_40px_rgba(255,255,255,0.2)] flex items-center justify-center gap-3 group"
-                    >
-                        {/* CHANGED TEXT HERE */}
-                        Reveal Skin Result 
-                        <div className="w-8 h-8 rounded-full bg-teal-950/10 flex items-center justify-center group-hover:translate-x-1 transition-transform">
-                             <ArrowRight size={16} />
-                        </div>
+                    <p className="text-center text-white/90 text-sm font-medium mb-8 leading-relaxed max-w-[260px] drop-shadow-md">Your clinical metrics are ready.</p>
+                    <button onClick={() => onScanComplete(resultMetrics, capturedSnapshot)} className="w-full h-16 bg-white text-teal-950 rounded-[2rem] font-black text-sm uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-[0_0_40px_rgba(255,255,255,0.2)] flex items-center justify-center gap-3 group">
+                        Reveal Skin Result <div className="w-8 h-8 rounded-full bg-teal-950/10 flex items-center justify-center group-hover:translate-x-1 transition-transform"><ArrowRight size={16} /></div>
                     </button>
                 </div>
             </div>
@@ -597,36 +502,24 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
       )
   }
 
+  // --- PROCESSING STATE ---
   if (isProcessingAI) {
       return (
-          <div className="h-screen w-full bg-black flex flex-col items-center justify-center relative overflow-hidden font-sans">
-             {capturedSnapshot && (
-                 <img src={capturedSnapshot} className="absolute inset-0 w-full h-full object-cover opacity-50 blur-sm scale-105" />
-             )}
+          <div className="h-[100dvh] w-full bg-black flex flex-col items-center justify-center relative overflow-hidden font-sans">
+             {capturedSnapshot && <img src={capturedSnapshot} className="absolute inset-0 w-full h-full object-cover opacity-50 blur-sm scale-105" />}
              <div className="relative z-10 flex flex-col items-center w-full max-w-[280px]">
                  <div className="w-24 h-24 relative mb-10">
                      <div className="absolute inset-0 bg-teal-500/30 rounded-full animate-ping duration-1000"></div>
                      <div className="relative z-10 w-24 h-24 bg-gradient-to-tr from-teal-500 to-cyan-600 rounded-full flex items-center justify-center shadow-2xl border border-white/20">
-                        {identityStatus === 'CHECKING' ? (
-                            <Fingerprint size={40} className="text-white animate-pulse" />
-                        ) : (
-                            <BrainCircuit size={40} className="text-white animate-pulse" />
-                        )}
+                        {identityStatus === 'CHECKING' ? <Fingerprint size={40} className="text-white animate-pulse" /> : <BrainCircuit size={40} className="text-white animate-pulse" />}
                      </div>
                  </div>
                  <h2 className="text-3xl font-black text-white tracking-tight mb-2 text-center">Analyzing</h2>
                  <p className="text-teal-200 text-xs font-bold tracking-widest uppercase mb-4 animate-pulse text-center">{getAIStatusText(aiProgress)}</p>
-                 
-                 {/* PRO TIP DISPLAY (Animated) */}
                  {identityStatus !== 'CHECKING' && (
                     <div key={currentTip} className="bg-black/40 backdrop-blur-md border border-white/10 rounded-2xl p-4 mt-4 animate-in slide-in-from-bottom-4 fade-in duration-500 flex flex-col items-center text-center max-w-xs min-h-[100px] justify-center">
-                        <div className="flex items-center gap-2 mb-2 text-teal-400">
-                            <Lightbulb size={14} />
-                            <span className="text-[10px] font-bold uppercase tracking-widest">Pro Tip</span>
-                        </div>
-                        <p className="text-white/80 text-xs font-medium leading-relaxed">
-                            {currentTip}
-                        </p>
+                        <div className="flex items-center gap-2 mb-2 text-teal-400"><Lightbulb size={14} /><span className="text-[10px] font-bold uppercase tracking-widest">Pro Tip</span></div>
+                        <p className="text-white/80 text-xs font-medium leading-relaxed">{currentTip}</p>
                     </div>
                  )}
              </div>
@@ -637,8 +530,11 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
   const radius = 130;
   const circumference = 2 * Math.PI * radius;
 
+  // --- IMMERSIVE SCANNER LAYOUT (Updated) ---
   return (
-    <div className="relative h-screen w-full bg-black overflow-hidden font-sans select-none">
+    <div className="relative h-[100dvh] w-full bg-black overflow-hidden font-sans select-none">
+      
+      {/* 1. Camera Feed (Full Screen) */}
       <div 
         className="absolute inset-0 cursor-pointer"
         onClick={handleTapToFocus}
@@ -666,63 +562,63 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
             style={{ top: showFocusTarget.y - 40, left: showFocusTarget.x - 40 }}
           >
               <div className="w-1.5 h-1.5 bg-teal-200 rounded-full"></div>
-              <div className="absolute -top-3 left-1/2 -translate-x-1/2 text-[10px] font-bold text-teal-300 uppercase tracking-widest">Focus</div>
           </div>
       )}
 
-      <div className="absolute inset-0 pointer-events-none z-10">
-         <svg width="100%" height="100%" preserveAspectRatio="none">
-           <defs>
-             <mask id="faceMask">
-               <rect width="100%" height="100%" fill="white" />
-               <ellipse cx="50%" cy="45%" rx="38%" ry="28%" fill="black" />
-             </mask>
-           </defs>
-           <rect width="100%" height="100%" fill="rgba(0,0,0,0.6)" mask="url(#faceMask)" />
-         </svg>
-      </div>
+      {/* 2. Blur Overlay Mask (The "Glass Frame") */}
+      {/* Uses mask-image to create a clear hole in the center, blurred periphery */}
+      <div 
+        className="absolute inset-0 pointer-events-none z-10 backdrop-blur-md bg-zinc-900/20"
+        style={{
+            maskImage: 'radial-gradient(ellipse 280px 350px at 50% 45%, transparent 60%, black 65%)',
+            WebkitMaskImage: 'radial-gradient(ellipse 280px 350px at 50% 45%, transparent 60%, black 65%)'
+        }}
+      />
       
+      {/* 3. UI Layer (Floating Glass Elements) */}
       <div className="absolute inset-0 z-20 flex flex-col justify-between pointer-events-none">
-          {/* UPDATED: Branding Header with Mint Teal */}
+          
+          {/* Header - Biomarker Glass Style */}
           <div className="w-full p-6 pt-safe-top mt-2 flex justify-between items-start pointer-events-auto">
-             <div className="bg-teal-950/40 backdrop-blur-md rounded-full px-4 py-2 border border-teal-500/30 flex items-center gap-2 shadow-lg">
+             <div className="backdrop-blur-md bg-black/20 border border-white/10 rounded-full px-4 py-2 flex items-center gap-2 shadow-lg">
                 <ScanFace size={16} className="text-teal-400" />
-                <span className="text-teal-50 text-xs font-bold tracking-widest uppercase">SkinOS AI</span>
+                <span className="text-white text-xs font-bold tracking-widest uppercase">SkinOS AI</span>
              </div>
 
-             {/* Close Button */}
              {onCancel && (
                <button 
                  onClick={onCancel}
-                 className="w-10 h-10 rounded-full bg-black/20 backdrop-blur-md flex items-center justify-center text-white border border-white/10 hover:bg-black/40 transition-colors z-50 cursor-pointer"
+                 className="w-10 h-10 rounded-full backdrop-blur-md bg-black/20 border border-white/10 flex items-center justify-center text-white hover:bg-black/30 transition-colors cursor-pointer shadow-lg"
                >
                  <X size={20} />
                </button>
              )}
           </div>
 
+          {/* Floating Instruction Pill */}
           {isScanning && (
               <div className="absolute top-28 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 w-full px-8 transition-all duration-300">
-                  <div className={`backdrop-blur-xl rounded-full px-6 py-3 shadow-lg flex items-center gap-3 border transition-colors duration-300 ${getStatusColor()}`}>
-                      {statusColor === 'error' ? <Target size={18} /> : statusColor === 'warning' ? <Lightbulb size={18} /> : <CheckCircle2 size={18} />}
-                      <span className="text-sm font-bold uppercase tracking-wide">{instruction}</span>
+                  <div className={`backdrop-blur-md bg-black/30 border border-white/10 text-white rounded-full px-6 py-3 shadow-xl flex items-center gap-3 transition-colors duration-300`}>
+                      {statusColor === 'error' ? <Target size={18} className="text-rose-400" /> : statusColor === 'warning' ? <Lightbulb size={18} className="text-amber-400" /> : <CheckCircle2 size={18} className="text-emerald-400" />}
+                      <span className="text-sm font-bold uppercase tracking-wide text-white/90">{instruction}</span>
                   </div>
               </div>
           )}
 
-          <div className="absolute top-[45%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-[76vw] h-[56vh] flex items-center justify-center pointer-events-none">
+          {/* Scanner Ring (Progress) */}
+          <div className="absolute top-[45%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] flex items-center justify-center pointer-events-none">
               {!isScanning && (
-                  <div className="absolute inset-0 border border-white/30 rounded-[48%] opacity-60"></div>
+                  <div className="absolute inset-0 border border-white/20 rounded-[48%] opacity-40 animate-pulse"></div>
               )}
 
               {isScanning && (
-                <svg className="w-[300px] h-[300px] absolute opacity-90 drop-shadow-2xl" style={{ transform: 'rotate(-90deg)' }}>
-                   <circle cx="150" cy="150" r={radius} stroke="rgba(255,255,255,0.1)" strokeWidth="6" fill="transparent" />
+                <svg className="w-full h-full absolute opacity-90 drop-shadow-2xl" style={{ transform: 'rotate(-90deg)' }}>
+                   <circle cx="150" cy="150" r={radius} stroke="rgba(255,255,255,0.1)" strokeWidth="4" fill="transparent" />
                    <circle
                       ref={circleRef}
                       cx="150" cy="150" r={radius}
                       stroke={statusColor === 'warning' ? '#FBBF24' : '#2DD4BF'} 
-                      strokeWidth="6"
+                      strokeWidth="4"
                       fill="transparent"
                       strokeDasharray={circumference}
                       strokeDashoffset={circumference}
@@ -733,43 +629,45 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
               )}
           </div>
 
-          <div className="w-full pb-safe pointer-events-auto">
-            <div className="pt-20 pb-10 px-6 flex flex-col items-center justify-end h-48 bg-gradient-to-t from-black via-black/40 to-transparent">
+          {/* Bottom Controls - Clean Floating Layout */}
+          <div className="w-full pb-safe pointer-events-auto px-6 mb-8 flex flex-col items-center justify-end">
                 {streamError ? (
-                     <div className="text-rose-300 bg-rose-900/40 px-6 py-6 rounded-3xl backdrop-blur-md border border-rose-500/30 mb-8 text-center max-w-sm mx-auto">
-                        <p className="mb-4 text-sm font-medium leading-relaxed">{streamError}</p>
+                     <div className="backdrop-blur-md bg-black/30 border border-rose-500/30 px-6 py-6 rounded-3xl text-center max-w-sm mx-auto shadow-xl">
+                        <p className="mb-4 text-sm font-medium text-white/90">{streamError}</p>
                         <div className="flex gap-4 justify-center">
-                            <button 
-                                onClick={() => { setStreamError(null); setIsScanning(true); }} 
-                                className="px-6 py-2.5 bg-white text-rose-600 rounded-full font-bold text-xs uppercase tracking-widest shadow-lg hover:scale-105 active:scale-95 transition-all"
-                            >
-                                Try Again
-                            </button>
-                            <button 
-                                onClick={() => fileInputRef.current?.click()} 
-                                className="px-6 py-2.5 bg-rose-800/50 text-white border border-rose-500/50 rounded-full font-bold text-xs uppercase tracking-widest hover:bg-rose-800/70 transition-colors"
-                            >
-                                Upload
-                            </button>
+                            <button onClick={() => { setStreamError(null); setIsScanning(true); }} className="px-6 py-2.5 bg-white text-zinc-900 rounded-full font-bold text-xs uppercase tracking-widest shadow-lg">Try Again</button>
+                            <button onClick={() => fileInputRef.current?.click()} className="px-6 py-2.5 bg-white/10 text-white border border-white/20 rounded-full font-bold text-xs uppercase tracking-widest">Upload</button>
                         </div>
                      </div>
                 ) : !isScanning ? (
-                    <div className="flex items-center gap-10 animate-in slide-in-from-bottom-8 duration-700">
-                        <button onClick={() => fileInputRef.current?.click()} className="w-12 h-12 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/20 transition-all active:scale-95 border border-white/10"><ImageIcon size={20} /></button>
-                        <button onClick={() => { setIsScanning(true); setStreamError(null); }} className="w-20 h-20 bg-transparent rounded-full flex items-center justify-center border-4 border-white/30 hover:border-white transition-colors relative active:scale-95 group">
-                            <div className="w-16 h-16 bg-white rounded-full group-hover:scale-90 transition-transform duration-300" />
+                    <div className="flex items-center gap-8 animate-in slide-in-from-bottom-8 duration-700">
+                        <button onClick={() => fileInputRef.current?.click()} className="w-14 h-14 rounded-full backdrop-blur-md bg-black/20 border border-white/10 flex items-center justify-center text-white hover:bg-white/10 transition-all active:scale-95 shadow-lg group">
+                            <ImageIcon size={22} className="group-hover:scale-110 transition-transform" />
                         </button>
-                        <div className="w-12 h-12" /> 
+                        
+                        <button 
+                            onClick={() => { setIsScanning(true); setStreamError(null); }} 
+                            className="w-24 h-24 rounded-full border-4 border-white/30 flex items-center justify-center relative active:scale-95 transition-transform group shadow-2xl"
+                        >
+                            <div className="absolute inset-0 rounded-full bg-white/5 backdrop-blur-sm"></div>
+                            <div className="w-18 h-18 bg-white rounded-full w-[85%] h-[85%] group-hover:scale-90 transition-transform duration-300 shadow-inner"></div>
+                        </button>
+                        
+                        <div className="w-14 h-14" /> {/* Spacer for balance */}
                     </div>
                 ) : (
-                    <div className="text-center">
-                        <p className="text-white/80 text-xs font-medium tracking-widest uppercase animate-pulse mb-2 flex items-center justify-center gap-2">
+                    <div className="text-center mb-4">
+                        <p className="text-white/60 text-[10px] font-medium tracking-widest uppercase animate-pulse mb-4 flex items-center justify-center gap-2">
                            <Focus size={12} /> Tap screen to focus
                         </p>
-                        <button onClick={() => setIsScanning(false)} className="px-6 py-2 rounded-full bg-white/10 backdrop-blur text-white text-xs font-bold hover:bg-white/20">Cancel</button>
+                        <button 
+                            onClick={() => setIsScanning(false)} 
+                            className="px-8 py-3 rounded-full backdrop-blur-md bg-black/30 border border-white/10 text-white text-xs font-bold hover:bg-white/10 transition-colors shadow-lg"
+                        >
+                            Cancel Scan
+                        </button>
                     </div>
                 )}
-            </div>
           </div>
       </div>
     </div>

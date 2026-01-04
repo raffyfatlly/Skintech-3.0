@@ -37,9 +37,8 @@ import GuideOverlay from './components/GuideOverlay';
 import AdminDashboard from './components/AdminDashboard';
 import BackgroundTaskBar from './components/BackgroundTaskBar';
 import SplashScreen from './components/SplashScreen';
-import SkinSimulator from './components/SkinSimulator'; // NEW
-
-import { ScanFace, LayoutGrid, User, Search, Home, Loader, ScanBarcode, Lock, Sparkles, Microscope, RefreshCw } from 'lucide-react';
+import SkinSimulator from './components/SkinSimulator';
+import BottomNavigation from './components/BottomNavigation';
 
 const LIMIT_SCANS = 3;
 
@@ -52,7 +51,6 @@ const App: React.FC = () => {
   const viewRef = useRef<AppView>(AppView.LANDING);
   const [analyzedProduct, setAnalyzedProduct] = useState<Product | null>(null);
   const [prefillName, setPrefillName] = useState<string>('');
-  const [showAIAssistant, setShowAIAssistant] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [saveModalTrigger, setSaveModalTrigger] = useState<AuthTrigger>('GENERIC');
   const [showPremiumModal, setShowPremiumModal] = useState(false);
@@ -163,7 +161,6 @@ const App: React.FC = () => {
   };
 
   const persistState = (newUser: UserProfile, newShelf: Product[]) => {
-      // CRITICAL: Update timestamp on every save to ensure sync logic respects local changes (like AI results)
       const timestampedUser = { ...newUser, lastUpdated: Date.now() };
       setUserProfile(timestampedUser);
       setShelf(newShelf);
@@ -172,18 +169,15 @@ const App: React.FC = () => {
 
   const incrementUsage = (type: keyof UsageStats) => {
       if (!userProfile) return;
-      
       const currentUsage = userProfile.usage || { buyingAssistantViews: 0, manualScans: 0, routineGenerations: 0 };
       const newUsage = { ...currentUsage, [type]: currentUsage[type] + 1 };
       const updatedUser = { ...userProfile, usage: newUsage };
       persistState(updatedUser, shelf);
   };
 
-  // --- WISH LIST LOGIC ---
   const handleAddToWishlist = (product: Product) => {
       if (!userProfile) return;
       const currentWishlist = userProfile.wishlist || [];
-      // Prevent duplicates
       if (currentWishlist.some(p => p.name === product.name)) {
           setNotification({ type: 'GENERIC', title: 'Already Saved', description: 'This product is already in your wishlist.', onClose: () => setNotification(null) });
           return;
@@ -230,14 +224,14 @@ const App: React.FC = () => {
                   undefined, 
                   productBrand,
                   shelfIngredients,
-                  userLocation // Pass location
+                  userLocation
               );
           } else {
               product = await analyzeProductImage(
                   payload, 
                   userProfile.biometrics, 
                   shelfIngredients,
-                  userLocation // Pass location
+                  userLocation
               );
           }
 
@@ -264,7 +258,6 @@ const App: React.FC = () => {
 
       } catch (err) {
           console.error("Background Analysis Error", err);
-          
           setNotification({
               type: 'GENERIC',
               title: 'Analysis Failed',
@@ -273,7 +266,6 @@ const App: React.FC = () => {
               onAction: () => {},
               onClose: () => setNotification(null)
           });
-
           if (viewRef.current === AppView.PRODUCT_SCANNER || viewRef.current === AppView.PRODUCT_SEARCH) {
               setCurrentView(AppView.SMART_SHELF);
           }
@@ -289,11 +281,9 @@ const App: React.FC = () => {
       goals: string[]
   ) => {
       if (!userProfile) return;
-
       if (!userProfile.isPremium) {
           incrementUsage('routineGenerations');
       }
-
       const originatingView = viewRef.current;
       setBackgroundTask({ label: `Building ${category} Routine...` });
 
@@ -304,11 +294,9 @@ const App: React.FC = () => {
               maxPrice, 
               allergies, 
               goals,
-              userLocation // Pass location
+              userLocation
           );
-          
           setRoutineResults(data);
-          
           if (viewRef.current !== originatingView) {
               setNotification({
                   type: 'TASK_COMPLETE',
@@ -319,7 +307,6 @@ const App: React.FC = () => {
                   onClose: () => setNotification(null)
               });
           }
-
       } catch (e) {
           console.error("Routine Error", e);
           setNotification({
@@ -409,7 +396,6 @@ const App: React.FC = () => {
   const handleOnboardingComplete = (data: { name: string; age: number; skinType: SkinType; safety: any }) => {
       trackEvent('ONBOARDING_COMPLETE');
       const isAuth = !!auth?.currentUser;
-      
       const initialPrefs: UserPreferences = {
           goals: [],
           sensitivity: data.safety.hasSensitiveSkin ? 'VERY_SENSITIVE' : 'MILD',
@@ -418,10 +404,9 @@ const App: React.FC = () => {
           lifestyle: [],
           buyingPriority: 'Fast Results',
           isPregnant: data.safety.isPregnant,
-          hasEczema: data.safety.hasEczema, // Mapped here
+          hasEczema: data.safety.hasEczema,
           onMedication: data.safety.onMedication
       };
-
       const newUser: UserProfile = {
           name: data.name, 
           age: data.age, 
@@ -432,9 +417,8 @@ const App: React.FC = () => {
           isPremium: false,
           preferences: initialPrefs,
           usage: { buyingAssistantViews: 0, manualScans: 0, routineGenerations: 0 },
-          lastUpdated: Date.now() // Initialize timestamp
+          lastUpdated: Date.now()
       };
-      
       setUserProfile(newUser);
       if (isAuth) saveUserData(newUser, shelf); else persistState(newUser, shelf);
       setCurrentView(AppView.FACE_SCANNER);
@@ -451,7 +435,7 @@ const App: React.FC = () => {
       const updatedUser: UserProfile = {
           ...userProfile, hasScannedFace: true, biometrics: metrics, faceImage: image,
           scanHistory: [...(userProfile.scanHistory || []), metrics],
-          simulatedSkinImage: null, // Clear old simulation on new scan
+          simulatedSkinImage: null,
           usage: userProfile.usage || { buyingAssistantViews: 0, manualScans: 0, routineGenerations: 0 }
       };
       persistState(updatedUser, shelf);
@@ -508,64 +492,29 @@ const App: React.FC = () => {
       setNotification({ type: 'GENERIC', title: 'Premium Unlocked!', description: 'Access code redeemed successfully.', actionLabel: 'Awesome', onAction: () => {}, onClose: () => setNotification(null) });
   };
 
-  const renderNavBar = () => {
-      if (isGlobalLoading || isAdminMode) return null;
-      if ([AppView.LANDING, AppView.ONBOARDING, AppView.FACE_SCANNER, AppView.PRODUCT_SCANNER, AppView.PRODUCT_SEARCH, AppView.BUYING_ASSISTANT, AppView.ROUTINE_BUILDER, AppView.SKIN_SIMULATOR].includes(currentView)) return null;
-
-      const navItemClass = (view: AppView) => 
-        `flex flex-col items-center gap-1 p-2 rounded-2xl transition-all duration-300 ${currentView === view ? 'text-teal-600 bg-teal-50 scale-105' : 'text-zinc-400 hover:text-zinc-600'}`;
-
-      const handleNavClick = (view: AppView) => {
-          if (view === AppView.PRODUCT_SCANNER && userProfile?.isAnonymous) {
-              openAuth('SCAN_PRODUCT');
-              return;
+  const handleMockLogin = () => {
+      trackEvent('LOGIN_SUCCESS');
+      if (userProfile) {
+          let updatedUser = { ...userProfile, isAnonymous: false };
+          if (pendingScan) {
+              updatedUser = { ...updatedUser, hasScannedFace: true, biometrics: pendingScan.metrics, faceImage: pendingScan.image, scanHistory: [...(updatedUser.scanHistory || []), pendingScan.metrics] };
+              setPendingScan(null); 
+              setCurrentView(AppView.DASHBOARD); 
+              setTimeout(() => setActiveGuide('SCAN'), 5000);
           }
-          if (view === AppView.PRODUCT_SEARCH || view === AppView.PRODUCT_SCANNER) {
-              if (!userProfile?.isPremium) {
-                  const used = userProfile?.usage?.manualScans || 0;
-                  if (used >= LIMIT_SCANS) {
-                      handleUnlockPremium();
-                      return;
-                  }
-              }
-          }
-          setCurrentView(view);
-      };
-
-      const navZIndex = activeGuide ? 'z-[60]' : 'z-30';
-
-      return (
-          <div className={`fixed bottom-6 left-6 right-6 h-20 bg-white/90 backdrop-blur-xl border border-zinc-200/50 rounded-[2rem] shadow-2xl flex items-center justify-around max-w-md mx-auto animate-in slide-in-from-bottom-24 duration-700 ${navZIndex}`}>
-              <button onClick={() => handleNavClick(AppView.DASHBOARD)} className={navItemClass(AppView.DASHBOARD)}>
-                  <Home size={22} strokeWidth={currentView === AppView.DASHBOARD ? 2.5 : 2} />
-              </button>
-              <button onClick={() => handleNavClick(AppView.SMART_SHELF)} className={navItemClass(AppView.SMART_SHELF)}>
-                  <LayoutGrid size={22} strokeWidth={currentView === AppView.SMART_SHELF ? 2.5 : 2} />
-              </button>
-              <div className="relative -top-8">
-                  <button 
-                    onClick={() => { setActiveGuide(null); handleNavClick(AppView.PRODUCT_SCANNER); }}
-                    className="w-16 h-16 bg-teal-600 rounded-full flex items-center justify-center text-white shadow-xl shadow-teal-600/30 hover:scale-110 transition-transform active:scale-95 relative"
-                  >
-                      <ScanBarcode size={24} />
-                      {!userProfile?.isPremium && (
-                          <div className="absolute -bottom-2 bg-amber-400 text-amber-900 text-[9px] font-bold px-2 py-0.5 rounded-full border border-white">
-                              {(userProfile?.usage?.manualScans || 0)}/{LIMIT_SCANS}
-                          </div>
-                      )}
-                  </button>
-              </div>
-              <button onClick={() => handleNavClick(AppView.PRODUCT_SEARCH)} className={navItemClass(AppView.PRODUCT_SEARCH)}>
-                  <Search size={22} strokeWidth={currentView === AppView.PRODUCT_SEARCH ? 2.5 : 2} />
-              </button>
-              <button onClick={() => handleNavClick(AppView.PROFILE_SETUP)} className={navItemClass(AppView.PROFILE_SETUP)}>
-                  <User size={22} strokeWidth={currentView === AppView.PROFILE_SETUP ? 2.5 : 2} />
-              </button>
-          </div>
-      );
+          persistState(updatedUser, shelf);
+      }
+      setShowSaveModal(false);
+      setNotification({ type: 'GENERIC', title: 'Account Synced', description: 'Your data is now saved to the cloud.', actionLabel: 'OK', onAction: () => {}, onClose: () => setNotification(null) });
   };
 
   if (isAdminMode) return <AdminDashboard onExit={() => { setIsAdminMode(false); window.history.replaceState({}, document.title, window.location.pathname); }} />;
+
+  // Determine if BottomNav should be visible
+  const shouldShowNav = userProfile && 
+                        userProfile.hasScannedFace && 
+                        [AppView.DASHBOARD, AppView.SMART_SHELF, AppView.PROFILE_SETUP, AppView.ROUTINE_BUILDER, AppView.AI_ASSISTANT].includes(currentView) &&
+                        !analyzedProduct; // Hide on Buying Assistant
 
   const renderView = () => {
       if (!userProfile && ![AppView.LANDING, AppView.ONBOARDING].includes(currentView)) {
@@ -583,7 +532,7 @@ const App: React.FC = () => {
                       userProfile={userProfile} 
                       shelf={shelf} 
                       onRescan={() => setCurrentView(AppView.FACE_SCANNER)} 
-                      onConsultAI={(q) => { setAiQuery(q); setShowAIAssistant(true); }} 
+                      onConsultAI={(q) => { setAiQuery(q); setCurrentView(AppView.AI_ASSISTANT); }} 
                       onViewProgress={() => setCurrentView(AppView.PROFILE_SETUP)} 
                       onOpenRoutineBuilder={() => setCurrentView(AppView.ROUTINE_BUILDER)} 
                       onLoginRequired={(reason) => openAuth(reason as AuthTrigger)} 
@@ -597,7 +546,7 @@ const App: React.FC = () => {
                       user={userProfile}
                       onBack={() => setCurrentView(AppView.DASHBOARD)}
                       location={userLocation}
-                      onUpdateUser={handleProfileUpdate} // Pass handler
+                      onUpdateUser={handleProfileUpdate}
                   />
               ) : null;
           case AppView.SMART_SHELF:
@@ -660,7 +609,16 @@ const App: React.FC = () => {
                   />
               ) : null;
           case AppView.PROFILE_SETUP:
-              return userProfile ? <ProfileSetup user={userProfile} shelf={shelf} onComplete={handleProfileUpdate} onBack={() => setCurrentView(AppView.DASHBOARD)} onReset={handleResetApp} onLoginRequired={(trigger) => openAuth(trigger as AuthTrigger)} /> : null;
+              return userProfile ? (
+                  <ProfileSetup 
+                      user={userProfile} 
+                      shelf={shelf} 
+                      onComplete={handleProfileUpdate} 
+                      onBack={() => setCurrentView(AppView.DASHBOARD)} 
+                      onReset={handleResetApp} 
+                      onLoginRequired={(trigger) => openAuth(trigger as AuthTrigger)} 
+                  />
+              ) : null;
           case AppView.ROUTINE_BUILDER:
               return userProfile ? (
                   <PremiumRoutineBuilder 
@@ -681,24 +639,18 @@ const App: React.FC = () => {
                       onAddToWishlist={handleAddToWishlist}
                   />
               ) : null;
+          case AppView.AI_ASSISTANT:
+              return userProfile ? (
+                  <AIAssistant 
+                      user={userProfile} 
+                      shelf={shelf} 
+                      triggerQuery={aiQuery} 
+                      onUnlockPremium={handleUnlockPremium}
+                      location={userLocation} 
+                  />
+              ) : null;
           default: return <LandingPage onGetStarted={() => setCurrentView(AppView.ONBOARDING)} onLogin={() => openAuth('GENERIC')} />;
       }
-  };
-
-  const handleMockLogin = () => {
-      trackEvent('LOGIN_SUCCESS');
-      if (userProfile) {
-          let updatedUser = { ...userProfile, isAnonymous: false };
-          if (pendingScan) {
-              updatedUser = { ...updatedUser, hasScannedFace: true, biometrics: pendingScan.metrics, faceImage: pendingScan.image, scanHistory: [...(updatedUser.scanHistory || []), pendingScan.metrics] };
-              setPendingScan(null); 
-              setCurrentView(AppView.DASHBOARD); 
-              setTimeout(() => setActiveGuide('SCAN'), 5000);
-          }
-          persistState(updatedUser, shelf); // Saves with new timestamp
-      }
-      setShowSaveModal(false);
-      setNotification({ type: 'GENERIC', title: 'Account Synced', description: 'Your data is now saved to the cloud.', actionLabel: 'OK', onAction: () => {}, onClose: () => setNotification(null) });
   };
 
   return (
@@ -707,20 +659,24 @@ const App: React.FC = () => {
           <SplashScreen message={loadingMessage || "Syncing Profile..."} />
       )}
       {renderView()}
-      {renderNavBar()}
-      {backgroundTask && <BackgroundTaskBar label={backgroundTask.label} />}
-      {userProfile && (
-          <AIAssistant 
-              user={userProfile} 
-              shelf={shelf} 
-              isOpen={showAIAssistant} 
-              onOpen={() => setShowAIAssistant(true)} 
-              onClose={() => setShowAIAssistant(false)} 
-              triggerQuery={aiQuery} 
-              onUnlockPremium={handleUnlockPremium}
-              location={userLocation} 
+      
+      {/* Global Bottom Navigation (Overlay) */}
+      {shouldShowNav && (
+          <BottomNavigation 
+              currentView={currentView}
+              onNavigate={setCurrentView}
+              onScan={() => {
+                  if (userProfile && !userProfile.isPremium && (userProfile.usage?.manualScans || 0) >= LIMIT_SCANS) {
+                      handleUnlockPremium();
+                  } else {
+                      setCurrentView(AppView.PRODUCT_SCANNER);
+                  }
+              }}
+              onOpenAI={() => setCurrentView(AppView.AI_ASSISTANT)}
           />
       )}
+
+      {backgroundTask && <BackgroundTaskBar label={backgroundTask.label} />}
       {showSaveModal && <SaveProfileModal onSave={() => {}} onClose={() => setShowSaveModal(false)} onMockLogin={handleMockLogin} mode={saveModalTrigger === 'GENERIC' ? 'LOGIN' : 'SAVE'} trigger={saveModalTrigger} />}
       {showPremiumModal && <BetaOfferModal onClose={() => setShowPremiumModal(false)} onConfirm={() => startCheckout()} onCodeSuccess={handleCodeUnlock} />}
       {notification && <SmartNotification {...notification} onClose={() => setNotification(null)} />}
