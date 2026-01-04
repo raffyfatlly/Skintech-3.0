@@ -3,29 +3,36 @@ import { GoogleGenAI } from "@google/genai";
 
 // Specific getter for Nano Banana model key
 const getNanoApiKey = (): string => {
-    // 1. Priority: NANO_API_KEY (from env)
-    // @ts-ignore
-    if (typeof process !== 'undefined' && process.env && process.env.NANO_API_KEY) {
+    // 1. Try accessing the key injected by Vite 'define'.
+    // We use try-catch because if 'define' fails to replace the string, 
+    // accessing 'process' in a browser might throw a ReferenceError.
+    try {
         // @ts-ignore
-        return process.env.NANO_API_KEY;
+        const key = process.env.NANO_API_KEY;
+        if (key) return key;
+    } catch (e) {
+        // Ignore ReferenceError if process is not defined
     }
-    
-    // 2. Fallback: Standard API_KEY (reusing existing logic just in case)
+
+    // 2. Try standard Vite env var (if user set VITE_NANO_API_KEY in .env)
     // @ts-ignore
-    if (typeof process !== 'undefined' && process.env && process.env.API_KEY) {
+    if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_NANO_API_KEY) {
         // @ts-ignore
-        return process.env.API_KEY;
+        return import.meta.env.VITE_NANO_API_KEY;
     }
-    // @ts-ignore
-    if (typeof process !== 'undefined' && process.env && process.env.VITE_API_KEY) {
+
+    // 3. Fallback: Standard API_KEY (reusing existing logic)
+    try {
         // @ts-ignore
-        return process.env.VITE_API_KEY;
-    }
+        if (process.env.API_KEY) return process.env.API_KEY;
+    } catch (e) {}
+
     // @ts-ignore
     if (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_KEY) {
         // @ts-ignore
         return import.meta.env.VITE_API_KEY;
     }
+
     return '';
 };
 

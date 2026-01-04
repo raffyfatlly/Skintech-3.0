@@ -2,7 +2,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { UserProfile } from '../types';
 import { generateImprovementPlan } from '../services/geminiService';
-import { upscaleImage } from '../services/falService'; // Using Fal Service
+import { upscaleImage } from '../services/falService'; // Using Fal Service Wrapper (Actually Gemini Nano)
 import { ArrowLeft, Sparkles, Loader, Activity, Microscope, Sun, Moon, Beaker, MoveHorizontal, Download, AlertCircle, ScanFace } from 'lucide-react';
 
 interface SkinSimulatorProps {
@@ -27,14 +27,14 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
     // Refs
     const containerRef = useRef<HTMLDivElement>(null);
 
-    // Helper: Resize image to prevent API Payload Limit errors (Good for Fal upload speed too)
+    // Helper: Resize image to prevent API Payload Limit errors (Good for upload speed too)
     const optimizeImageForUpload = (base64Str: string): Promise<string> => {
         return new Promise((resolve) => {
             const img = new Image();
             img.src = base64Str;
             img.onload = () => {
                 const canvas = document.createElement('canvas');
-                const MAX_DIM = 1024; // Fal supports higher res
+                const MAX_DIM = 1024; 
                 let width = img.width;
                 let height = img.height;
 
@@ -96,14 +96,14 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
             // 1. Optimize Image
             const optimizedSource = await optimizeImageForUpload(sourceImage);
 
-            // 2. Call Fal Service (Flux Model)
+            // 2. Call Service (Gemini Nano)
             const hdUrl = await upscaleImage(optimizedSource);
             setRetouchedImage(hdUrl);
         } catch (e: any) {
             console.error("Retouch Failed", e);
             // Display specific error for debugging
-            if (e.message?.includes("Missing FAL_KEY")) {
-                setErrorText("System Error: FAL Key Missing");
+            if (e.message?.includes("Missing API Key")) {
+                setErrorText("System Error: API Key Missing");
             } else if (e.message?.includes("timeout")) {
                 setErrorText("Server Busy. Please try again.");
             } else {
