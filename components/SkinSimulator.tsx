@@ -110,6 +110,31 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
         }
     };
 
+    const handleGeneratePlan = async (imgOverride?: string | any) => {
+        // Use override if string, otherwise fallback to state. (Handles event objects from onClick)
+        const targetImage = (typeof imgOverride === 'string' ? imgOverride : null) || retouchedImage;
+        
+        if (!user.faceImage || !targetImage) return;
+        
+        setIsGeneratingPlan(true);
+        setPlan(null); // Clear previous plan to show loading state
+        
+        try {
+            const data = await generateImprovementPlan(user.faceImage, targetImage, user);
+            setPlan(data);
+            setIsPlanOpen(true);
+            onUpdateUser({ 
+                ...user, 
+                simulatedSkinImage: targetImage, // Ensure consistent image state
+                simulatedSkinPlan: data 
+            }); 
+        } catch (e) {
+            console.error("Plan Gen Error", e);
+        } finally {
+            setIsGeneratingPlan(false);
+        }
+    };
+
     const handleAiRetouch = async (sourceImage: string) => {
         setIsRetouching(true);
         setErrorText(null);
@@ -122,7 +147,15 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
             
             // 3. Save & Cache Result
             setRetouchedImage(hdUrl);
-            onUpdateUser({ ...user, simulatedSkinImage: hdUrl });
+            
+            // Update user to save image but clear plan (it's new)
+            onUpdateUser({ ...user, simulatedSkinImage: hdUrl, simulatedSkinPlan: undefined });
+            
+            // Stop Image Loader so user sees the face immediately
+            setIsRetouching(false);
+
+            // 4. Auto-Generate Plan
+            await handleGeneratePlan(hdUrl);
             
         } catch (e: any) {
             console.error("Retouch Failed", e);
@@ -134,23 +167,7 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
                 setErrorText(e.message || "Simulation Failed. Please try again.");
             }
             setHasAutoStarted(false); 
-        } finally {
             setIsRetouching(false);
-        }
-    };
-
-    const handleGeneratePlan = async () => {
-        if (!user.faceImage || !retouchedImage) return;
-        setIsGeneratingPlan(true);
-        try {
-            const data = await generateImprovementPlan(user.faceImage, retouchedImage, user);
-            setPlan(data);
-            setIsPlanOpen(true);
-            onUpdateUser({ ...user, simulatedSkinPlan: data }); // PERSIST PLAN
-        } catch (e) {
-            console.error("Plan Gen Error", e);
-        } finally {
-            setIsGeneratingPlan(false);
         }
     };
 
@@ -307,9 +324,10 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
                                 </a>
                             )}
 
+                            {/* Show generate button if no plan and not auto-generating yet (fallback) */}
                             {!plan && !isGeneratingPlan && !isRetouching && !errorText && (
                                 <button 
-                                    onClick={handleGeneratePlan}
+                                    onClick={() => handleGeneratePlan()}
                                     className="bg-zinc-900 text-white px-5 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg hover:bg-zinc-800 transition-colors flex items-center gap-2"
                                 >
                                     <Sparkles size={12} className="text-amber-300" /> Generate Plan

@@ -169,15 +169,15 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
           {/* --- SECTION 2: CLINICAL REPORT (Snap 2) --- */}
           {/* Acts as a "Paper Sheet" floating over the face */}
           <section className="min-h-[85vh] w-full px-2 snap-section flex flex-col justify-end pb-4 pt-12">
-              <div className="bg-zinc-100 rounded-[2.5rem] px-6 pt-12 pb-8 shadow-2xl relative overflow-hidden">
+              <div className="bg-zinc-100/60 backdrop-blur-3xl border border-white/20 rounded-[2.5rem] px-6 pt-12 pb-8 shadow-2xl relative overflow-hidden min-h-[55vh]">
                   
                   {/* Drag Handle */}
-                  <div className="absolute top-4 left-1/2 -translate-x-1/2 w-10 h-1 bg-zinc-300 rounded-full"></div>
+                  <div className="absolute top-4 left-1/2 -translate-x-1/2 w-10 h-1 bg-zinc-400/30 rounded-full"></div>
 
                   <div className="mb-8 flex justify-between items-end">
                       <div>
-                          <h2 className="text-2xl font-black text-zinc-900 tracking-tight leading-none mb-1.5">Skin Report</h2>
-                          <p className="text-xs text-zinc-400 font-medium">Detailed clinical analysis.</p>
+                          <h2 className="text-2xl font-black text-teal-600 tracking-tight leading-none mb-1.5 drop-shadow-sm">Skin Report</h2>
+                          <p className="text-xs text-black font-bold">Detailed clinical analysis.</p>
                       </div>
                       {userProfile.scanHistory && userProfile.scanHistory.length > 1 && (
                           <button onClick={onViewProgress} className="w-10 h-10 bg-white border border-zinc-200 rounded-full flex items-center justify-center text-zinc-500 hover:bg-zinc-50 hover:text-teal-600 transition-colors shadow-sm">
@@ -186,7 +186,7 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
                       )}
                   </div>
 
-                  <div className="bg-white rounded-[2rem] p-6 mb-8 border border-white shadow-xl shadow-zinc-200/50 relative overflow-hidden group">
+                  <div className="bg-white/80 rounded-[2rem] p-6 mb-8 border border-white shadow-xl shadow-zinc-200/50 relative overflow-hidden group">
                       <div className="absolute top-0 right-0 w-32 h-32 bg-teal-50 rounded-full -mr-10 -mt-10 blur-2xl group-hover:bg-teal-100/50 transition-colors opacity-60"></div>
                       <div className="relative z-10">
                           <div className="flex items-center gap-2 mb-3 text-teal-600">
@@ -220,8 +220,8 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
                   </div>
 
                   <div className="">
-                      <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-4 px-2">Key Metrics</h3>
-                      <div className="bg-white/60 backdrop-blur-sm rounded-[2rem] border border-white/60 p-4 shadow-sm space-y-1">
+                      <h3 className="text-[10px] font-bold text-white uppercase tracking-widest mb-4 px-2 drop-shadow-md">Key Metrics</h3>
+                      <div className="bg-white/40 backdrop-blur-md rounded-[2rem] border border-white/40 p-4 shadow-sm space-y-1">
                           <DetailRow label="Hydration" value={metrics.hydration} description={getMetricDesc(metrics.hydration)} icon={Droplet} />
                           <DetailRow label="Acne" value={metrics.acneActive} description={getMetricDesc(metrics.acneActive)} icon={Zap} />
                           <DetailRow label="Pigmentation" value={metrics.pigmentation} description={getMetricDesc(metrics.pigmentation)} icon={Sun} />
@@ -233,8 +233,8 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
 
           {/* --- SECTION 3: ADVANCED TOOLS (Snap 3) --- */}
           {/* INFOGRAPHIC STYLE / GLASS PROTOCOL */}
-          <section className="min-h-[85vh] w-full px-4 snap-section flex flex-col justify-center pb-20 pt-10">
-              <div className="rounded-[3rem] backdrop-blur-3xl bg-black/60 border border-white/10 p-8 shadow-2xl relative overflow-hidden">
+          <section className="min-h-[85vh] w-full px-2 snap-section flex flex-col justify-end pb-4 pt-12">
+              <div className="rounded-[2.5rem] backdrop-blur-3xl bg-black/60 border border-white/10 px-6 pt-12 pb-8 shadow-2xl relative overflow-hidden min-h-[55vh]">
                   
                   {/* Decorative Background Elements inside Glass */}
                   <div className="absolute top-0 right-0 w-64 h-64 bg-teal-500/10 rounded-full blur-[80px] pointer-events-none"></div>
