@@ -105,74 +105,54 @@ const pollForResult = async (requestId: string, key: string, attempts = 0): Prom
 
     await new Promise(r => setTimeout(r, 2000));
 
-    const statusResponse = await fetch(`https://queue.fal.run/${MODEL}/requests/${requestId}/status`, {
-        method: 'GET',
-        headers: {
-            'Authorization': `Key ${key}`,
-            'Content-Type': 'application/json',
-        },
-    });
+    try {
+        const statusResponse = await fetch(`https://queue.fal.run/${MODEL}/requests/${requestId}/status`, {
+            method: 'GET',
+            headers: {
+                'Authorization': `Key ${key}`,
+                'Content-Type': 'application/json',
+            },
+        });
 
-    if (!statusResponse.ok) {
-        // Fallback to generic endpoint
-        if (statusResponse.status === 404) {
-             const genericResponse = await fetch(`https://queue.fal.run/fal-ai/requests/${requestId}/status`, {
-                method: 'GET',
-                headers: {
-                    'Authorization': `Key ${key}`,
-                    'Content-Type': 'application/json',
-                },
-            });
-            if (!genericResponse.ok) throw new Error(`Failed to check status: ${genericResponse.status}`);
-            return processStatusResponse(await genericResponse.json(), requestId, key, attempts);
+        if (!statusResponse.ok) {
+            // Fallback for some models that use the generic endpoint
+            if (statusResponse.status === 404) {
+                 const genericResponse = await fetch(`https://queue.fal.run/fal-ai/requests/${requestId}/status`, {
+                    method: 'GET',
+                    headers: {
+                        'Authorization': `Key ${key}`,
+                        'Content-Type': 'application/json',
+                    },
+                });
+                if (!genericResponse.ok) throw new Error(`Failed to check status: ${genericResponse.status}`);
+                return processStatusResponse(await genericResponse.json(), requestId, key, attempts);
+            }
+            throw new Error(`Failed to check status: ${statusResponse.status}`);
         }
-        throw new Error(`Failed to check status: ${statusResponse.status}`);
-    }
 
-    const statusData = await statusResponse.json();
-    return processStatusResponse(statusData, requestId, key, attempts);
+        const statusData = await statusResponse.json();
+        return processStatusResponse(statusData, requestId, key, attempts);
+    } catch (e) {
+        console.warn("Polling error (retrying):", e);
+        return pollForResult(requestId, key, attempts + 1);
+    }
 };
 
 const processStatusResponse = async (statusData: any, requestId: string, key: string, attempts: number): Promise<string> => {
     if (statusData.status === 'COMPLETED') {
         const resultUrl = statusData.response_url;
-        if (!resultUrl) throw new Error("Completed but no result URL found in response.");
         
-        let resultJson;
-
-        try {
-            // Attempt 1: Fetch WITH headers (Standard Queue URL)
-            const response = await fetch(resultUrl, {
-                method: 'GET',
-                headers: { 'Authorization': `Key ${key}` }
-            });
-
-            if (response.ok) {
-                resultJson = await response.json();
-            } else if ([400, 401, 403].includes(response.status)) {
-                // Attempt 2: Fetch WITHOUT headers (Signed URL / Public URL)
-                console.warn(`Initial fetch failed (${response.status}), retrying without headers...`);
-                const retryResponse = await fetch(resultUrl);
-                if (!retryResponse.ok) {
-                    const errText = await retryResponse.text();
-                    throw new Error(`Failed to fetch result (Retry): ${retryResponse.status} ${errText}`);
-                }
-                resultJson = await retryResponse.json();
-            } else {
-                const errText = await response.text();
-                throw new Error(`Failed to fetch result: ${response.status} ${errText}`);
-            }
-        } catch (e: any) {
-            console.warn("Fetch error, attempting fallback without headers:", e);
-            // Attempt 3: Direct fetch fallback
-            const fallbackResponse = await fetch(resultUrl);
-            if (fallbackResponse.ok) {
-                resultJson = await fallbackResponse.json();
-            } else {
-                throw e; // Rethrow original or fallback error
-            }
+        // Sometimes the result is embedded directly in the status (rare but possible)
+        if (!resultUrl && (statusData.images || statusData.image)) {
+            return extractImageFromJson(statusData);
         }
 
+        if (!resultUrl) {
+            console.error("Completed status but no result URL:", statusData);
+            throw new Error("Completed but no result URL found in response.");
+        }
+        
+        const resultJson = await fetchResult(resultUrl, key);
         console.log("Fal Result JSON:", resultJson);
         const imageUrl = extractImageFromJson(resultJson);
         return imageUrl;
@@ -183,26 +163,88 @@ const processStatusResponse = async (statusData: any, requestId: string, key: st
     }
 
     return pollForResult(requestId, key, attempts + 1);
-}
+};
+
+// Robust fetcher that handles the Signed URL vs API URL header conflict
+const fetchResult = async (url: string, key: string): Promise<any> => {
+    // Check for indicators of a signed storage URL (GCS, S3, R2, etc)
+    // These URLs usually reject 'Authorization' headers with 403 Forbidden
+    const isSignedStorage = 
+        url.includes('googleapis.com') || 
+        url.includes('amazonaws.com') || 
+        url.includes('r2.cloudflarestorage.com') ||
+        url.includes('Signature=') ||
+        url.includes('X-Amz-Algorithm');
+
+    // Strategy 1: If it looks like storage, try NO headers first
+    if (isSignedStorage) {
+        try {
+            const res = await fetch(url);
+            if (res.ok) return await res.json();
+            // If failed, fall through to retry logic
+            console.warn(`Direct fetch failed for signed URL (${res.status}), trying fallback...`);
+        } catch (e) {
+            console.warn("Direct fetch network error, trying fallback...", e);
+        }
+    }
+
+    // Strategy 2: If it looks like a Fal API URL (fal.run or fal.media), try WITH headers first
+    // Or if Strategy 1 failed
+    try {
+        const resWithAuth = await fetch(url, {
+            headers: { 'Authorization': `Key ${key}` }
+        });
+        if (resWithAuth.ok) return await resWithAuth.json();
+        
+        // If Auth failed (403/401), it might actually be a public/signed URL misidentified
+        if ([401, 403, 400].includes(resWithAuth.status)) {
+             console.log("Auth fetch failed, retrying without headers...");
+             const resNoAuth = await fetch(url);
+             if (resNoAuth.ok) return await resNoAuth.json();
+             
+             const errText = await resNoAuth.text();
+             throw new Error(`Fetch failed (No Auth): ${resNoAuth.status} ${errText}`);
+        }
+        
+        const errText = await resWithAuth.text();
+        throw new Error(`Fetch failed (Auth): ${resWithAuth.status} ${errText}`);
+
+    } catch (e: any) {
+        // Final Hail Mary: Try simple fetch if we haven't already (e.g. if we started in Strategy 2 and crashed on network)
+        if (!isSignedStorage) {
+             try {
+                const resLastResort = await fetch(url);
+                if (resLastResort.ok) return await resLastResort.json();
+             } catch (e2) {}
+        }
+        throw e;
+    }
+};
 
 const extractImageFromJson = (json: any): string => {
-    // 1. Standard Flux Format
+    if (!json) throw new Error("Empty result JSON");
+
+    // 1. Standard Flux Format (Array of objects)
     if (json.images && Array.isArray(json.images) && json.images.length > 0) {
         return json.images[0].url;
     }
-    // 2. Single Image Format
+    // 2. Single Image Object
     if (json.image && json.image.url) {
         return json.image.url;
     }
-    // 3. Direct URL Format
-    if (json.url) {
+    // 3. Direct URL at root
+    if (json.url && typeof json.url === 'string') {
         return json.url;
     }
-    // 4. Fal standard file object
+    // 4. File object format
     if (json.file && json.file.url) {
         return json.file.url;
+    }
+    // 5. Sometimes Flux returns just { "image_url": "..." }
+    if (json.image_url) {
+        return json.image_url;
     }
     
     console.error("Unknown Fal Response Structure:", json);
     throw new Error("Invalid result format from Fal AI. Check console for details.");
-}
+};
