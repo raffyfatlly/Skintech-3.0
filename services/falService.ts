@@ -1,31 +1,11 @@
 
-// Model: Flux Dev Image-to-Image
-const MODEL = "fal-ai/flux/dev/image-to-image";
+// --- SEGMIND API SERVICE ---
+// Replaces Fal AI for image simulation using Segmind Workflow
 
-const getFalKey = (): string => {
-    try {
-        // @ts-ignore
-        if (typeof import.meta !== 'undefined' && import.meta.env) {
-            // @ts-ignore
-            if (import.meta.env.VITE_FAL_KEY) return import.meta.env.VITE_FAL_KEY;
-        }
-    } catch (e) {}
-    
-    try {
-        // @ts-ignore
-        if (typeof process !== 'undefined' && process.env && process.env.FAL_KEY) {
-            // @ts-ignore
-            return process.env.FAL_KEY;
-        }
-    } catch (e) {}
+const API_KEY = "SG_de94064f692ec7e7";
+const WORKFLOW_URL = "https://api.segmind.com/workflows/6852609b27e56a0a8b1ca485-v2";
 
-    return '';
-};
-
-// Initialize once
-const FAL_KEY = getFalKey();
-
-// Helper: Resize image to reduce payload size and API cost
+// Helper: Resize image to reduce payload size and API latency
 const resizeImage = (base64Str: string, maxDimension: number = 1024): Promise<string> => {
     return new Promise((resolve) => {
         const img = new Image();
@@ -52,7 +32,8 @@ const resizeImage = (base64Str: string, maxDimension: number = 1024): Promise<st
             const ctx = canvas.getContext('2d');
             if (ctx) {
                 ctx.drawImage(img, 0, 0, width, height);
-                resolve(canvas.toDataURL('image/jpeg', 0.95));
+                // Use slightly lower quality to ensure fast upload
+                resolve(canvas.toDataURL('image/jpeg', 0.90));
             } else {
                 resolve(base64Str);
             }
@@ -62,169 +43,136 @@ const resizeImage = (base64Str: string, maxDimension: number = 1024): Promise<st
 };
 
 export const upscaleImage = async (imageBase64: string): Promise<string> => {
-    const currentKey = FAL_KEY || getFalKey();
-
-    if (!currentKey) {
-        console.error("FAL_KEY Missing. Please add VITE_FAL_KEY to your environment variables.");
-        throw new Error("System Error: FAL_KEY Missing.");
-    }
-
+    // 1. Optimize Image
     const optimizedImage = await resizeImage(imageBase64, 1024);
 
-    // Submit Request to Queue
-    const response = await fetch(`https://queue.fal.run/${MODEL}`, {
+    // 2. Queue the Request (Initial POST)
+    const response = await fetch(WORKFLOW_URL, {
         method: 'POST',
         headers: {
-            'Authorization': `Key ${currentKey}`,
+            'Authorization': `Bearer ${API_KEY}`,
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-            image_url: optimizedImage,
-            prompt: "clinical dermatology photography, perfect healthy skin texture, reduced redness, reduced acne, clear pores, even skin tone, natural lighting, hyperrealistic, 8k resolution, soft focus background",
-            strength: 0.35, 
-            guidance_scale: 3.5,
-            num_inference_steps: 24, 
-            enable_safety_checker: false,
-            seed: Math.floor(Math.random() * 1000000) 
+            "input_image": optimizedImage 
         }),
     });
 
     if (!response.ok) {
-        const err = await response.text();
-        console.error("Fal AI Error Detail:", err);
-        if (response.status === 401) throw new Error("Fal AI Unauthorized: Invalid API Key.");
-        throw new Error(`Fal AI Error: ${response.status} ${err}`);
+        const errText = await response.text();
+        console.error("Segmind API Error:", errText);
+        throw new Error(`Segmind Error: ${response.status} ${errText}`);
     }
 
-    const { request_id } = await response.json();
-    return pollForResult(request_id, currentKey);
-};
+    const data = await response.json();
+    console.log("Segmind Request Queued:", data);
 
-const pollForResult = async (requestId: string, key: string, attempts = 0): Promise<string> => {
-    if (attempts > 60) throw new Error("Simulation timeout. Server is busy."); 
-
-    await new Promise(r => setTimeout(r, 2000));
-
-    try {
-        const statusResponse = await fetch(`https://queue.fal.run/${MODEL}/requests/${requestId}/status`, {
-            method: 'GET',
-            headers: {
-                'Authorization': `Key ${key}`,
-                'Content-Type': 'application/json',
-            },
-        });
-
-        if (!statusResponse.ok) {
-            // Fallback for generic endpoint
-            if (statusResponse.status === 404) {
-                 const genericResponse = await fetch(`https://queue.fal.run/fal-ai/requests/${requestId}/status`, {
-                    method: 'GET',
-                    headers: {
-                        'Authorization': `Key ${key}`,
-                        'Content-Type': 'application/json',
-                    },
-                });
-                if (!genericResponse.ok) throw new Error(`Failed to check status: ${genericResponse.status}`);
-                return processStatusResponse(await genericResponse.json(), requestId, key, attempts);
-            }
-            throw new Error(`Failed to check status: ${statusResponse.status}`);
-        }
-
-        const statusData = await statusResponse.json();
-        return processStatusResponse(statusData, requestId, key, attempts);
-    } catch (e) {
-        console.warn("Polling error (retrying):", e);
-        return pollForResult(requestId, key, attempts + 1);
-    }
-};
-
-const processStatusResponse = async (statusData: any, requestId: string, key: string, attempts: number): Promise<string> => {
-    if (statusData.status === 'COMPLETED') {
-        
-        // 1. OPTIMIZATION: Check if result is embedded directly in status (Avoids extra fetch)
-        if (statusData.images && Array.isArray(statusData.images)) {
-            console.log("Fal Result embedded in status:", statusData);
-            return extractImageFromJson(statusData);
-        }
-        if (statusData.image && statusData.image.url) {
-            return statusData.image.url;
-        }
-
-        const resultUrl = statusData.response_url;
-        if (!resultUrl) {
-            console.error("Completed status but no result URL:", statusData);
-            throw new Error("Completed but no result URL found in response.");
-        }
-        
-        // 2. Fetch Result JSON from URL
-        const resultJson = await fetchResult(resultUrl, key);
-        console.log("Fal Result JSON fetched:", resultJson);
-        const imageUrl = extractImageFromJson(resultJson);
-        return imageUrl;
-    }
-
-    if (statusData.status === 'FAILED') {
-        throw new Error(`Simulation failed: ${statusData.error || 'Unknown error'}`);
-    }
-
-    return pollForResult(requestId, key, attempts + 1);
-};
-
-// Robust fetcher: Tries NO HEADERS first (Public/Storage), then WITH HEADERS (API)
-const fetchResult = async (url: string, key: string): Promise<any> => {
-    // Attempt 1: Try without headers (Standard for signed storage URLs)
-    try {
-        const res = await fetch(url);
-        if (res.ok) return await res.json();
-        
-        // If 401/403, it might be an API endpoint requiring the Key
-        if (res.status !== 401 && res.status !== 403) {
-             console.warn(`Direct fetch failed with ${res.status}, trying fallback just in case...`);
-        }
-    } catch (e) {
-        console.warn("Direct fetch network error, trying fallback...", e);
-    }
-
-    // Attempt 2: Try with headers
-    try {
-        const resWithAuth = await fetch(url, {
-            headers: { 'Authorization': `Key ${key}` }
-        });
-        
-        if (resWithAuth.ok) return await resWithAuth.json();
-        
-        const errText = await resWithAuth.text();
-        throw new Error(`Fetch failed (Auth): ${resWithAuth.status} ${errText}`);
-    } catch (e: any) {
-        throw new Error(`Failed to fetch result from ${url}: ${e.message}`);
-    }
-};
-
-const extractImageFromJson = (json: any): string => {
-    if (!json) throw new Error("Empty result JSON");
-
-    // 1. Standard Flux Format (Array of objects)
-    // { "images": [ { "url": "..." } ] }
-    if (json.images && Array.isArray(json.images) && json.images.length > 0) {
-        return json.images[0].url;
-    }
-    // 2. Single Image Object
-    if (json.image && json.image.url) {
-        return json.image.url;
-    }
-    // 3. Direct URL at root
-    if (json.url && typeof json.url === 'string') {
-        return json.url;
-    }
-    // 4. File object format
-    if (json.file && json.file.url) {
-        return json.file.url;
-    }
-    // 5. Sometimes Flux returns just { "image_url": "..." }
-    if (json.image_url) {
-        return json.image_url;
+    // 3. Poll for Result
+    // Use the poll_url provided by the API
+    if (!data.poll_url) {
+        throw new Error("Segmind did not return a polling URL.");
     }
     
-    console.error("Unknown Fal Response Structure:", json);
-    throw new Error("Invalid result format from Fal AI. Check console for details.");
+    return pollForResult(data.poll_url);
+};
+
+const pollForResult = async (pollUrl: string): Promise<string> => {
+    let attempts = 0;
+    const maxAttempts = 60; // 60 * 3s = 3 minutes max timeout
+
+    while (attempts < maxAttempts) {
+        await new Promise(r => setTimeout(r, 3000)); // Poll every 3 seconds
+
+        try {
+            const response = await fetch(pollUrl, {
+                headers: {
+                    'Authorization': `Bearer ${API_KEY}`
+                }
+            });
+
+            if (!response.ok) {
+                console.warn(`Polling status: ${response.status}`);
+                continue; // Retry on network glitches
+            }
+
+            const result = await response.json();
+
+            if (result.status === 'COMPLETED') {
+                console.log("Segmind Generation Complete:", result);
+                
+                // Parse the output string if it's JSON
+                let outputs = result.output;
+                if (typeof outputs === 'string') {
+                    try {
+                        outputs = JSON.parse(outputs);
+                    } catch (e) {
+                        console.warn("Could not parse output JSON string, using raw:", e);
+                    }
+                }
+                
+                return extractImage(outputs);
+            } 
+            else if (result.status === 'FAILED') {
+                throw new Error(result.error || 'Segmind Generation Failed');
+            }
+            // If PENDING, QUEUED, or PROCESSING, the loop continues
+        } catch (e) {
+            console.error("Polling error", e);
+            // If critical error, rethrow. Otherwise continue polling.
+            if ((e as Error).message.includes('Generation Failed')) throw e;
+        }
+        
+        attempts++;
+    }
+    
+    throw new Error("Timeout waiting for Segmind result");
+};
+
+const extractImage = (outputs: any): string => {
+    console.log("Segmind Outputs:", outputs);
+    
+    // Robust extraction logic for various Segmind workflow output formats
+    
+    // 1. Array format (Common)
+    if (Array.isArray(outputs) && outputs.length > 0) {
+        return normalizeImageStr(outputs[0]);
+    }
+    
+    // 2. Object format
+    if (typeof outputs === 'object' && outputs !== null) {
+        // Check common keys
+        if (outputs.image) return normalizeImageStr(outputs.image);
+        if (outputs.images && Array.isArray(outputs.images)) return normalizeImageStr(outputs.images[0]);
+        if (outputs.output_image) return normalizeImageStr(outputs.output_image);
+        
+        // Check values if keys are unknown (e.g. node IDs)
+        const values = Object.values(outputs);
+        for (const val of values) {
+            if (typeof val === 'string' && (val.startsWith('http') || val.length > 100)) {
+                return normalizeImageStr(val);
+            }
+            if (Array.isArray(val) && val.length > 0) {
+                return normalizeImageStr(val[0]);
+            }
+        }
+    }
+    
+    // 3. Raw String
+    if (typeof outputs === 'string') return normalizeImageStr(outputs);
+
+    throw new Error("Could not extract image from Segmind response");
+};
+
+const normalizeImageStr = (str: string): string => {
+    if (!str) return '';
+    
+    // If it's a URL, return as is
+    if (str.startsWith('http')) return str;
+    
+    // If it's base64, ensure it has the prefix
+    if (!str.startsWith('data:image')) {
+        return `data:image/jpeg;base64,${str}`;
+    }
+    
+    return str;
 };
