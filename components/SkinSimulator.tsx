@@ -1,7 +1,8 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import { UserProfile } from '../types';
-import { generateImprovementPlan, generateRetouchedImage } from '../services/geminiService';
+import { generateImprovementPlan } from '../services/geminiService';
+import { upscaleImage } from '../services/falService'; // Using Fal Service
 import { ArrowLeft, Sparkles, Loader, Activity, Microscope, Sun, Moon, Beaker, MoveHorizontal, Download, AlertCircle, ScanFace } from 'lucide-react';
 
 interface SkinSimulatorProps {
@@ -26,15 +27,14 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
     // Refs
     const containerRef = useRef<HTMLDivElement>(null);
 
-    // Helper: Resize image to prevent API Payload Limit errors (Free Tier Fix)
-    const optimizeImageForFreeTier = (base64Str: string): Promise<string> => {
+    // Helper: Resize image to prevent API Payload Limit errors (Good for Fal upload speed too)
+    const optimizeImageForUpload = (base64Str: string): Promise<string> => {
         return new Promise((resolve) => {
             const img = new Image();
             img.src = base64Str;
             img.onload = () => {
                 const canvas = document.createElement('canvas');
-                // Limit to 768px to ensure it fits comfortably within free tier payload limits
-                const MAX_DIM = 768; 
+                const MAX_DIM = 1024; // Fal supports higher res
                 let width = img.width;
                 let height = img.height;
 
@@ -55,8 +55,7 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                 const ctx = canvas.getContext('2d');
                 if (ctx) {
                     ctx.drawImage(img, 0, 0, width, height);
-                    // Compress to JPEG 0.8 to further reduce size
-                    resolve(canvas.toDataURL('image/jpeg', 0.8));
+                    resolve(canvas.toDataURL('image/jpeg', 0.9));
                 } else {
                     resolve(base64Str);
                 }
@@ -94,20 +93,20 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
         setIsRetouching(true);
         setErrorText(null);
         try {
-            // 1. Optimize Image size for Free Tier API
-            const optimizedSource = await optimizeImageForFreeTier(sourceImage);
+            // 1. Optimize Image
+            const optimizedSource = await optimizeImageForUpload(sourceImage);
 
-            // 2. Call Gemini Service
-            const hdUrl = await generateRetouchedImage(optimizedSource);
+            // 2. Call Fal Service (Flux Model)
+            const hdUrl = await upscaleImage(optimizedSource);
             setRetouchedImage(hdUrl);
         } catch (e: any) {
             console.error("Retouch Failed", e);
-            if (e.message?.includes("429") || e.message?.includes("Quota")) {
-                setErrorText("Free Tier Limit Reached. Please try again in a minute.");
-            } else if (e.message?.includes("Safety")) {
-                setErrorText("AI Safety Filter triggered. Try a clearer photo.");
+            if (e.message?.includes("Missing FAL_KEY")) {
+                setErrorText("System Error: FAL Key Missing");
+            } else if (e.message?.includes("timeout")) {
+                setErrorText("Server Busy. Please try again.");
             } else {
-                setErrorText("Simulation Failed. Server might be busy.");
+                setErrorText("Simulation Failed. Please try again.");
             }
         } finally {
             setIsRetouching(false);
@@ -191,7 +190,7 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
                                     <div className="absolute inset-0 bg-teal-500 blur-xl opacity-20 rounded-full animate-pulse"></div>
                                     <Loader size={48} className="text-teal-400 animate-spin relative z-10" />
                                 </div>
-                                <p className="text-white font-bold text-xs uppercase tracking-widest animate-pulse">Processing Simulation...</p>
+                                <p className="text-white font-bold text-xs uppercase tracking-widest animate-pulse">Generating Projection...</p>
                             </div>
                         )}
 
@@ -239,7 +238,7 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack }) => {
 
                                 {/* "AI Enhanced" Badge */}
                                 <div className="absolute top-24 left-1/2 -translate-x-1/2 bg-teal-500/20 backdrop-blur-md text-teal-200 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest pointer-events-none border border-teal-500/30 shadow-lg animate-in fade-in slide-in-from-top-2">
-                                     SkinOS Projection
+                                     Flux Clinical Engine
                                  </div>
                             </>
                         )}
