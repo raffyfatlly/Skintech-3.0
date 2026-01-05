@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { UserProfile } from '../types';
 import { generateImprovementPlan } from '../services/geminiService';
 import { upscaleImage } from '../services/falService'; 
-import { ArrowLeft, Sparkles, Loader, Activity, Microscope, Sun, Moon, Beaker, MoveHorizontal, Download, AlertCircle, ScanFace, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Sparkles, Loader, Activity, Microscope, Sun, Moon, Beaker, MoveHorizontal, Download, AlertCircle, ScanFace, ChevronDown, ChevronUp, CheckCircle2 } from 'lucide-react';
 
 interface SkinSimulatorProps {
     user: UserProfile;
@@ -17,24 +17,24 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
     
     // AI State - Initialize from cached image if available
     const [isRetouching, setIsRetouching] = useState(false);
-    
-    // Initialize state from prop to ensure we have it immediately on mount
     const [retouchedImage, setRetouchedImage] = useState<string | null>(user.simulatedSkinImage || null);
-    
-    // hasAutoStarted should be true if we already have an image, preventing auto-run
     const [hasAutoStarted, setHasAutoStarted] = useState(!!user.simulatedSkinImage);
-    
     const [errorText, setErrorText] = useState<string | null>(null);
     
     // Plan State - Init from user profile
     const [plan, setPlan] = useState<any>(user.simulatedSkinPlan || null);
     const [isGeneratingPlan, setIsGeneratingPlan] = useState(false);
-    const [isPlanOpen, setIsPlanOpen] = useState(!!user.simulatedSkinPlan);
+    const [isPlanOpen, setIsPlanOpen] = useState(false); // Default closed to show image
+
+    // Scroll Spy State
+    const [activeStep, setActiveStep] = useState(0);
+    const stepRefs = useRef<(HTMLDivElement | null)[]>([]);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
 
     // Refs
     const containerRef = useRef<HTMLDivElement>(null);
 
-    // Helper: Resize image to prevent API Payload Limit errors (Good for upload speed too)
+    // Helper: Resize image
     const optimizeImageForUpload = (base64Str: string): Promise<string> => {
         return new Promise((resolve) => {
             const img = new Image();
@@ -71,27 +71,50 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
         });
     };
 
-    // Sync state if prop changes (e.g., fast update from parent)
+    // Sync state
     useEffect(() => {
         if (user.simulatedSkinImage && !retouchedImage) {
             setRetouchedImage(user.simulatedSkinImage);
-            setHasAutoStarted(true); // Ensure we mark as started so we don't regen
+            setHasAutoStarted(true);
         }
         if (user.simulatedSkinPlan && !plan) {
             setPlan(user.simulatedSkinPlan);
         }
     }, [user.simulatedSkinImage, user.simulatedSkinPlan]);
 
-    // AUTO RETOUCH TRIGGER
+    // Auto Retouch Trigger
     useEffect(() => {
-        // STRICT CONDITION: Only run if we have NO result, NO error, NOT running, and HAVEN'T started yet.
         const alreadyHasImage = !!retouchedImage || !!user.simulatedSkinImage;
-        
         if (!hasAutoStarted && !isRetouching && !alreadyHasImage && user.faceImage && !errorText) {
             setHasAutoStarted(true);
             handleAiRetouch(user.faceImage);
         }
     }, [hasAutoStarted, isRetouching, retouchedImage, user.faceImage, user.simulatedSkinImage, errorText]);
+
+    // Scroll Observer for Steps
+    useEffect(() => {
+        if (!isPlanOpen || !plan || !scrollContainerRef.current) return;
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const idx = Number(entry.target.getAttribute('data-index'));
+                    setActiveStep(idx);
+                }
+            });
+        }, {
+            root: scrollContainerRef.current,
+            threshold: 0.6, // Higher threshold for clearer snap detection
+            rootMargin: "0px"
+        });
+
+        stepRefs.current = stepRefs.current.slice(0, plan.weeks?.length || 0);
+        stepRefs.current.forEach(el => {
+            if (el) observer.observe(el);
+        });
+
+        return () => observer.disconnect();
+    }, [isPlanOpen, plan]);
 
     const handleInteraction = (clientX: number) => {
         if (!containerRef.current) return;
@@ -111,13 +134,11 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
     };
 
     const handleGeneratePlan = async (imgOverride?: string | any) => {
-        // Use override if string, otherwise fallback to state. (Handles event objects from onClick)
         const targetImage = (typeof imgOverride === 'string' ? imgOverride : null) || retouchedImage;
-        
         if (!user.faceImage || !targetImage) return;
         
         setIsGeneratingPlan(true);
-        setPlan(null); // Clear previous plan to show loading state
+        setPlan(null);
         
         try {
             const data = await generateImprovementPlan(user.faceImage, targetImage, user);
@@ -125,7 +146,7 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
             setIsPlanOpen(true);
             onUpdateUser({ 
                 ...user, 
-                simulatedSkinImage: targetImage, // Ensure consistent image state
+                simulatedSkinImage: targetImage, 
                 simulatedSkinPlan: data 
             }); 
         } catch (e) {
@@ -139,77 +160,52 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
         setIsRetouching(true);
         setErrorText(null);
         try {
-            // 1. Optimize Image
             const optimizedSource = await optimizeImageForUpload(sourceImage);
-
-            // 2. Call Service (Gemini Nano via Fal Service wrapper)
             const hdUrl = await upscaleImage(optimizedSource);
-            
-            // 3. Save & Cache Result
             setRetouchedImage(hdUrl);
-            
-            // Update user to save image but clear plan (it's new)
             onUpdateUser({ ...user, simulatedSkinImage: hdUrl, simulatedSkinPlan: undefined });
-            
-            // Stop Image Loader so user sees the face immediately
             setIsRetouching(false);
-
-            // 4. Auto-Generate Plan
             await handleGeneratePlan(hdUrl);
-            
         } catch (e: any) {
             console.error("Retouch Failed", e);
-            if (e.message?.includes("Missing API Key")) {
-                setErrorText("System Error: API Key Missing");
-            } else if (e.message?.includes("timeout")) {
-                setErrorText("Server Busy. Please try again.");
-            } else {
-                setErrorText(e.message || "Simulation Failed. Please try again.");
-            }
+            if (e.message?.includes("Missing API Key")) setErrorText("System Error: API Key Missing");
+            else if (e.message?.includes("timeout")) setErrorText("Server Busy. Please try again.");
+            else setErrorText(e.message || "Simulation Failed. Please try again.");
             setHasAutoStarted(false); 
             setIsRetouching(false);
         }
     };
 
-    const handleBackNav = () => {
-        if (plan && isPlanOpen) {
-            setIsPlanOpen(false);
-        } else {
-            onBack();
-        }
-    };
-
     return (
-        <div className="fixed inset-0 z-50 bg-black flex flex-col font-sans animate-in fade-in duration-500 overflow-y-auto">
-            {/* Header */}
+        <div className="fixed inset-0 z-[100] bg-black flex flex-col font-sans animate-in fade-in duration-700 overflow-hidden selection:bg-teal-500 selection:text-white">
+            
+            {/* Header (Fixed Top) */}
             <div className="absolute top-0 left-0 right-0 p-6 flex justify-between items-start z-40 pt-safe-top pointer-events-none">
                 <button 
-                    onClick={handleBackNav}
-                    className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/60 transition-colors border border-white/10 pointer-events-auto"
+                    onClick={onBack}
+                    className="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center text-white hover:bg-black/60 transition-colors border border-white/10 pointer-events-auto active:scale-95 shadow-lg"
                 >
                     <ArrowLeft size={20} />
                 </button>
                 <div className="bg-black/40 backdrop-blur-md px-4 py-2 rounded-full border border-white/10 shadow-lg pointer-events-auto">
-                    <span className="text-white text-xs font-bold uppercase tracking-widest flex items-center gap-2">
-                        <ScanFace size={12} className="text-teal-400" /> Glow Up Visualizer
+                    <span className="text-white text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
+                        <ScanFace size={14} className="text-teal-400" /> Glow Up Visualizer
                     </span>
                 </div>
             </div>
 
-            {/* MAIN CONTENT */}
-            <div className="flex-1 relative flex flex-col">
+            {/* MAIN CONTENT LAYER */}
+            <div className="flex-1 relative flex flex-col h-full">
                 
                 {/* IMAGE AREA */}
                 <div 
                     ref={containerRef}
-                    className="flex-1 w-full bg-zinc-900 relative overflow-hidden cursor-col-resize touch-none"
+                    className="absolute inset-0 bg-zinc-900 cursor-col-resize touch-none z-0"
                     onTouchMove={handleTouchMove}
                     onMouseMove={handleMouseMove}
                     onClick={handleMouseMove}
                 >
                     <div className="w-full h-full flex items-center justify-center relative">
-                        
-                        {/* 1. ORIGINAL IMAGE (Background / "Before") */}
                         {user.faceImage && (
                             <img 
                                 src={user.faceImage} 
@@ -217,14 +213,10 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
                                 alt="Original"
                             />
                         )}
-
-                        {/* 2. RETOUCHED IMAGE (Foreground / "After") - Only if ready */}
                         {retouchedImage && (
                             <div 
                                 className="absolute inset-0 w-full h-full"
-                                style={{ 
-                                    clipPath: `inset(0 ${100 - (sliderPos * 100)}% 0 0)` // Show left side (0 to slider)
-                                }}
+                                style={{ clipPath: `inset(0 ${100 - (sliderPos * 100)}% 0 0)` }}
                             >
                                 <img 
                                     src={retouchedImage} 
@@ -234,186 +226,212 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
                             </div>
                         )}
 
-                        {/* STATUS OVERLAYS */}
-                        
-                        {/* Loading / Processing */}
+                        {/* Loading State */}
                         {isRetouching && (
-                            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in">
-                                <div className="relative mb-6">
-                                    <div className="absolute inset-0 bg-teal-500 blur-xl opacity-20 rounded-full animate-pulse"></div>
-                                    <Loader size={48} className="text-teal-400 animate-spin relative z-10" />
+                            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-700">
+                                <div className="relative mb-8">
+                                    <div className="absolute inset-0 bg-teal-500 blur-2xl opacity-20 rounded-full animate-pulse"></div>
+                                    <div className="relative z-10 w-20 h-20 rounded-full border-2 border-teal-500/30 flex items-center justify-center animate-[spin_3s_linear_infinite]">
+                                        <div className="w-16 h-16 rounded-full border-t-2 border-teal-400"></div>
+                                    </div>
+                                    <Sparkles size={24} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-teal-400 animate-pulse" />
                                 </div>
-                                <p className="text-white font-bold text-xs uppercase tracking-widest animate-pulse">Generating Projection...</p>
+                                <p className="text-white font-bold text-xs uppercase tracking-[0.2em] animate-pulse">Visualising your glow up look...</p>
                             </div>
                         )}
 
                         {/* Error State */}
                         {errorText && (
                             <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/80 backdrop-blur-md animate-in fade-in p-6 text-center">
-                                <div className="w-16 h-16 bg-rose-500/20 rounded-full flex items-center justify-center mb-4 border border-rose-500/50">
-                                    <AlertCircle size={32} className="text-rose-500" />
-                                </div>
+                                <AlertCircle size={32} className="text-rose-500 mb-4" />
                                 <h3 className="text-white font-bold text-lg mb-2">Simulation Failed</h3>
-                                <p className="text-zinc-400 text-sm max-w-xs leading-relaxed mb-6 break-words">{errorText}</p>
-                                <button 
-                                    onClick={() => handleAiRetouch(user.faceImage!)}
-                                    className="bg-white text-zinc-900 px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest hover:bg-zinc-200 transition-colors"
-                                >
-                                    Try Again
-                                </button>
+                                <p className="text-zinc-400 text-sm max-w-xs leading-relaxed mb-6">{errorText}</p>
+                                <button onClick={() => handleAiRetouch(user.faceImage!)} className="bg-white text-zinc-900 px-6 py-3 rounded-full text-xs font-bold uppercase tracking-widest hover:bg-zinc-200 transition-colors">Try Again</button>
                             </div>
                         )}
                         
-                        {/* SLIDER CONTROLS (Only when result is ready) */}
+                        {/* Slider UI */}
                         {retouchedImage && !isRetouching && (
                             <>
-                                {/* Labels */}
-                                <div className="absolute top-1/2 left-4 -translate-y-1/2 bg-black/40 backdrop-blur-md text-white/90 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest pointer-events-none transition-opacity duration-300 shadow-lg border border-white/10" style={{ opacity: sliderPos > 0.1 ? 1 : 0 }}>
-                                    Projected
-                                </div>
-                                <div className="absolute top-1/2 right-4 -translate-y-1/2 bg-black/40 backdrop-blur-md text-white/90 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest pointer-events-none transition-opacity duration-300 shadow-lg border border-white/10" style={{ opacity: sliderPos < 0.9 ? 1 : 0 }}>
-                                    Current
-                                </div>
-                                
-                                {/* Separator Line */}
-                                <div 
-                                    className="absolute top-0 bottom-0 w-0.5 bg-white shadow-[0_0_15px_rgba(255,255,255,0.5)] pointer-events-none z-30"
-                                    style={{ left: `${sliderPos * 100}%` }}
-                                ></div>
-
-                                {/* Draggable Handle */}
-                                <div 
-                                    className="absolute top-1/2 w-10 h-10 -ml-5 -mt-5 bg-white rounded-full shadow-2xl flex items-center justify-center text-teal-600 pointer-events-none z-30 border-4 border-black/20"
-                                    style={{ left: `${sliderPos * 100}%` }}
-                                >
+                                <div className="absolute top-0 bottom-0 w-0.5 bg-teal-400/50 shadow-[0_0_15px_rgba(45,212,191,0.5)] pointer-events-none z-30" style={{ left: `${sliderPos * 100}%` }}></div>
+                                <div className="absolute top-1/2 w-12 h-12 -ml-6 -mt-6 bg-black/50 backdrop-blur-md rounded-full shadow-2xl flex items-center justify-center text-white pointer-events-none z-30 border border-white/20" style={{ left: `${sliderPos * 100}%` }}>
                                     <MoveHorizontal size={20} />
                                 </div>
-
-                                {/* "AI Enhanced" Badge */}
-                                <div className="absolute top-24 left-1/2 -translate-x-1/2 bg-teal-500/20 backdrop-blur-md text-teal-200 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest pointer-events-none border border-teal-500/30 shadow-lg animate-in fade-in slide-in-from-top-2">
-                                     Flux Clinical Engine
-                                 </div>
+                                <div className="absolute bottom-32 left-1/2 -translate-x-1/2 flex gap-12 pointer-events-none z-20">
+                                    <span className={`text-[10px] font-bold uppercase tracking-widest transition-opacity duration-300 ${sliderPos < 0.1 ? 'opacity-0' : 'opacity-60 text-white'}`}>Original</span>
+                                    <span className={`text-[10px] font-bold uppercase tracking-widest transition-opacity duration-300 ${sliderPos > 0.9 ? 'opacity-0' : 'opacity-100 text-teal-400 shadow-black drop-shadow-md'}`}>Glow Up</span>
+                                </div>
                             </>
                         )}
                     </div>
                 </div>
 
-                {/* CONTROLS SHEET - Minimized */}
-                <div className={`bg-zinc-50 relative z-20 rounded-t-[2rem] p-6 shadow-[0_-10px_40px_-15px_rgba(0,0,0,0.5)] shrink-0 pb-safe transition-all duration-300 ${isPlanOpen ? 'min-h-[60vh]' : 'min-h-[auto]'}`}>
-                    
-                    {/* ROADMAP HEADER */}
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-xl bg-teal-50 flex items-center justify-center text-teal-600 border border-teal-100">
-                                <Activity size={18} />
+                {/* CONTROLS SHEET (Fixed Overlays) */}
+                {/* 1. Minimized View (Bottom Bar) - Hidden when plan is open */}
+                {/* CHANGED: Highly Transparent (bg-black/20) for better visibility of image */}
+                <div className={`absolute bottom-0 left-0 right-0 p-6 z-20 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${isPlanOpen ? 'translate-y-[150%]' : 'translate-y-0'}`}>
+                    <div className="bg-black/20 backdrop-blur-xl rounded-[2.5rem] p-6 shadow-2xl border border-white/10 ring-1 ring-white/5">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-2xl bg-teal-500/20 flex items-center justify-center text-teal-400 border border-teal-500/20 shadow-[0_0_15px_rgba(45,212,191,0.1)]">
+                                    <Activity size={20} />
+                                </div>
+                                <div>
+                                    <h3 className="text-sm font-bold text-white tracking-wide leading-none mb-1 shadow-black drop-shadow-sm">Clinical Protocol</h3>
+                                    <p className="text-[10px] font-medium text-white/70 uppercase tracking-widest shadow-black drop-shadow-sm">Achieve this result</p>
+                                </div>
                             </div>
-                            <div>
-                                <h3 className="text-sm font-black text-zinc-900 tracking-tight leading-none">Clinical Protocol</h3>
-                                <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-0.5">Achieve this result</p>
+                            
+                            <div className="flex gap-2">
+                                {retouchedImage && (
+                                    <a href={retouchedImage} download="skinos-projection.jpg" className="w-12 h-12 rounded-xl bg-white/10 border border-white/10 text-white/80 hover:text-white flex items-center justify-center transition-colors hover:bg-white/20"><Download size={18} /></a>
+                                )}
+                                
+                                {/* Buttons remain sleeker glass style */}
+                                {!plan && !isGeneratingPlan && !isRetouching && !errorText && (
+                                    <button onClick={() => handleGeneratePlan()} className="bg-white/10 border border-white/20 text-white px-6 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg flex items-center gap-2 hover:bg-white/20 transition-colors backdrop-blur-md"><Sparkles size={14} className="text-teal-400" /> Generate Plan</button>
+                                )}
+
+                                {(plan || isGeneratingPlan) && (
+                                    <button onClick={() => setIsPlanOpen(true)} className="bg-white/10 border border-white/20 text-white px-6 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg flex items-center gap-2 hover:bg-white/20 transition-colors backdrop-blur-md">
+                                        {isGeneratingPlan ? <Loader size={14} className="animate-spin text-teal-400" /> : <ChevronUp size={14} />} View Plan
+                                    </button>
+                                )}
                             </div>
                         </div>
-                        
-                        <div className="flex gap-2">
-                            {retouchedImage && (
-                                <a 
-                                    href={retouchedImage} 
-                                    download="skinos-projection.jpg" 
-                                    className="bg-white border border-teal-100 text-teal-600 px-4 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:bg-teal-50 transition-colors flex items-center gap-2"
-                                >
-                                    <Download size={12} /> Save
-                                </a>
-                            )}
+                    </div>
+                </div>
 
-                            {/* Show generate button if no plan and not auto-generating yet (fallback) */}
-                            {!plan && !isGeneratingPlan && !isRetouching && !errorText && (
-                                <button 
-                                    onClick={() => handleGeneratePlan()}
-                                    className="bg-zinc-900 text-white px-5 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg hover:bg-zinc-800 transition-colors flex items-center gap-2"
-                                >
-                                    <Sparkles size={12} className="text-amber-300" /> Generate Plan
-                                </button>
-                            )}
-
-                            {plan && !isPlanOpen && (
-                                <button 
-                                    onClick={() => setIsPlanOpen(true)}
-                                    className="bg-teal-600 text-white px-5 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg hover:bg-teal-700 transition-colors flex items-center gap-2"
-                                >
-                                    <ChevronDown size={12} /> View Plan
-                                </button>
-                            )}
+                {/* 2. Maximized View (Full Sheet) - Slides up */}
+                {/* CHANGED: Light Grey Transparent Theme (bg-zinc-50/90) like Skin Report */}
+                <div 
+                    className={`absolute left-0 right-0 bottom-0 bg-zinc-50/90 backdrop-blur-3xl rounded-t-[3rem] shadow-[0_-20px_60px_-15px_rgba(0,0,0,0.8)] z-30 transition-all duration-700 cubic-bezier(0.19, 1, 0.22, 1) flex flex-col overflow-hidden border-t border-white/40 ${isPlanOpen ? 'top-[10%]' : 'top-[100vh]'}`}
+                >
+                    {/* Sheet Header */}
+                    <div className="px-8 pt-6 pb-4 shrink-0 border-b border-zinc-200/50 z-10 relative cursor-pointer" onClick={() => setIsPlanOpen(false)}>
+                        <div className="w-12 h-1.5 bg-zinc-300 rounded-full mx-auto mb-6"></div>
+                        <div className="flex justify-between items-end mb-2">
+                            <div>
+                                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-teal-500/30 bg-teal-500/10 mb-3">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse"></div>
+                                    <span className="text-[10px] font-bold text-teal-700 uppercase tracking-widest">Generated Plan</span>
+                                </div>
+                                <h2 className="text-3xl font-thin text-zinc-900 tracking-tighter">Clinical Protocol</h2>
+                            </div>
+                            <button onClick={(e) => { e.stopPropagation(); setIsPlanOpen(false); }} className="w-10 h-10 rounded-full bg-black/5 flex items-center justify-center text-zinc-500 hover:bg-black/10 transition-colors active:scale-95">
+                                <ChevronDown size={20} />
+                            </button>
                         </div>
                     </div>
 
-                    {/* PLAN CONTENT */}
-                    {isGeneratingPlan && (
-                        <div className="py-8 text-center animate-in fade-in">
-                            <div className="flex justify-center gap-2 mb-3">
-                                <div className="w-2 h-2 bg-teal-500 rounded-full animate-bounce"></div>
-                                <div className="w-2 h-2 bg-teal-500 rounded-full animate-bounce delay-100"></div>
-                                <div className="w-2 h-2 bg-teal-500 rounded-full animate-bounce delay-200"></div>
+                    {/* Scrollable Content with Snap */}
+                    <div ref={scrollContainerRef} className="flex-1 overflow-y-auto pb-safe scroll-smooth snap-y snap-mandatory relative scrollbar-hide">
+                        
+                        {isGeneratingPlan && (
+                            <div className="h-full flex flex-col items-center justify-center p-8 text-center">
+                                <div className="relative mb-6">
+                                    <div className="w-16 h-16 rounded-full border-t-2 border-teal-500 animate-spin"></div>
+                                    <Microscope className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-teal-600" size={24} />
+                                </div>
+                                <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest animate-pulse">Analyzing Transformation...</p>
                             </div>
-                            <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">Designing Protocol...</p>
-                        </div>
-                    )}
+                        )}
 
-                    {isPlanOpen && plan && (
-                        <div className="space-y-6 mt-6 animate-in slide-in-from-bottom-8 duration-700">
-                            <div className="bg-white p-5 rounded-2xl border border-zinc-100 shadow-sm relative overflow-hidden">
-                                <div className="absolute top-0 right-0 w-24 h-24 bg-teal-50 rounded-bl-full -mr-4 -mt-4 opacity-50 pointer-events-none"></div>
-                                <h4 className="text-xs font-bold text-zinc-900 uppercase tracking-widest mb-2 flex items-center gap-2 relative z-10">
-                                    <Microscope size={14} className="text-teal-500" /> AI Analysis
-                                </h4>
-                                <p className="text-xs text-zinc-600 font-medium leading-relaxed relative z-10">
-                                    {plan.analysis}
-                                </p>
-                            </div>
-
-                            <div className="relative pl-4 space-y-6">
-                                <div className="absolute left-[27px] top-4 bottom-4 w-0.5 bg-zinc-200 border-l border-dashed border-zinc-300"></div>
-
-                                {plan.weeks?.map((week: any, i: number) => (
-                                    <div key={i} className="relative z-10">
-                                        <div className="absolute -left-1 w-14 h-14 rounded-full bg-zinc-50 border-4 border-white flex items-center justify-center shadow-md z-20 text-zinc-400 font-black text-sm">
-                                            {i + 1}
+                        {plan && (
+                            <div className="p-6 space-y-8">
+                                {/* AI Analysis Summary - First Snap Item */}
+                                <div className="snap-start snap-always scroll-mt-6 mb-8">
+                                    <div className="bg-white/60 backdrop-blur-md p-8 rounded-[2.5rem] border border-white shadow-sm relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 p-6 opacity-10">
+                                            <Sparkles size={64} className="text-teal-600" />
                                         </div>
-
-                                        <div className="ml-16 bg-white rounded-2xl p-5 border border-zinc-100 shadow-sm relative group hover:border-teal-100 transition-colors">
-                                            <div className="mb-3">
-                                                <span className="text-[9px] font-bold text-teal-600 bg-teal-50 px-2 py-1 rounded mb-1 inline-block uppercase tracking-wide border border-teal-100">
-                                                    {week.title}
-                                                </span>
-                                                <h4 className="text-sm font-black text-zinc-900 tracking-tight">
-                                                    {week.phaseName || "Treatment Phase"}
-                                                </h4>
+                                        <div className="relative z-10">
+                                            <div className="flex items-center gap-2 mb-4 text-teal-600">
+                                                <Microscope size={18} />
+                                                <span className="text-[10px] font-bold uppercase tracking-widest">AI Dermatologist Analysis</span>
                                             </div>
-
-                                            <div className="space-y-3">
-                                                <div className="flex gap-3 items-start">
-                                                    <Sun size={14} className="text-amber-500 shrink-0 mt-0.5" />
-                                                    <p className="text-xs text-zinc-600 font-medium leading-snug">{week.morning}</p>
-                                                </div>
-                                                <div className="flex gap-3 items-start">
-                                                    <Moon size={14} className="text-indigo-500 shrink-0 mt-0.5" />
-                                                    <p className="text-xs text-zinc-600 font-medium leading-snug">{week.evening}</p>
-                                                </div>
-                                            </div>
-
-                                            <div className="mt-4 pt-3 border-t border-zinc-50 flex flex-wrap gap-2">
-                                                {week.ingredients?.map((ing: string, idx: number) => (
-                                                    <div key={idx} className="flex items-center gap-1.5 bg-zinc-50 px-2 py-1 rounded-lg text-zinc-500">
-                                                        <Beaker size={10} />
-                                                        <span className="text-[9px] font-bold uppercase tracking-wide">{ing}</span>
-                                                    </div>
-                                                ))}
-                                            </div>
+                                            <p className="text-sm text-zinc-600 font-medium leading-relaxed">{plan.analysis}</p>
                                         </div>
                                     </div>
-                                ))}
+                                </div>
+
+                                {/* Roadmap Line */}
+                                <div className="relative pl-4 space-y-2">
+                                    {/* Vertical Line */}
+                                    <div className="absolute top-8 bottom-8 left-[19px] w-0.5 border-l-2 border-dashed border-zinc-300"></div>
+
+                                    {plan.weeks?.map((week: any, i: number) => {
+                                        const isActive = activeStep === i;
+                                        
+                                        return (
+                                            <div 
+                                                key={i} 
+                                                ref={el => stepRefs.current[i] = el}
+                                                data-index={i}
+                                                // Increased height to 50vh to force distinct snapping
+                                                className={`relative pl-10 transition-all duration-700 snap-start snap-always min-h-[50vh] flex flex-col justify-center py-8 ${isActive ? 'opacity-100 scale-100' : 'opacity-40 scale-95 blur-[1px]'}`}
+                                            >
+                                                {/* Number Bubble */}
+                                                <div 
+                                                    className={`absolute left-0 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full border-4 border-zinc-100 flex items-center justify-center font-black text-sm transition-all duration-500 shadow-lg z-10 ${isActive ? 'bg-teal-500 text-white scale-110 shadow-teal-500/20 border-white' : 'bg-white text-zinc-400 border-zinc-200'}`}
+                                                >
+                                                    {i + 1}
+                                                </div>
+
+                                                <div className={`bg-white/80 backdrop-blur-md rounded-[2rem] p-6 border transition-all duration-500 ${isActive ? 'border-teal-100 shadow-xl ring-1 ring-teal-50' : 'border-white/60'}`}>
+                                                    <div className="flex justify-between items-start mb-6">
+                                                        <div>
+                                                            <div className="flex items-center gap-2 mb-2">
+                                                                <span className={`text-[9px] font-bold px-2 py-1 rounded uppercase tracking-wide border inline-block ${isActive ? 'bg-teal-50 text-teal-700 border-teal-100' : 'bg-zinc-100 text-zinc-500 border-zinc-200'}`}>
+                                                                    {week.title}
+                                                                </span>
+                                                            </div>
+                                                            <h3 className="text-xl font-thin text-zinc-900 tracking-tight">{week.phaseName}</h3>
+                                                        </div>
+                                                        {isActive && <CheckCircle2 size={20} className="text-teal-500" />}
+                                                    </div>
+
+                                                    <div className="space-y-6 mb-6">
+                                                        <div className="flex gap-4 group">
+                                                            <div className="w-10 h-10 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-500 shrink-0 border border-amber-100 group-hover:scale-110 transition-transform"><Sun size={18} /></div>
+                                                            <div className="pt-1">
+                                                                <span className="text-[10px] font-bold text-amber-600/80 uppercase tracking-widest block mb-1">Morning Routine</span>
+                                                                <p className="text-xs text-zinc-600 font-medium leading-relaxed">{week.morning}</p>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex gap-4 group">
+                                                            <div className="w-10 h-10 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-500 shrink-0 border border-indigo-100 group-hover:scale-110 transition-transform"><Moon size={18} /></div>
+                                                            <div className="pt-1">
+                                                                <span className="text-[10px] font-bold text-indigo-600/80 uppercase tracking-widest block mb-1">Evening Routine</span>
+                                                                <p className="text-xs text-zinc-600 font-medium leading-relaxed">{week.evening}</p>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {week.ingredients && (
+                                                        <div className="flex flex-wrap gap-2 pt-5 border-t border-zinc-100">
+                                                            {week.ingredients.map((ing: string, idx: number) => (
+                                                                <span key={idx} className="bg-zinc-50 text-zinc-600 px-3 py-1.5 rounded-lg text-[10px] font-bold border border-zinc-100 flex items-center gap-1.5 hover:bg-white transition-colors cursor-default">
+                                                                    <Beaker size={10} className="text-teal-500" /> {ing}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
                             </div>
+                        )}
+                        
+                        {/* Footer Spacer */}
+                        <div className="h-32 flex items-center justify-center opacity-30 pb-10">
+                            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-[0.3em]">End of Protocol</span>
                         </div>
-                    )}
+                    </div>
                 </div>
+
             </div>
         </div>
     );

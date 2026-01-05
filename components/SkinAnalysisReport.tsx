@@ -1,7 +1,7 @@
 
-import React from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { UserProfile, Product } from '../types';
-import { TrendingUp, Play, Droplet, Zap, ShieldCheck, Activity, ScanFace, Sun, ChevronUp, Sparkles, ArrowRight, Microscope, Dna, Layers } from 'lucide-react';
+import { TrendingUp, Play, Droplet, Zap, ShieldCheck, Activity, ScanFace, Sun, ChevronUp, ChevronDown, Sparkles, ArrowRight, Microscope, Dna, Layers, ScanBarcode } from 'lucide-react';
 
 interface SkinAnalysisReportProps {
   userProfile: UserProfile;
@@ -13,6 +13,7 @@ interface SkinAnalysisReportProps {
   onLoginRequired: (reason: string) => void;
   onUnlockPremium: () => void;
   onOpenSimulator: () => void;
+  onScanProduct: () => void;
 }
 
 // --- HORIZONTAL SCROLL ITEM (Top HUD) ---
@@ -79,10 +80,19 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
   onRescan,
   onViewProgress,
   onOpenRoutineBuilder,
-  onOpenSimulator
+  onOpenSimulator,
+  onScanProduct
 }) => {
   const metrics = userProfile.biometrics;
   const score = metrics.overallScore;
+  const [activeTool, setActiveTool] = useState(0);
+  const mainContainerRef = useRef<HTMLDivElement>(null);
+  const toolScrollRef = useRef<HTMLDivElement>(null);
+  const toolRefs = useRef<(HTMLDivElement | null)[]>([]);
+  
+  // Independent scroll trackers
+  const lastMainScrollY = useRef(0);
+  const lastToolScrollY = useRef(0);
 
   const getMetricDesc = (val: number) => {
       if (val >= 80) return "Optimal condition.";
@@ -90,22 +100,134 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
       return "Needs attention.";
   }
 
-  return (
-    <div className="relative w-full bg-black font-sans selection:bg-teal-100 selection:text-teal-900">
+  // --- INIT: HIDE NAV ON MOUNT (IMMERSIVE HERO) ---
+  useEffect(() => {
+      // Force hide the navigation bar when this component mounts (starts in Hero section)
+      window.dispatchEvent(new CustomEvent('set-bottom-nav-visibility', { detail: false }));
       
-      {/* GLOBAL SCROLL SNAP STYLES */}
-      <style>{`
-        html {
-            scroll-snap-type: y mandatory;
-        }
-        .snap-section {
-            scroll-snap-align: start;
-            scroll-snap-stop: always;
-        }
-      `}</style>
+      return () => {
+          // Restore navigation bar when unmounting
+          window.dispatchEvent(new CustomEvent('set-bottom-nav-visibility', { detail: true }));
+      };
+  }, []);
 
+  // --- TOOLS SCROLL SPY ---
+  useEffect(() => {
+      const el = toolScrollRef.current;
+      if (!el) return;
+
+      const observer = new IntersectionObserver((entries) => {
+          entries.forEach(entry => {
+              if (entry.isIntersecting) {
+                  const idx = Number(entry.target.getAttribute('data-index'));
+                  setActiveTool(idx);
+              }
+          });
+      }, {
+          root: el,
+          threshold: 0.6,
+          rootMargin: "0px"
+      });
+
+      toolRefs.current.forEach(r => { if (r) observer.observe(r); });
+      return () => observer.disconnect();
+  }, []);
+
+  // --- MAIN PAGE SCROLL HANDLER ---
+  const handleMainScroll = (e: React.UIEvent<HTMLDivElement>) => {
+      const currentScrollY = e.currentTarget.scrollTop;
+      const viewportHeight = e.currentTarget.clientHeight;
+      
+      // Determine if we are in the Hero Section (Section 1)
+      const isHeroSection = currentScrollY < (viewportHeight * 0.8); 
+
+      if (isHeroSection) {
+          // FORCE HIDE in Section 1
+          window.dispatchEvent(new CustomEvent('set-bottom-nav-visibility', { detail: false }));
+          lastMainScrollY.current = currentScrollY;
+          return;
+      }
+
+      // Check if we just transitioned FROM Hero TO Report (Section 2)
+      // Logic: If we are in Section 2, but just came from above, force show.
+      const inSection2 = currentScrollY >= (viewportHeight * 0.8) && currentScrollY < (viewportHeight * 1.8);
+      if (inSection2 && lastMainScrollY.current < (viewportHeight * 0.8)) {
+           window.dispatchEvent(new CustomEvent('set-bottom-nav-visibility', { detail: true }));
+           lastMainScrollY.current = currentScrollY;
+           return;
+      }
+
+      // Standard directional logic for main page
+      const threshold = 10; 
+      const diff = Math.abs(currentScrollY - lastMainScrollY.current);
+      
+      if (diff > threshold) {
+          if (currentScrollY > lastMainScrollY.current) {
+              // Scrolling Down -> Hide
+              window.dispatchEvent(new CustomEvent('set-bottom-nav-visibility', { detail: false }));
+          } else {
+              // Scrolling Up -> Show
+              window.dispatchEvent(new CustomEvent('set-bottom-nav-visibility', { detail: true }));
+          }
+          lastMainScrollY.current = currentScrollY;
+      }
+  };
+
+  // --- INNER TOOL SCROLL HANDLER ---
+  const handleToolScroll = (e: React.UIEvent<HTMLDivElement>) => {
+      const currentScrollY = e.currentTarget.scrollTop;
+      const threshold = 5; // Sensitive
+      
+      const diff = Math.abs(currentScrollY - lastToolScrollY.current);
+      
+      if (diff > threshold) {
+          if (currentScrollY > lastToolScrollY.current) {
+              // Scrolling Down in tools -> Hide Nav
+              window.dispatchEvent(new CustomEvent('set-bottom-nav-visibility', { detail: false }));
+          } else {
+              // Scrolling Up in tools -> Show Nav
+              window.dispatchEvent(new CustomEvent('set-bottom-nav-visibility', { detail: true }));
+          }
+          lastToolScrollY.current = currentScrollY;
+      }
+  };
+
+  const scrollToSection = (index: number) => {
+      if (mainContainerRef.current) {
+          const h = mainContainerRef.current.clientHeight;
+          mainContainerRef.current.scrollTo({ top: h * index, behavior: 'smooth' });
+      }
+  };
+
+  const tools = [
+      {
+          id: 0,
+          title: "Ingredient Scanner",
+          desc: "Instant safety check. Scan products to see match score.",
+          icon: ScanBarcode,
+          action: onScanProduct
+      },
+      {
+          id: 1,
+          title: "Glowup Visualizer",
+          desc: "Visualize ideal skin and generate clinical plans.",
+          icon: Dna,
+          action: onOpenSimulator
+      },
+      {
+          id: 2,
+          title: "Routine Architect",
+          desc: "Get recommended products tailored to your skin.",
+          icon: Layers,
+          action: onOpenRoutineBuilder
+      }
+  ];
+
+  return (
+    <div className="relative h-[100dvh] w-full bg-black font-sans selection:bg-teal-100 selection:text-teal-900 overflow-hidden">
+      
       {/* 1. FIXED BACKGROUND LAYER */}
-      <div className="fixed inset-0 z-0 h-full w-full bg-zinc-900">
+      <div className="fixed inset-0 z-0 h-full w-full bg-zinc-900 pointer-events-none">
           {userProfile.faceImage ? (
               <img 
                 src={userProfile.faceImage} 
@@ -116,14 +238,18 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
               <div className="w-full h-full bg-gradient-to-br from-zinc-800 to-black"></div>
           )}
           {/* Overlay for readability */}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60 pointer-events-none"></div>
+          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60"></div>
       </div>
 
-      {/* 2. SCROLLABLE CONTENT */}
-      <div className="relative z-10 w-full pb-safe">
+      {/* 2. SCROLLABLE CONTAINER (Full Page Snap) */}
+      <div 
+        ref={mainContainerRef}
+        className="relative z-10 w-full h-full overflow-y-auto snap-y snap-mandatory scroll-smooth scrollbar-hide"
+        onScroll={handleMainScroll}
+      >
           
           {/* --- SECTION 1: HERO (Snap 1) --- */}
-          <section className="h-[100dvh] w-full relative flex flex-col pt-safe-top snap-section shrink-0">
+          <section className="h-[100dvh] w-full relative flex flex-col pt-safe-top snap-start snap-always shrink-0">
               
               {/* Top Nav */}
               <div className="px-6 pt-8 flex justify-between items-center z-50 animate-in slide-in-from-top-4 duration-700">
@@ -140,8 +266,8 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
 
               <div className="flex-1"></div>
 
-              {/* Metrics Strip */}
-              <div className="mb-4 w-full animate-in slide-in-from-bottom-8 duration-700">
+              {/* Metrics Strip - Lowered (Less padding bottom) */}
+              <div className="mb-4 w-full animate-in slide-in-from-bottom-8 duration-700 pb-10">
                   <div className="flex items-end gap-8 overflow-x-auto px-6 pb-8 no-scrollbar snap-x snap-mandatory">
                       {/* Score */}
                       <div className="shrink-0 snap-center flex flex-col items-center justify-center pb-1">
@@ -160,25 +286,48 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
                       <MetricOrb label="Firmness" value={metrics.sagging} icon={ShieldCheck} delay={500} />
                       <div className="w-4 shrink-0"></div>
                   </div>
-                  <div className="absolute bottom-2 left-0 right-0 flex justify-center opacity-40 animate-pulse pointer-events-none">
-                      <ChevronUp size={20} className="text-white" />
+                  
+                  {/* Explicit Navigation Arrow to Section 2 */}
+                  <div className="absolute bottom-4 left-0 right-0 flex justify-center z-20">
+                      <button 
+                        onClick={() => scrollToSection(1)}
+                        className="animate-bounce p-2 rounded-full text-white/50 hover:text-white transition-colors"
+                      >
+                          <ChevronDown size={24} />
+                      </button>
                   </div>
               </div>
           </section>
 
           {/* --- SECTION 2: CLINICAL REPORT (Snap 2) --- */}
-          {/* Acts as a "White Glass Sheet" floating over the face */}
-          <section className="min-h-[85vh] w-full px-2 snap-section flex flex-col justify-end pb-4 pt-12">
-              <div className="bg-zinc-100/90 backdrop-blur-3xl border border-white/40 rounded-[2.5rem] px-6 pt-12 pb-8 shadow-2xl relative overflow-hidden min-h-[55vh]">
+          {/* Forced height to viewport for strict snap */}
+          <section className="h-[100dvh] w-full px-2 snap-start snap-always shrink-0 flex flex-col justify-end pb-4 pt-4 relative">
+              <div 
+                className="bg-zinc-100/90 backdrop-blur-3xl border border-white/40 rounded-[2.5rem] px-6 pt-12 pb-8 shadow-2xl relative overflow-y-auto scrollbar-hide h-[92vh] w-full"
+                onScroll={(e) => e.stopPropagation()} // Prevent bubble up if necessary, but actually we want main scroll on this overlay? No, this is content scroll.
+                // Actually this div has overflow-y-auto, so IT scrolls. We should attach handleMainScroll logic here too if we want nav bar to react to this content.
+                // Let's attach a simplified handler here.
+                onScrollCapture={(e) => {
+                    // Re-use logic but context is Section 2 content
+                    const currentY = e.currentTarget.scrollTop;
+                    const diff = Math.abs(currentY - lastMainScrollY.current);
+                    if (diff > 10) {
+                        if (currentY > lastMainScrollY.current) {
+                             window.dispatchEvent(new CustomEvent('set-bottom-nav-visibility', { detail: false }));
+                        } else {
+                             window.dispatchEvent(new CustomEvent('set-bottom-nav-visibility', { detail: true }));
+                        }
+                        lastMainScrollY.current = currentY;
+                    }
+                }}
+              >
                   
                   {/* Drag Handle */}
-                  <div className="absolute top-4 left-1/2 -translate-x-1/2 w-10 h-1 bg-zinc-300/50 rounded-full"></div>
+                  <div className="sticky top-0 left-1/2 -translate-x-1/2 w-10 h-1 bg-zinc-300/50 rounded-full mb-6 mx-auto"></div>
 
                   <div className="mb-8 flex justify-between items-end">
                       <div>
-                          {/* UPDATED: Dark Text for Light Theme */}
                           <h2 className="text-4xl font-thin text-zinc-900 tracking-tighter leading-none mb-1.5 drop-shadow-sm">Skin Report</h2>
-                          {/* UPDATED: Darker Teal for Contrast */}
                           <p className="text-xs text-teal-600 font-bold">Detailed clinical analysis.</p>
                       </div>
                       {userProfile.scanHistory && userProfile.scanHistory.length > 1 && (
@@ -231,90 +380,95 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
                           <DetailRow label="Texture" value={metrics.texture} description={getMetricDesc(metrics.texture)} icon={Activity} />
                       </div>
                   </div>
+
+                  {/* Scroll Down Hint Button */}
+                  <div className="flex justify-center pt-8 pb-4">
+                      <button 
+                        onClick={() => scrollToSection(2)}
+                        className="flex flex-col items-center gap-1 text-zinc-400 hover:text-teal-600 transition-colors animate-bounce"
+                      >
+                          <span className="text-[9px] font-bold uppercase tracking-widest">Clinical Protocol</span>
+                          <ChevronDown size={20} />
+                      </button>
+                  </div>
               </div>
           </section>
 
           {/* --- SECTION 3: ADVANCED TOOLS (Snap 3) --- */}
-          {/* INFOGRAPHIC STYLE / GLASS PROTOCOL */}
-          <section className="min-h-[85vh] w-full px-2 snap-section flex flex-col justify-end pb-4 pt-12">
-              <div className="rounded-[2.5rem] backdrop-blur-3xl bg-black/60 border border-white/10 px-6 pt-12 pb-8 shadow-2xl relative overflow-hidden min-h-[55vh]">
+          {/* Forced height to viewport for strict snap */}
+          <section className="h-[100dvh] w-full px-2 snap-start snap-always shrink-0 flex flex-col justify-end pb-4 pt-4">
+              <div className="rounded-[2.5rem] backdrop-blur-3xl bg-zinc-900/60 border border-white/10 shadow-2xl relative overflow-hidden h-[92vh] flex flex-col">
                   
-                  {/* Decorative Background Elements inside Glass */}
-                  <div className="absolute top-0 right-0 w-64 h-64 bg-teal-500/10 rounded-full blur-[80px] pointer-events-none"></div>
-                  <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-500/10 rounded-full blur-[80px] pointer-events-none"></div>
+                  {/* Decorative Background Elements (Subtle Uniform) */}
+                  <div className="absolute top-0 right-0 w-full h-full bg-gradient-to-b from-black/20 to-transparent pointer-events-none"></div>
 
-                  {/* Header */}
-                  <div className="mb-10 text-center relative z-10">
-                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/10 bg-white/5 backdrop-blur-md mb-3">
+                  {/* Scroll Up Cue - Explicit Back Button */}
+                  <div className="absolute top-6 right-6 z-20">
+                      <button 
+                        onClick={() => scrollToSection(1)}
+                        className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-colors"
+                      >
+                          <ChevronUp size={20} />
+                      </button>
+                  </div>
+
+                  {/* Header (Smaller, Thin Font) */}
+                  <div className="pt-12 pb-2 px-8 shrink-0 text-center relative z-10">
+                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/10 bg-white/5 backdrop-blur-md mb-6">
                           <div className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse"></div>
                           <span className="text-[10px] font-bold text-teal-200 uppercase tracking-widest">Next Steps</span>
                       </div>
-                      <h2 className="text-3xl font-black text-white tracking-tight">Active Protocol</h2>
-                      <p className="text-white/50 text-xs font-medium mt-2 max-w-[200px] mx-auto">
-                          AI-generated interventions based on your unique skin profile.
-                      </p>
+                      <h2 className="text-4xl font-thin text-white tracking-tighter leading-none">Active Protocol</h2>
                   </div>
 
-                  {/* Infographic Layout */}
-                  <div className="relative z-10 space-y-6">
-                      
-                      {/* TOOL 1: GLOWUP VISUALIZER */}
-                      <button 
-                          onClick={onOpenSimulator}
-                          className="group relative w-full text-left"
-                      >
-                          {/* Connecting Line (Gradient) */}
-                          <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-gradient-to-b from-teal-500/50 to-transparent group-hover:from-teal-400 transition-colors"></div>
-                          
-                          <div className="pl-12 relative">
-                              {/* Node Circle */}
-                              <div className="absolute left-4 top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-2 border-black bg-zinc-800 group-hover:bg-teal-400 group-hover:border-teal-400 transition-colors shadow-[0_0_10px_rgba(45,212,191,0.5)] z-20"></div>
-                              
-                              <div className="bg-white/5 border border-white/10 rounded-[2rem] p-6 backdrop-blur-md transition-all duration-300 group-hover:bg-white/10 group-hover:border-white/20 group-hover:translate-x-1 group-active:scale-[0.98] shadow-lg">
-                                  <div className="flex justify-between items-start mb-4">
-                                      <div className="p-3 bg-white/10 rounded-2xl text-teal-300 border border-white/5 shadow-inner">
-                                          <Dna size={24} />
+                  {/* Vertical Scroll List (Strict Snapping for Controlled Speed) */}
+                  <div 
+                      ref={toolScrollRef}
+                      className="flex-1 overflow-y-auto relative z-10 scroll-smooth snap-y snap-mandatory scrollbar-hide pb-safe pt-4"
+                      onScroll={handleToolScroll}
+                  >
+                      {tools.map((tool, i) => {
+                          const isActive = activeTool === i;
+                          return (
+                              <div 
+                                  key={i}
+                                  ref={el => toolRefs.current[i] = el}
+                                  data-index={i}
+                                  // ADDED snap-always to force stop
+                                  className="snap-start snap-always shrink-0 w-full h-full flex flex-col justify-center px-8"
+                              >
+                                  <button 
+                                      onClick={tool.action}
+                                      className={`text-left group transition-all duration-700 ${isActive ? 'opacity-100 scale-100 translate-y-0' : 'opacity-30 scale-95 translate-y-8 blur-[2px]'}`}
+                                  >
+                                      <div className="flex items-baseline gap-4 mb-4">
+                                          <span className={`text-8xl font-thin tracking-tighter transition-colors duration-500 leading-none ${isActive ? 'text-teal-400' : 'text-zinc-600'}`}>
+                                              0{i + 1}
+                                          </span>
                                       </div>
-                                      <ArrowRight size={20} className="text-white/20 group-hover:text-white transition-colors -rotate-45 group-hover:rotate-0 transform duration-300" />
-                                  </div>
-                                  
-                                  <h3 className="text-xl font-bold text-white mb-1">Glowup Visualizer</h3>
-                                  <p className="text-xs text-zinc-400 font-medium leading-relaxed">
-                                      Visualize your ideal skin and generate a clinical plan to achieve the result.
-                                  </p>
-                              </div>
-                          </div>
-                      </button>
-
-                      {/* TOOL 2: ROUTINE ARCHITECT */}
-                      <button 
-                          onClick={onOpenRoutineBuilder}
-                          className="group relative w-full text-left"
-                      >
-                          {/* Connecting Line */}
-                          <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-gradient-to-b from-transparent to-indigo-500/50 group-hover:to-indigo-400 transition-colors"></div>
-                          
-                          <div className="pl-12 relative">
-                              {/* Node Circle */}
-                              <div className="absolute left-4 top-1/2 -translate-y-1/2 -translate-x-1/2 w-4 h-4 rounded-full border-2 border-black bg-zinc-800 group-hover:bg-indigo-400 group-hover:border-indigo-400 transition-colors shadow-[0_0_10px_rgba(129,140,248,0.5)] z-20"></div>
-                              
-                              <div className="bg-white/5 border border-white/10 rounded-[2rem] p-6 backdrop-blur-md transition-all duration-300 group-hover:bg-white/10 group-hover:border-white/20 group-hover:translate-x-1 group-active:scale-[0.98] shadow-lg">
-                                  <div className="flex justify-between items-start mb-4">
-                                      <div className="p-3 bg-white/10 rounded-2xl text-indigo-300 border border-white/5 shadow-inner">
-                                          <Layers size={24} />
+                                      
+                                      <div className="pl-4 border-l-2 border-white/10 ml-2 py-4">
+                                          <h3 className={`text-5xl font-thin tracking-tighter mb-4 transition-colors ${isActive ? 'text-white' : 'text-zinc-500'}`}>
+                                              {tool.title}
+                                          </h3>
+                                          <p className={`text-base font-light leading-relaxed max-w-sm transition-colors ${isActive ? 'text-zinc-300' : 'text-zinc-700'}`}>
+                                              {tool.desc}
+                                          </p>
+                                          
+                                          <div className={`mt-8 flex items-center gap-3 text-xs font-bold uppercase tracking-widest transition-all ${isActive ? 'text-teal-400 translate-x-2' : 'text-zinc-700 opacity-0'}`}>
+                                              Open Tool <ArrowRight size={16} />
+                                          </div>
                                       </div>
-                                      <ArrowRight size={20} className="text-white/20 group-hover:text-white transition-colors -rotate-45 group-hover:rotate-0 transform duration-300" />
-                                  </div>
-                                  
-                                  <h3 className="text-xl font-bold text-white mb-1">Routine Architect</h3>
-                                  <p className="text-xs text-zinc-400 font-medium leading-relaxed">
-                                      Get recommended best-match products scientifically tailored to your skin.
-                                  </p>
+                                  </button>
                               </div>
-                          </div>
-                      </button>
-
+                          )
+                      })}
                   </div>
+                  
+                  {/* Fade gradients for scroll (Seamless blend) */}
+                  <div className="absolute top-36 left-0 right-0 h-32 bg-gradient-to-b from-zinc-900/0 to-transparent pointer-events-none z-20"></div>
+                  <div className="absolute bottom-0 left-0 right-0 h-40 bg-gradient-to-t from-zinc-900/80 to-transparent pointer-events-none z-20"></div>
+
               </div>
           </section>
 

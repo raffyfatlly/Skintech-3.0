@@ -26,59 +26,64 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ currentView, onNavi
 
   useEffect(() => {
     // 1. Special Case: Chat Assistant
-    // The chat page uses Flexbox layout where window scroll is irrelevant/zero.
-    // Always show nav to ensure accessibility.
     if (currentView === AppView.AI_ASSISTANT) {
         setIsVisible(true);
         return;
     }
 
-    const handleScroll = () => {
-      // Robust scroll detection for different browsers/structures
-      const currentScrollY = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop;
+    // 2. Custom Event Listener for Internal Scrollers (like Dashboard)
+    const handleCustomToggle = (e: any) => {
+        if (currentView === AppView.DASHBOARD) {
+            setIsVisible(e.detail);
+        }
+    };
+    window.addEventListener('set-bottom-nav-visibility', handleCustomToggle);
+
+    // 3. Window Scroll Listener (for Standard Pages)
+    const handleWindowScroll = () => {
+      // Ignore window scroll on Dashboard since it uses internal scrolling
+      if (currentView === AppView.DASHBOARD) return;
+
+      const currentScrollY = window.scrollY || document.documentElement.scrollTop;
       const threshold = 10; 
 
-      // 2. Dashboard Immersive Logic (Only for Dashboard)
-      // Hide nav at the very top (Hero section) to show full image.
-      if (currentView === AppView.DASHBOARD) {
-          if (currentScrollY < 100) {
-            setIsVisible(false);
-            lastScrollY.current = currentScrollY;
-            return;
-          }
-      } else {
-          // 3. Other Pages (Shelf, Profile, etc.)
-          // Standard behavior: Visible at top, auto-hide on scroll down.
-          if (currentScrollY < 50) {
-              setIsVisible(true);
-              lastScrollY.current = currentScrollY;
-              // Don't return, let the directional logic below run in case of rapid updates
-          }
+      // Show at top
+      if (currentScrollY < 50) {
+          setIsVisible(true);
+          lastScrollY.current = currentScrollY;
+          return;
       }
 
-      // 4. Directional Scroll Logic
+      // Directional Scroll Logic
       const diff = Math.abs(currentScrollY - lastScrollY.current);
-      const isScrollingUp = currentScrollY < lastScrollY.current;
-
-      // Only toggle state if movement is significant
+      
       if (diff > threshold) {
-        if (isScrollingUp) {
-            setIsVisible(true);
+        if (currentScrollY > lastScrollY.current) {
+            // Scrolling Down -> Hide
+            setIsVisible(false);
         } else {
-            setIsVisible(false); // Hide when scrolling down
+            // Scrolling Up -> Show
+            setIsVisible(true);
         }
       }
 
       lastScrollY.current = currentScrollY;
     };
 
-    // Attach to window immediately
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    
-    // Initial check on mount/view change
-    handleScroll();
+    // Only attach window scroll if NOT dashboard (optimization)
+    if (currentView !== AppView.DASHBOARD) {
+         window.addEventListener('scroll', handleWindowScroll, { passive: true });
+         // Check initial state
+         handleWindowScroll();
+    } else {
+         // Default to visible when mounting Dashboard
+         setIsVisible(true);
+    }
 
-    return () => window.removeEventListener('scroll', handleScroll);
+    return () => {
+        window.removeEventListener('set-bottom-nav-visibility', handleCustomToggle);
+        window.removeEventListener('scroll', handleWindowScroll);
+    };
   }, [currentView]); 
 
   const navItems = [

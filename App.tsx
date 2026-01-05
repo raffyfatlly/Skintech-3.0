@@ -534,6 +534,13 @@ const App: React.FC = () => {
                       onLoginRequired={(reason) => openAuth(reason as AuthTrigger)} 
                       onUnlockPremium={handleUnlockPremium}
                       onOpenSimulator={() => setCurrentView(AppView.SKIN_SIMULATOR)}
+                      onScanProduct={() => { 
+                          if (userProfile && !userProfile.isPremium && (userProfile.usage?.manualScans || 0) >= LIMIT_SCANS) { 
+                              handleUnlockPremium(); 
+                          } else { 
+                              setCurrentView(AppView.PRODUCT_SCANNER); 
+                          } 
+                      }}
                   />
               ) : null;
           case AppView.SKIN_SIMULATOR:
