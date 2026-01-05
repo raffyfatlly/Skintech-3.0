@@ -1,5 +1,5 @@
 
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { UserProfile, Product } from '../types';
 import { TrendingUp, Droplet, Zap, ShieldCheck, Activity, ScanFace, Sun, ChevronUp, ChevronDown, Sparkles, ArrowRight, Microscope, Dna, Layers, ScanBarcode } from 'lucide-react';
 
@@ -88,6 +88,102 @@ const MetricOrb = ({
         </button>
     );
 };
+
+const ComparisonWidget = ({ userScore, age, metric }: { userScore: number, age: number, metric: string }) => {
+    const [animate, setAnimate] = useState(false);
+    
+    // Dynamic Average Calculation based on Cohort (Age) + Metric Type
+    // High Score = Good Condition
+    const avgScore = useMemo(() => {
+        let base = 75;
+        let ageDelta = age - 25; // baseline age 25
+
+        switch (metric) {
+            case 'acneActive':
+                // Acne usually improves with age (Score goes UP)
+                // 18yo ~ 68, 40yo ~ 85
+                base = 72;
+                return Math.min(92, Math.round(base + (ageDelta * 0.4))); 
+            
+            case 'hydration':
+                // Hydration drops with age
+                // 25yo ~ 78, 60yo ~ 60
+                base = 78;
+                return Math.max(50, Math.round(base - (ageDelta * 0.3)));
+
+            case 'sagging':
+            case 'wrinkleFine':
+            case 'texture':
+                // Structural integrity drops with age
+                // 20yo ~ 88, 60yo ~ 55
+                base = 85;
+                return Math.max(45, Math.round(base - (ageDelta * 0.6)));
+
+            case 'pigmentation':
+                // Sun damage accumulates (Score drops)
+                base = 80;
+                return Math.max(50, Math.round(base - (ageDelta * 0.4)));
+
+            case 'redness':
+                // Generally stable, slightly lower for older (rosacea risk)
+                return 76;
+
+            default:
+                return 75;
+        }
+    }, [age, metric]);
+    
+    const diff = userScore - avgScore;
+    const isBetter = diff >= 0;
+
+    useEffect(() => {
+        const t = setTimeout(() => setAnimate(true), 200);
+        return () => clearTimeout(t);
+    }, []);
+
+    return (
+        <div className="w-full max-w-[260px] mt-8 bg-black/40 backdrop-blur-md rounded-2xl p-5 border border-white/10 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300 shadow-2xl">
+            <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-3">
+                <span className="text-[9px] font-bold text-white/50 uppercase tracking-widest">
+                    Avg for Age {age}
+                </span>
+                <span className={`text-[9px] font-bold uppercase tracking-wide ${isBetter ? 'text-emerald-400' : 'text-amber-400'}`}>
+                    {isBetter ? `Top ${Math.max(1, 50 - Math.round(diff * 1.5))}%` : 'Below Avg'}
+                </span>
+            </div>
+            
+            <div className="space-y-4">
+                {/* User Bar */}
+                <div className="relative">
+                    <div className="flex justify-between text-[10px] font-bold text-white mb-1.5">
+                        <span className="text-teal-300">You</span>
+                        <span>{userScore}</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
+                        <div 
+                            className="h-full bg-teal-400 shadow-[0_0_10px_#2dd4bf] transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)] rounded-full"
+                            style={{ width: animate ? `${userScore}%` : '0%' }}
+                        />
+                    </div>
+                </div>
+
+                {/* Average Bar */}
+                <div className="relative">
+                    <div className="flex justify-between text-[10px] font-bold text-zinc-400 mb-1.5">
+                        <span>Global Average</span>
+                        <span>{avgScore}</span>
+                    </div>
+                    <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
+                        <div 
+                            className="h-full bg-zinc-500/80 transition-all duration-1000 ease-out rounded-full"
+                            style={{ width: animate ? `${avgScore}%` : '0%' }}
+                        />
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
 
 const DetailRow = ({ label, value, description, icon: Icon }: { label: string, value: number, description: string, icon: any }) => {
     const getBarColor = (val: number) => {
@@ -272,6 +368,9 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
           <div className={`absolute inset-0 transition-opacity duration-1000 ${focusedMetric ? 'opacity-30' : 'opacity-0'}`}>
                <div className="absolute bottom-0 left-0 right-0 h-2/3 bg-gradient-to-t from-teal-950/80 to-transparent"></div>
           </div>
+
+          {/* NEW: Darker Overlay for Infographic Mode */}
+          <div className={`absolute inset-0 bg-black/80 transition-opacity duration-700 ease-out ${focusedMetric ? 'opacity-100' : 'opacity-0'}`}></div>
       </div>
 
       {/* 2. SCROLLABLE CONTAINER (Full Page Snap) */}
@@ -299,9 +398,9 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
 
               {/* NEW: TOP HUD ANALYSIS OVERLAY (Immersive Text) */}
               {focusedMetric && (
-                  <div className="absolute top-32 left-0 right-0 z-30 px-8 flex flex-col items-center text-center pointer-events-none">
+                  <div className="absolute top-24 left-0 right-0 z-30 px-8 flex flex-col items-center text-center pointer-events-none">
                       {/* Transition container */}
-                      <div className="animate-in fade-in slide-in-from-top-4 duration-500 ease-out">
+                      <div className="animate-in fade-in slide-in-from-top-4 duration-500 ease-out w-full flex flex-col items-center">
                           <div className="inline-flex items-center gap-2 mb-4 animate-in fade-in zoom-in duration-500">
                               <CurrentIcon size={18} className="text-teal-400 drop-shadow-[0_0_10px_rgba(45,212,191,0.5)]" strokeWidth={2} />
                               <span className="text-xs font-bold text-teal-400 uppercase tracking-[0.3em] drop-shadow-sm">
@@ -319,6 +418,13 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
                                   {displaySub}
                               </span>
                           </div>
+
+                          {/* COMPARISON WIDGET */}
+                          <ComparisonWidget 
+                              userScore={metrics[focusedMetric as keyof typeof metrics] as number} 
+                              age={userProfile.age} 
+                              metric={focusedMetric}
+                          />
                       </div>
                   </div>
               )}
@@ -344,8 +450,6 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
                               <span className="text-[9px] font-bold text-white/80 uppercase tracking-[0.2em] border-t border-white/20 pt-2 w-full text-center">
                                   {displayTitle}
                               </span>
-                              
-                              {/* CLEANED UP: No extra text here as requested */}
                           </div>
                       </div>
 
