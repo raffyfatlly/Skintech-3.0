@@ -179,13 +179,13 @@ const App: React.FC = () => {
       if (!userProfile) return;
       const currentWishlist = userProfile.wishlist || [];
       if (currentWishlist.some(p => p.name === product.name)) {
-          setNotification({ type: 'GENERIC', title: 'Already Saved', description: 'This product is already in your wishlist.', onClose: () => setNotification(null) });
+          setNotification({ type: 'GENERIC', title: 'Already Saved', description: 'This product is already in your wishlist.' });
           return;
       }
       const newWishlist = [...currentWishlist, product];
       const updatedUser = { ...userProfile, wishlist: newWishlist };
       persistState(updatedUser, shelf);
-      setNotification({ type: 'GENERIC', title: 'Saved!', description: 'Product added to wishlist.', onClose: () => setNotification(null) });
+      setNotification({ type: 'GENERIC', title: 'Saved!', description: 'Product added to wishlist.' });
   };
 
   const handleRemoveFromWishlist = (id: string) => {
@@ -201,7 +201,7 @@ const App: React.FC = () => {
       handleRemoveFromWishlist(product.id);
       const newShelf = [...shelf, product];
       persistState(userProfile, newShelf);
-      setNotification({ type: 'TASK_COMPLETE', title: 'Added to Routine', description: `${product.name} moved to shelf.`, onClose: () => setNotification(null) });
+      setNotification({ type: 'TASK_COMPLETE', title: 'Added to Routine', description: `${product.name} moved to shelf.` });
   };
 
   const handleBackgroundAnalysis = async (
@@ -251,8 +251,7 @@ const App: React.FC = () => {
                   actionLabel: 'View Results',
                   onAction: () => {
                       setCurrentView(AppView.BUYING_ASSISTANT);
-                  },
-                  onClose: () => setNotification(null)
+                  }
               });
           }
 
@@ -263,8 +262,7 @@ const App: React.FC = () => {
               title: 'Analysis Failed',
               description: 'We encountered an issue connecting to the AI service. Please try again.',
               actionLabel: 'OK',
-              onAction: () => {},
-              onClose: () => setNotification(null)
+              onAction: () => {}
           });
           if (viewRef.current === AppView.PRODUCT_SCANNER || viewRef.current === AppView.PRODUCT_SEARCH) {
               setCurrentView(AppView.SMART_SHELF);
@@ -303,8 +301,7 @@ const App: React.FC = () => {
                   title: 'Routine Ready',
                   description: `Found ${data.length} matches for ${category}.`,
                   actionLabel: 'View',
-                  onAction: () => setCurrentView(AppView.ROUTINE_BUILDER),
-                  onClose: () => setNotification(null)
+                  onAction: () => setCurrentView(AppView.ROUTINE_BUILDER)
               });
           }
       } catch (e) {
@@ -314,8 +311,7 @@ const App: React.FC = () => {
               title: 'Search Failed',
               description: 'Could not generate recommendations. Try simpler filters.',
               actionLabel: 'OK',
-              onAction: () => {},
-              onClose: () => setNotification(null)
+              onAction: () => {}
           });
           if (viewRef.current === AppView.ROUTINE_BUILDER) {
                setRoutineResults([]);
@@ -345,7 +341,7 @@ const App: React.FC = () => {
           saveUserData(currentUser, data.shelf);
           trackEvent('PAYMENT_SUCCESS_LOCAL');
           if (!auth?.currentUser) {
-             setNotification({ type: 'GENERIC', title: 'Premium Unlocked!', description: 'You now have unlimited access.', actionLabel: 'Great', onAction: () => {}, onClose: () => setNotification(null) });
+             setNotification({ type: 'GENERIC', title: 'Premium Unlocked!', description: 'You now have unlimited access.', actionLabel: 'Great', onAction: () => {} });
              window.history.replaceState({}, document.title, window.location.pathname);
           }
       }
@@ -376,7 +372,7 @@ const App: React.FC = () => {
                      currentUser = { ...currentUser, isPremium: true };
                      await saveUserData(currentUser, data.shelf);
                      trackEvent('PAYMENT_SUCCESS_CLOUD');
-                     setNotification({ type: 'GENERIC', title: 'Premium Unlocked!', description: 'Your account has been upgraded.', actionLabel: 'Awesome', onAction: () => {}, onClose: () => setNotification(null) });
+                     setNotification({ type: 'GENERIC', title: 'Premium Unlocked!', description: 'Your account has been upgraded.', actionLabel: 'Awesome', onAction: () => {} });
                      window.history.replaceState({}, document.title, window.location.pathname);
                 }
                 if (currentUser) {
@@ -489,7 +485,7 @@ const App: React.FC = () => {
       const updatedUser = { ...userProfile, isPremium: true };
       persistState(updatedUser, shelf);
       setShowPremiumModal(false);
-      setNotification({ type: 'GENERIC', title: 'Premium Unlocked!', description: 'Access code redeemed successfully.', actionLabel: 'Awesome', onAction: () => {}, onClose: () => setNotification(null) });
+      setNotification({ type: 'GENERIC', title: 'Premium Unlocked!', description: 'Access code redeemed successfully.', actionLabel: 'Awesome', onAction: () => {} });
   };
 
   const handleMockLogin = () => {
@@ -505,7 +501,7 @@ const App: React.FC = () => {
           persistState(updatedUser, shelf);
       }
       setShowSaveModal(false);
-      setNotification({ type: 'GENERIC', title: 'Account Synced', description: 'Your data is now saved to the cloud.', actionLabel: 'OK', onAction: () => {}, onClose: () => setNotification(null) });
+      setNotification({ type: 'GENERIC', title: 'Account Synced', description: 'Your data is now saved to the cloud.', actionLabel: 'OK', onAction: () => {} });
   };
 
   if (isAdminMode) return <AdminDashboard onExit={() => { setIsAdminMode(false); window.history.replaceState({}, document.title, window.location.pathname); }} />;
@@ -672,7 +668,6 @@ const App: React.FC = () => {
                       setCurrentView(AppView.PRODUCT_SCANNER);
                   }
               }}
-              onOpenAI={() => setCurrentView(AppView.AI_ASSISTANT)}
           />
       )}
 

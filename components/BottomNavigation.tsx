@@ -13,6 +13,17 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ currentView, onNavi
   const [isVisible, setIsVisible] = useState(false);
   const lastScrollY = useRef(0);
 
+  // Determine Theme based on View
+  // Dashboard is Dark (Immersive). All others are Light (Clinical/Clean).
+  const isLightTheme = [
+      AppView.SMART_SHELF, 
+      AppView.PROFILE_SETUP, 
+      AppView.ROUTINE_BUILDER, 
+      AppView.AI_ASSISTANT,
+      AppView.PRODUCT_SEARCH,
+      AppView.BUYING_ASSISTANT
+  ].includes(currentView);
+
   useEffect(() => {
     // 1. Special Case: Chat Assistant
     // The chat page uses Flexbox layout where window scroll is irrelevant/zero.
@@ -99,12 +110,20 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ currentView, onNavi
     }
   ];
 
+  const containerClasses = isLightTheme 
+      ? "bg-white/90 backdrop-blur-xl border-t border-zinc-200/50 shadow-[0_-10px_30px_rgba(0,0,0,0.05)]"
+      : "bg-black/40 backdrop-blur-2xl border-t border-white/10 shadow-2xl";
+
+  const scanButtonClasses = isLightTheme
+      ? "bg-zinc-900 text-white shadow-xl shadow-zinc-900/20 border border-zinc-800"
+      : "bg-white text-black shadow-[0_0_20px_rgba(255,255,255,0.3)] border border-white/50 ring-4 ring-black/20";
+
   return (
     <div 
         className={`fixed bottom-0 left-0 right-0 z-[100] transition-transform duration-500 cubic-bezier(0.32, 0.72, 0, 1) ${isVisible ? 'translate-y-0' : 'translate-y-[120%]'}`}
     >
-      {/* Immersive Dark Glass Navigation (Biomarker Style) */}
-      <div className="bg-black/40 backdrop-blur-2xl border-t border-white/10 pb-safe pt-3 px-6 shadow-2xl">
+      {/* Dynamic Navigation Bar */}
+      <div className={`${containerClasses} pb-safe pt-3 px-6 transition-colors duration-500`}>
         <div className="flex items-center justify-between max-w-md mx-auto">
           
           {navItems.map((item) => {
@@ -119,22 +138,30 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({ currentView, onNavi
                   onClick={onScan}
                   className="flex flex-col items-center justify-center gap-1 group -mt-10 relative z-10" 
                 >
-                  <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center text-black shadow-[0_0_20px_rgba(255,255,255,0.3)] group-active:scale-95 transition-transform border border-white/50 ring-4 ring-black/20">
+                  <div className={`w-14 h-14 rounded-full flex items-center justify-center group-active:scale-95 transition-all ${scanButtonClasses}`}>
                     <ScanBarcode size={24} strokeWidth={1.5} />
                   </div>
                 </button>
               );
             }
 
+            // Standard Icons
+            let iconColorClass = "";
+            if (isLightTheme) {
+                iconColorClass = isActive ? "text-teal-600 fill-teal-600/10" : "text-zinc-400 group-hover:text-zinc-600";
+            } else {
+                iconColorClass = isActive ? "text-teal-400 fill-teal-400/20" : "text-white/60 group-hover:text-white";
+            }
+
             return (
               <button
                 key={item.id}
                 onClick={() => onNavigate(item.id as AppView)}
-                className="flex flex-col items-center justify-center w-12 h-12 gap-1 active:scale-95 transition-transform"
+                className="flex flex-col items-center justify-center w-12 h-12 gap-1 active:scale-95 transition-transform group"
               >
                 <item.icon 
                   size={24} 
-                  className={isActive ? "text-teal-400 fill-teal-400/20" : "text-white/60"} 
+                  className={`transition-colors duration-300 ${iconColorClass}`} 
                   strokeWidth={1.5}
                 />
               </button>

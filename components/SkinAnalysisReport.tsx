@@ -43,7 +43,7 @@ const MetricOrb = ({
     );
 };
 
-// --- DETAIL ROW (Light Grey Theme) ---
+// --- DETAIL ROW (Light Glass Theme) ---
 const DetailRow = ({ label, value, description, icon: Icon }: { label: string, value: number, description: string, icon: any }) => {
     const getBarColor = (val: number) => {
         if (val >= 80) return 'bg-teal-500';
@@ -55,7 +55,7 @@ const DetailRow = ({ label, value, description, icon: Icon }: { label: string, v
         <div className="group py-4 border-b border-zinc-200/50 last:border-0 hover:bg-white/40 transition-colors rounded-xl px-2">
             <div className="flex justify-between items-end mb-2">
                 <div className="flex items-center gap-2.5">
-                    <div className="w-6 h-6 rounded-full bg-teal-50 flex items-center justify-center text-teal-600">
+                    <div className="w-6 h-6 rounded-full bg-teal-50 flex items-center justify-center text-teal-600 border border-teal-100/50">
                         <Icon size={12} />
                     </div>
                     <div>
@@ -67,7 +67,7 @@ const DetailRow = ({ label, value, description, icon: Icon }: { label: string, v
             <div className="h-1.5 bg-zinc-200/60 rounded-full overflow-hidden mb-2 ml-8.5 w-[calc(100%-2rem)]">
                 <div className={`h-full rounded-full ${getBarColor(value)} transition-all duration-1000 shadow-[0_0_10px_rgba(45,212,191,0.3)]`} style={{ width: `${value}%` }}></div>
             </div>
-            <p className="text-[10px] text-zinc-400 font-medium leading-relaxed pl-9">
+            <p className="text-[10px] text-zinc-500 font-medium leading-relaxed pl-9">
                 {description}
             </p>
         </div>
@@ -167,17 +167,19 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
           </section>
 
           {/* --- SECTION 2: CLINICAL REPORT (Snap 2) --- */}
-          {/* Acts as a "Paper Sheet" floating over the face */}
+          {/* Acts as a "White Glass Sheet" floating over the face */}
           <section className="min-h-[85vh] w-full px-2 snap-section flex flex-col justify-end pb-4 pt-12">
-              <div className="bg-zinc-100/60 backdrop-blur-3xl border border-white/20 rounded-[2.5rem] px-6 pt-12 pb-8 shadow-2xl relative overflow-hidden min-h-[55vh]">
+              <div className="bg-zinc-100/90 backdrop-blur-3xl border border-white/40 rounded-[2.5rem] px-6 pt-12 pb-8 shadow-2xl relative overflow-hidden min-h-[55vh]">
                   
                   {/* Drag Handle */}
-                  <div className="absolute top-4 left-1/2 -translate-x-1/2 w-10 h-1 bg-zinc-400/30 rounded-full"></div>
+                  <div className="absolute top-4 left-1/2 -translate-x-1/2 w-10 h-1 bg-zinc-300/50 rounded-full"></div>
 
                   <div className="mb-8 flex justify-between items-end">
                       <div>
-                          <h2 className="text-4xl font-thin text-teal-500 tracking-tighter leading-none mb-1.5 drop-shadow-sm">Skin Report</h2>
-                          <p className="text-xs text-black font-bold">Detailed clinical analysis.</p>
+                          {/* UPDATED: Dark Text for Light Theme */}
+                          <h2 className="text-4xl font-thin text-zinc-900 tracking-tighter leading-none mb-1.5 drop-shadow-sm">Skin Report</h2>
+                          {/* UPDATED: Darker Teal for Contrast */}
+                          <p className="text-xs text-teal-600 font-bold">Detailed clinical analysis.</p>
                       </div>
                       {userProfile.scanHistory && userProfile.scanHistory.length > 1 && (
                           <button onClick={onViewProgress} className="w-10 h-10 bg-white border border-zinc-200 rounded-full flex items-center justify-center text-zinc-500 hover:bg-zinc-50 hover:text-teal-600 transition-colors shadow-sm">
@@ -186,7 +188,8 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
                       )}
                   </div>
 
-                  <div className="bg-white/80 rounded-[2rem] p-6 mb-8 border border-white shadow-xl shadow-zinc-200/50 relative overflow-hidden group">
+                  {/* AI Dermatologist Box - White Glass */}
+                  <div className="bg-white/60 rounded-[2rem] p-6 mb-8 border border-white shadow-xl shadow-zinc-200/20 relative overflow-hidden group">
                       <div className="absolute top-0 right-0 w-32 h-32 bg-teal-50 rounded-full -mr-10 -mt-10 blur-2xl group-hover:bg-teal-100/50 transition-colors opacity-60"></div>
                       <div className="relative z-10">
                           <div className="flex items-center gap-2 mb-3 text-teal-600">
@@ -204,7 +207,7 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
                                           </p>
                                           <div className="space-y-2 mt-2">
                                               {metrics.analysisSummary.points?.slice(0,2).map((p: any, i: number) => (
-                                                  <div key={i} className="flex gap-3 items-start pl-3 border-l-2 border-teal-100">
+                                                  <div key={i} className="flex gap-3 items-start pl-3 border-l-2 border-teal-200">
                                                       <p className="text-xs text-zinc-500 leading-snug">
                                                           <span className="text-teal-700 font-bold">{p.subtitle}: </span>
                                                           {p.content}
@@ -220,7 +223,7 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
                   </div>
 
                   <div className="">
-                      <h3 className="text-[10px] font-bold text-white uppercase tracking-widest mb-4 px-2 drop-shadow-md">Key Metrics</h3>
+                      <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-4 px-2">Key Metrics</h3>
                       <div className="bg-white/40 backdrop-blur-md rounded-[2rem] border border-white/40 p-4 shadow-sm space-y-1">
                           <DetailRow label="Hydration" value={metrics.hydration} description={getMetricDesc(metrics.hydration)} icon={Droplet} />
                           <DetailRow label="Acne" value={metrics.acneActive} description={getMetricDesc(metrics.acneActive)} icon={Zap} />
