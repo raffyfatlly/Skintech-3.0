@@ -236,7 +236,7 @@ export const generateImprovementPlan = async (
         Explain to the patient in SIMPLE, EASY-TO-UNDERSTAND language:
         1. What specific issues are visible in their current skin (Image 1).
         2. How the simulated result (Image 2) looks better.
-        3. Which specific areas they need to focus on to get these results.
+        3. SUMMARY OF THE PLAN: Briefly explain the timeline and steps to get there (e.g., "We will spend the first 4 weeks repairing your barrier, then focus on clearing the spots...").
         
         DO NOT use complex medical jargon (e.g. say "pimples" not "inflammatory papules", say "redness" not "erythema").
         Keep it encouraging and clear.
@@ -246,7 +246,7 @@ export const generateImprovementPlan = async (
 
         OUTPUT JSON (Strict):
         {
-          "analysis": "Simple explanation for the patient. E.g., 'Your current skin shows some redness around the nose and active breakouts on the cheeks. The goal result shows calm, even-toned skin. To achieve this, we need to focus on soothing inflammation and keeping your pores clear.'",
+          "analysis": "Simple explanation for the patient. E.g., 'Your current skin shows [Issues]. The goal is [Result]. To achieve this, our plan covers 8 weeks: First we calm the redness, then we treat the texture.'",
           "weeks": [
             {
               "title": "Weeks 1-4",

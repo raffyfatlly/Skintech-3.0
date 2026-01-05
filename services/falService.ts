@@ -53,8 +53,9 @@ export const upscaleImage = async (imageBase64: string): Promise<string> => {
     // STRICT INSTRUCTION: Preserve facial hair and moles
     const prompt = "Clinical dermatology simulation. Transform the skin to be clear and healthy. " +
                    "1. Remove acne, redness, and active inflammation. " +
-                   "2. CRITICAL PRESERVATION: DO NOT REMOVE OR CHANGE MOLES, BEAUTY MARKS, OR FACIAL HAIR. " +
-                   "   - Beard, mustache, stubble, and peach fuzz must remain EXACTLY as they are. " +
+                   "2. CRITICAL PRESERVATION: DO NOT ADD, EDIT, OR REMOVE ANY FACIAL HAIR. " +
+                   "   - Existing beard, mustache, stubble, and peach fuzz must remain EXACTLY as they are in the original image. " +
+                   "   - Do not hallucinate new hair. Do not remove existing hair. " +
                    "   - Moles and birthmarks are permanent features; keep them 100% identical. " +
                    "3. Keep lighting, shadows, and color tone exactly consistent with the original. " +
                    "4. ALIGNMENT IS PARAMOUNT: The output must align pixel-for-pixel with the input. Do not crop, zoom, rotate, or morph features.";
