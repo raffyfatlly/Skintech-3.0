@@ -40,7 +40,8 @@ import SplashScreen from './components/SplashScreen';
 import SkinSimulator from './components/SkinSimulator';
 import BottomNavigation from './components/BottomNavigation';
 
-const LIMIT_SCANS = 3;
+const LIMIT_SCANS = 3; // Face & Product
+const LIMIT_TOOLS = 1; // Routine & Simulator
 
 const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<AppView>(AppView.LANDING);
@@ -169,8 +170,8 @@ const App: React.FC = () => {
 
   const incrementUsage = (type: keyof UsageStats) => {
       if (!userProfile) return;
-      const currentUsage = userProfile.usage || { buyingAssistantViews: 0, manualScans: 0, routineGenerations: 0 };
-      const newUsage = { ...currentUsage, [type]: currentUsage[type] + 1 };
+      const currentUsage = userProfile.usage || { buyingAssistantViews: 0, manualScans: 0, routineGenerations: 0, simulatorViews: 0 };
+      const newUsage = { ...currentUsage, [type]: (currentUsage[type] || 0) + 1 };
       const updatedUser = { ...userProfile, usage: newUsage };
       persistState(updatedUser, shelf);
   };
@@ -412,7 +413,7 @@ const App: React.FC = () => {
           isAnonymous: !isAuth, 
           isPremium: false,
           preferences: initialPrefs,
-          usage: { buyingAssistantViews: 0, manualScans: 0, routineGenerations: 0 },
+          usage: { buyingAssistantViews: 0, manualScans: 0, routineGenerations: 0, simulatorViews: 0 },
           lastUpdated: Date.now()
       };
       setUserProfile(newUser);
@@ -432,7 +433,7 @@ const App: React.FC = () => {
           ...userProfile, hasScannedFace: true, biometrics: metrics, faceImage: image,
           scanHistory: [...(userProfile.scanHistory || []), metrics],
           simulatedSkinImage: null,
-          usage: userProfile.usage || { buyingAssistantViews: 0, manualScans: 0, routineGenerations: 0 }
+          usage: userProfile.usage || { buyingAssistantViews: 0, manualScans: 0, routineGenerations: 0, simulatorViews: 0 }
       };
       persistState(updatedUser, shelf);
       setCurrentView(AppView.DASHBOARD);
@@ -527,7 +528,14 @@ const App: React.FC = () => {
                   <SkinAnalysisReport 
                       userProfile={userProfile} 
                       shelf={shelf} 
-                      onRescan={() => setCurrentView(AppView.FACE_SCANNER)} 
+                      onRescan={() => {
+                          // Freemium Limit for Face Scan: 3
+                          if (!userProfile.isPremium && (userProfile.scanHistory?.length || 0) >= LIMIT_SCANS) {
+                              handleUnlockPremium();
+                          } else {
+                              setCurrentView(AppView.FACE_SCANNER);
+                          }
+                      }} 
                       onConsultAI={(q) => { setAiQuery(q); setCurrentView(AppView.AI_ASSISTANT); }} 
                       onViewProgress={() => setCurrentView(AppView.PROFILE_SETUP)} 
                       onOpenRoutineBuilder={() => setCurrentView(AppView.ROUTINE_BUILDER)} 
@@ -550,6 +558,10 @@ const App: React.FC = () => {
                       onBack={() => setCurrentView(AppView.DASHBOARD)}
                       location={userLocation}
                       onUpdateUser={handleProfileUpdate}
+                      usageCount={userProfile.usage?.simulatorViews || 0}
+                      onIncrementUsage={() => incrementUsage('simulatorViews')}
+                      isPremium={!!userProfile.isPremium}
+                      onUnlockPremium={handleUnlockPremium}
                   />
               ) : null;
           case AppView.SMART_SHELF:

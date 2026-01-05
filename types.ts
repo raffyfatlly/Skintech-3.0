@@ -62,6 +62,7 @@ export interface UsageStats {
   buyingAssistantViews: number;
   manualScans: number; // Shared for Product Scanner and Search
   routineGenerations: number;
+  simulatorViews?: number; // New: Track Glowup Visualizer usage
 }
 
 export interface UserProfile {

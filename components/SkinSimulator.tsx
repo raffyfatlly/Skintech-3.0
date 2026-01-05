@@ -3,16 +3,23 @@ import React, { useEffect, useState, useRef } from 'react';
 import { UserProfile } from '../types';
 import { generateImprovementPlan } from '../services/geminiService';
 import { upscaleImage } from '../services/falService'; 
-import { ArrowLeft, Sparkles, Loader, Activity, Microscope, Sun, Moon, Beaker, MoveHorizontal, Download, AlertCircle, ScanFace, ChevronDown, ChevronUp, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Sparkles, Loader, Activity, Microscope, Sun, Moon, Beaker, MoveHorizontal, Download, AlertCircle, ScanFace, ChevronDown, ChevronUp, CheckCircle2, Lock } from 'lucide-react';
 
 interface SkinSimulatorProps {
     user: UserProfile;
     onBack: () => void;
     location?: string;
     onUpdateUser: (user: UserProfile) => void;
+    // New Props for Freemium Logic
+    usageCount: number;
+    onIncrementUsage: () => void;
+    isPremium: boolean;
+    onUnlockPremium: () => void;
 }
 
-const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUser }) => {
+const LIMIT_SIMULATIONS = 1;
+
+const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUser, usageCount, onIncrementUsage, isPremium, onUnlockPremium }) => {
     const [sliderPos, setSliderPos] = useState(0.5); // 0 to 1
     
     // AI State - Initialize from cached image if available
@@ -85,11 +92,16 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
     // Auto Retouch Trigger
     useEffect(() => {
         const alreadyHasImage = !!retouchedImage || !!user.simulatedSkinImage;
+        // Don't auto start if they are out of free usage and not premium
         if (!hasAutoStarted && !isRetouching && !alreadyHasImage && user.faceImage && !errorText) {
+            if (!isPremium && usageCount >= LIMIT_SIMULATIONS) {
+                // Do not auto start, wait for user to click button so we can show lock
+                return;
+            }
             setHasAutoStarted(true);
             handleAiRetouch(user.faceImage);
         }
-    }, [hasAutoStarted, isRetouching, retouchedImage, user.faceImage, user.simulatedSkinImage, errorText]);
+    }, [hasAutoStarted, isRetouching, retouchedImage, user.faceImage, user.simulatedSkinImage, errorText, isPremium, usageCount]);
 
     // Scroll Observer for Steps
     useEffect(() => {
@@ -134,12 +146,20 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
     };
 
     const handleGeneratePlan = async (imgOverride?: string | any) => {
+        // Enforce Limits
+        if (!isPremium && usageCount >= LIMIT_SIMULATIONS && !plan) {
+            onUnlockPremium();
+            return;
+        }
+
         const targetImage = (typeof imgOverride === 'string' ? imgOverride : null) || retouchedImage;
         if (!user.faceImage || !targetImage) return;
         
         setIsGeneratingPlan(true);
         setPlan(null);
         
+        if (!isPremium) onIncrementUsage();
+
         try {
             const data = await generateImprovementPlan(user.faceImage, targetImage, user);
             setPlan(data);
@@ -157,8 +177,17 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
     };
 
     const handleAiRetouch = async (sourceImage: string) => {
+        // Enforce Limits
+        if (!isPremium && usageCount >= LIMIT_SIMULATIONS && !retouchedImage) {
+            onUnlockPremium();
+            return;
+        }
+
         setIsRetouching(true);
         setErrorText(null);
+        
+        if (!isPremium && !hasAutoStarted) onIncrementUsage();
+
         try {
             const optimizedSource = await optimizeImageForUpload(sourceImage);
             const hdUrl = await upscaleImage(optimizedSource);
@@ -226,6 +255,28 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
                             </div>
                         )}
 
+                        {/* EMPTY STATE / LOCKED STATE */}
+                        {!retouchedImage && !isRetouching && !errorText && (
+                            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm animate-in fade-in duration-700">
+                                <div className="text-center max-w-xs">
+                                    <div className="mb-6 mx-auto w-20 h-20 rounded-full bg-black/40 border border-white/20 flex items-center justify-center">
+                                        <Sparkles size={32} className="text-teal-400" />
+                                    </div>
+                                    <h3 className="text-white font-black text-xl mb-2">Visualize Results</h3>
+                                    <p className="text-zinc-300 text-sm font-medium mb-8 leading-relaxed">
+                                        Use AI to see your skin after following the recommended protocol.
+                                    </p>
+                                    <button 
+                                        onClick={() => handleAiRetouch(user.faceImage!)}
+                                        className="bg-white text-zinc-900 px-8 py-4 rounded-full text-xs font-bold uppercase tracking-widest hover:scale-105 transition-all shadow-[0_0_30px_rgba(255,255,255,0.2)] flex items-center justify-center gap-2 mx-auto"
+                                    >
+                                        <Sparkles size={14} className="text-teal-600" /> 
+                                        {!isPremium && usageCount >= LIMIT_SIMULATIONS ? "Unlock Visualizer" : "Start Simulation"}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Loading State */}
                         {isRetouching && (
                             <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-black/60 backdrop-blur-md animate-in fade-in duration-700">
@@ -288,7 +339,7 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
                                 )}
                                 
                                 {/* Buttons remain sleeker glass style */}
-                                {!plan && !isGeneratingPlan && !isRetouching && !errorText && (
+                                {!plan && !isGeneratingPlan && !isRetouching && !errorText && retouchedImage && (
                                     <button onClick={() => handleGeneratePlan()} className="bg-white/10 border border-white/20 text-white px-6 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg flex items-center gap-2 hover:bg-white/20 transition-colors backdrop-blur-md"><Sparkles size={14} className="text-teal-400" /> Generate Plan</button>
                                 )}
 
