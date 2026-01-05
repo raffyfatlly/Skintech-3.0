@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { UserProfile, UserPreferences, SkinMetrics, Product } from '../types';
-import { ArrowLeft, ArrowRight, Check, Sparkles, Target, Zap, Activity, TrendingUp, LineChart, X, Trash2, Settings2, ChevronDown, ChevronRight, Minus, Trophy, LogOut, AlertCircle, Clock, Calendar, Edit2, Loader, CheckCircle2, MessageCircle, Baby, Pill, ShieldCheck, ShieldAlert, Feather, Download, Cog } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Sparkles, Target, Zap, Activity, TrendingUp, LineChart, X, Trash2, Settings2, ChevronDown, ChevronRight, Minus, Trophy, LogOut, AlertCircle, Clock, Calendar, Edit2, Loader, CheckCircle2, MessageCircle, Baby, Pill, ShieldCheck, ShieldAlert, Feather, Download, Cog, Crown, Lock } from 'lucide-react';
 import { signOut, auth } from '../services/firebase';
 
 // Helper to parse markdown-style bolding from string
@@ -124,19 +124,21 @@ const MonthGroup: React.FC<{
                           <div key={entry.timestamp} className="relative group/item">
                               <button 
                                   onClick={() => onSelect(entry)}
-                                  className="w-full bg-white border border-zinc-100 hover:border-teal-200 hover:shadow-md p-3 pr-12 rounded-xl flex items-center justify-between shadow-sm transition-all duration-200 text-left relative overflow-hidden"
+                                  className="w-full bg-white border border-zinc-100 hover:border-teal-200 hover:shadow-md p-3 pr-12 rounded-xl flex items-center justify-center shadow-sm transition-all duration-200 text-left relative overflow-hidden"
                               >
-                                   <div className="flex items-center gap-3 relative z-10">
-                                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-black text-xs transition-colors border ${entry.overallScore > 80 ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : entry.overallScore < 60 ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
-                                          {entry.overallScore}
-                                      </div>
-                                      <div>
-                                          <span className="block text-xs font-bold text-zinc-900 mb-0.5">
-                                              {new Date(entry.timestamp).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                                          </span>
-                                          <span className="text-[9px] font-bold text-zinc-400 group-hover/item:text-teal-600 transition-colors">
-                                              View Analysis
-                                          </span>
+                                   <div className="flex items-center gap-3 relative z-10 w-full justify-between">
+                                      <div className="flex items-center gap-3">
+                                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-black text-xs transition-colors border ${entry.overallScore > 80 ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : entry.overallScore < 60 ? 'bg-rose-50 text-rose-600 border-rose-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
+                                              {entry.overallScore}
+                                          </div>
+                                          <div>
+                                              <span className="block text-xs font-bold text-zinc-900 mb-0.5">
+                                                  {new Date(entry.timestamp).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                              </span>
+                                              <span className="text-[9px] font-bold text-zinc-400 group-hover/item:text-teal-600 transition-colors">
+                                                  View Analysis
+                                              </span>
+                                          </div>
                                       </div>
                                   </div>
                               </button>
@@ -907,10 +909,35 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
                              <p className="text-sm font-bold text-white mt-1 drop-shadow-sm opacity-95">
                                  {user.age} Years
                              </p>
+
+                             {/* --- STATUS & USAGE BADGES --- */}
+                             <div className="flex flex-wrap gap-2 mt-2">
+                                 {/* Subscription Status Badge */}
+                                 <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border shadow-sm ${user.isPremium ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-white/20 text-white border-white/30 backdrop-blur-md'}`}>
+                                     {user.isPremium ? <Crown size={10} fill="currentColor" /> : <Lock size={10} />}
+                                     <span>{user.isPremium ? "Premium" : "Free Plan"}</span>
+                                 </div>
+
+                                 {/* Usage / Unlimited Badge */}
+                                 <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border shadow-sm ${user.isPremium ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-white/20 text-white border-white/30 backdrop-blur-md'}`}>
+                                     {user.isPremium ? (
+                                         <>
+                                             <Sparkles size={10} fill="currentColor" /> Unlimited
+                                         </>
+                                     ) : (
+                                         <>
+                                             <Activity size={10} /> {Math.max(0, 3 - (user.scanHistory?.length || 0))} Scans Left
+                                         </>
+                                     )}
+                                 </div>
+
+                                 {auth && auth.currentUser && (
+                                     <span className="text-[10px] font-bold bg-white/25 border border-white/30 px-3 py-1 rounded-full text-white inline-block drop-shadow-sm uppercase tracking-widest backdrop-blur-md">
+                                         Cloud Synced
+                                     </span>
+                                 )}
+                             </div>
                           </>
-                      )}
-                      {auth && auth.currentUser && !isEditingProfile && (
-                          <span className="text-[10px] font-bold bg-white/25 border border-white/30 px-2 py-0.5 rounded text-white mt-1 inline-block drop-shadow-sm">Cloud Synced</span>
                       )}
                   </div>
               </div>
