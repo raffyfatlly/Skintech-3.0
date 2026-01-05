@@ -319,41 +319,42 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
 
                 {/* CONTROLS SHEET (Fixed Overlays) */}
                 {/* 1. Minimized View (Bottom Bar) - Hidden when plan is open */}
-                <div className={`absolute bottom-0 left-0 right-0 p-6 z-20 transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${isPlanOpen ? 'translate-y-[150%] opacity-0' : 'translate-y-0 opacity-100'}`}>
-                    {/* Sleek Glass Capsule */}
-                    <div className="bg-[#09090b]/80 backdrop-blur-2xl rounded-[2rem] p-2 pl-6 shadow-2xl border border-white/10 ring-1 ring-black/50 max-w-lg mx-auto flex items-center justify-between">
+                <div className={`absolute bottom-0 left-0 right-0 p-4 pb-safe z-20 transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${isPlanOpen ? 'translate-y-[150%] opacity-0' : 'translate-y-0 opacity-100'}`}>
+                    {/* Sleek Glass Capsule - Mobile Optimized */}
+                    <div className="bg-zinc-900/90 backdrop-blur-xl rounded-2xl p-2 shadow-[0_8px_30px_rgba(0,0,0,0.5)] border border-white/10 flex items-center justify-between gap-2 mx-auto w-full max-w-md">
                         
-                        {/* Info Group */}
-                        <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-full bg-teal-500/10 flex items-center justify-center text-teal-400 ring-1 ring-teal-500/20 shadow-[0_0_15px_rgba(45,212,191,0.1)]">
-                                <Activity size={18} strokeWidth={2} />
+                        {/* Info Group - Flexible */}
+                        <div className="flex items-center gap-3 pl-2 flex-1 min-w-0">
+                            <div className="w-10 h-10 rounded-xl bg-teal-500/10 flex items-center justify-center text-teal-400 border border-teal-500/20 shrink-0">
+                                <Activity size={18} />
                             </div>
-                            <div className="flex flex-col">
-                                <h3 className="text-sm font-bold text-white tracking-wide leading-none mb-0.5">Clinical Protocol</h3>
-                                <p className="text-[10px] font-medium text-zinc-400 uppercase tracking-wider">Achieve this result</p>
+                            <div className="flex flex-col min-w-0">
+                                <h3 className="text-sm font-bold text-white truncate">Clinical Protocol</h3>
+                                <p className="text-[10px] font-medium text-zinc-400 truncate">AI Treatment Plan</p>
                             </div>
                         </div>
                         
-                        {/* Actions Group */}
-                        <div className="flex items-center gap-2">
-                            {/* Download Button (Icon Only) */}
+                        {/* Actions Group - Fixed width */}
+                        <div className="flex items-center gap-2 shrink-0">
+                            {/* Download Button */}
                             {retouchedImage && (
                                 <a 
                                     href={retouchedImage} 
                                     download="skinos-projection.jpg" 
-                                    className="w-12 h-12 rounded-[1.2rem] bg-white/5 hover:bg-white/10 border border-white/5 text-zinc-400 hover:text-white flex items-center justify-center transition-all active:scale-95"
+                                    className="w-11 h-11 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 text-zinc-300 hover:text-white flex items-center justify-center transition-colors active:scale-95"
+                                    title="Save Image"
                                 >
-                                    <Download size={18} strokeWidth={2} />
+                                    <Download size={18} strokeWidth={1.5} />
                                 </a>
                             )}
                             
-                            {/* Primary Action Button */}
+                            {/* Primary Action Button - Uniform Size */}
                             {!plan && !isGeneratingPlan && !isRetouching && !errorText && retouchedImage && (
                                 <button 
                                     onClick={() => handleGeneratePlan()} 
-                                    className="h-12 px-6 rounded-[1.2rem] bg-zinc-800 hover:bg-zinc-700 border border-white/10 text-white text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95 whitespace-nowrap"
+                                    className="h-11 px-5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all active:scale-95 shadow-lg shadow-teal-900/20 whitespace-nowrap"
                                 >
-                                    <Sparkles size={14} className="text-teal-400" /> 
+                                    <Sparkles size={14} />
                                     <span>Generate</span>
                                 </button>
                             )}
@@ -361,12 +362,12 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
                             {(plan || isGeneratingPlan) && (
                                 <button 
                                     onClick={() => setIsPlanOpen(true)} 
-                                    className="h-12 px-6 rounded-[1.2rem] bg-white hover:bg-zinc-200 text-black text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95 shadow-[0_0_20px_rgba(255,255,255,0.1)] whitespace-nowrap"
+                                    className="h-11 px-5 rounded-xl bg-white text-black text-xs font-bold uppercase tracking-wider flex items-center gap-2 transition-all active:scale-95 shadow-lg shadow-white/10 whitespace-nowrap"
                                 >
                                     {isGeneratingPlan ? (
                                         <Loader size={14} className="animate-spin" />
                                     ) : (
-                                        <ChevronUp size={14} strokeWidth={3} />
+                                        <ChevronUp size={16} />
                                     )}
                                     <span>View Plan</span>
                                 </button>
@@ -376,7 +377,6 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
                 </div>
 
                 {/* 2. Maximized View (Full Sheet) - Slides up */}
-                {/* CHANGED: Light Grey Transparent Theme (bg-zinc-50/90) like Skin Report */}
                 <div 
                     className={`absolute left-0 right-0 bottom-0 bg-zinc-50/90 backdrop-blur-3xl rounded-t-[3rem] shadow-[0_-20px_60px_-15px_rgba(0,0,0,0.8)] z-30 transition-all duration-700 cubic-bezier(0.19, 1, 0.22, 1) flex flex-col overflow-hidden border-t border-white/40 ${isPlanOpen ? 'top-[10%]' : 'top-[100vh]'}`}
                 >
