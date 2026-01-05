@@ -176,7 +176,7 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
 
                   <div className="mb-8 flex justify-between items-end">
                       <div>
-                          <h2 className="text-2xl font-black text-teal-600 tracking-tight leading-none mb-1.5 drop-shadow-sm">Skin Report</h2>
+                          <h2 className="text-4xl font-thin text-teal-500 tracking-tighter leading-none mb-1.5 drop-shadow-sm">Skin Report</h2>
                           <p className="text-xs text-black font-bold">Detailed clinical analysis.</p>
                       </div>
                       {userProfile.scanHistory && userProfile.scanHistory.length > 1 && (
