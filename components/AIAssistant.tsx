@@ -150,7 +150,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
                        <span className="text-sm font-black text-zinc-900 uppercase tracking-widest block leading-none">
                            SkinOS { !user.isPremium && <span className="text-teal-600 text-[10px] ml-1">(Free Trial)</span> }
                        </span>
-                       <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">Expert Assistant</span>
+                       <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">Skin Assistant</span>
                    </div>
               </div>
               <div className="flex items-center gap-2">
@@ -168,7 +168,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
                   <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mb-6 shadow-xl border border-zinc-100">
                       <Lock size={32} className="text-zinc-300" />
                   </div>
-                  <h3 className="text-2xl font-black text-zinc-900 mb-2">Expert Assistant Locked</h3>
+                  <h3 className="text-2xl font-black text-zinc-900 mb-2">Skin Assistant Locked</h3>
                   <p className="text-sm text-zinc-500 font-medium mb-8 max-w-xs leading-relaxed">
                       Unlock premium to chat with our AI expert about your specific skin concerns, ingredients, and routines.
                   </p>
