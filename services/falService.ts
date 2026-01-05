@@ -51,14 +51,24 @@ export const upscaleImage = async (imageBase64: string): Promise<string> => {
 
     // Prompt engineered for "Nano Banana" image editing capabilities
     // STRICT INSTRUCTION: Preserve facial hair and moles
-    const prompt = "Clinical dermatology simulation. Transform the skin to be clear and healthy. " +
-                   "1. Remove acne, redness, and active inflammation. " +
-                   "2. CRITICAL PRESERVATION: DO NOT ADD, EDIT, OR REMOVE ANY FACIAL HAIR. " +
-                   "   - Existing beard, mustache, stubble, and peach fuzz must remain EXACTLY as they are in the original image. " +
-                   "   - Do not hallucinate new hair. Do not remove existing hair. " +
-                   "   - Moles and birthmarks are permanent features; keep them 100% identical. " +
-                   "3. Keep lighting, shadows, and color tone exactly consistent with the original. " +
-                   "4. ALIGNMENT IS PARAMOUNT: The output must align pixel-for-pixel with the input. Do not crop, zoom, rotate, or morph features.";
+    const prompt = `
+    CLINICAL SKIN RETOUCHING TASK.
+    
+    OBJECTIVE: Remove acne, inflammation, and redness to simulate clear skin.
+
+    CRITICAL "NO-TOUCH" ZONES (STRICT ENFORCEMENT):
+    1. FACIAL HAIR: DO NOT CHANGE IT.
+       - Do NOT thicken, fill in, or groom existing beards/stubble.
+       - If the facial hair is sparse, patchy, or messy, IT MUST REMAIN EXACTLY THAT WAY.
+       - Do NOT add hair where there is none.
+    2. MOLES & BIRTHMARKS: Do not remove permanent features.
+    3. EYES & LIPS: Do not alter shape or color.
+
+    INSTRUCTION:
+    - Apply a "healing brush" effect ONLY to skin texture issues (pimples, rash).
+    - Keep the output 100% pixel-aligned with the input.
+    - PRESERVE THE EXACT IDENTITY AND GROOMING STYLE OF THE ORIGINAL PHOTO.
+    `;
 
     try {
         const response = await ai.models.generateContent({
