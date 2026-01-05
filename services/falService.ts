@@ -51,13 +51,13 @@ export const upscaleImage = async (imageBase64: string): Promise<string> => {
     const base64Data = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
 
     // Prompt engineered for "Nano Banana" image editing capabilities
-    // UPDATED: Focused on Hyper-Realism and Texture Preservation
+    // UPDATED: Focused on Hyper-Realism and Texture Preservation + Safety for Moles/Hair
     const prompt = "Clinical dermatology simulation. Transform the skin to be clear and healthy but HYPER-REALISTIC. " +
                    "1. Remove acne, redness, and active inflammation. " +
-                   "2. CRITICAL: Preserve natural skin texture, pores, and fine details. Do NOT blur, smooth excessively, or airbrush. Do NOT make it look like a plastic doll or beauty filter. " +
+                   "2. CRITICAL: Preserve natural skin texture, pores, MOLES, beauty marks, and FACIAL HAIR (beard, mustache, stubble, peach fuzz). Do NOT remove or blur these features. " +
                    "3. Keep lighting, shadows, and color tone exactly consistent with the original. " +
                    "4. ALIGNMENT IS PARAMOUNT: The output must align pixel-for-pixel with the input. Do not crop, zoom, rotate, or morph features. " +
-                   "5. Keep eyes, hair, lips, and background 100% identical. Only treat the skin surface.";
+                   "5. Keep eyes, hair, lips, and background 100% identical. Only treat the skin surface issues.";
 
     try {
         const response = await ai.models.generateContent({

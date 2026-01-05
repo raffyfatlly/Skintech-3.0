@@ -319,36 +319,58 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
 
                 {/* CONTROLS SHEET (Fixed Overlays) */}
                 {/* 1. Minimized View (Bottom Bar) - Hidden when plan is open */}
-                {/* CHANGED: Highly Transparent (bg-black/20) for better visibility of image */}
-                <div className={`absolute bottom-0 left-0 right-0 p-6 z-20 transition-transform duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${isPlanOpen ? 'translate-y-[150%]' : 'translate-y-0'}`}>
-                    <div className="bg-black/20 backdrop-blur-xl rounded-[2.5rem] p-6 shadow-2xl border border-white/10 ring-1 ring-white/5">
-                        <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-4">
-                                <div className="w-12 h-12 rounded-2xl bg-teal-500/20 flex items-center justify-center text-teal-400 border border-teal-500/20 shadow-[0_0_15px_rgba(45,212,191,0.1)]">
-                                    <Activity size={20} />
-                                </div>
-                                <div>
-                                    <h3 className="text-sm font-bold text-white tracking-wide leading-none mb-1 shadow-black drop-shadow-sm">Clinical Protocol</h3>
-                                    <p className="text-[10px] font-medium text-white/70 uppercase tracking-widest shadow-black drop-shadow-sm">Achieve this result</p>
-                                </div>
+                <div className={`absolute bottom-0 left-0 right-0 p-6 z-20 transition-all duration-500 ease-[cubic-bezier(0.32,0.72,0,1)] ${isPlanOpen ? 'translate-y-[150%] opacity-0' : 'translate-y-0 opacity-100'}`}>
+                    {/* Sleek Glass Capsule */}
+                    <div className="bg-[#09090b]/80 backdrop-blur-2xl rounded-[2rem] p-2 pl-6 shadow-2xl border border-white/10 ring-1 ring-black/50 max-w-lg mx-auto flex items-center justify-between">
+                        
+                        {/* Info Group */}
+                        <div className="flex items-center gap-4">
+                            <div className="w-10 h-10 rounded-full bg-teal-500/10 flex items-center justify-center text-teal-400 ring-1 ring-teal-500/20 shadow-[0_0_15px_rgba(45,212,191,0.1)]">
+                                <Activity size={18} strokeWidth={2} />
                             </div>
+                            <div className="flex flex-col">
+                                <h3 className="text-sm font-bold text-white tracking-wide leading-none mb-0.5">Clinical Protocol</h3>
+                                <p className="text-[10px] font-medium text-zinc-400 uppercase tracking-wider">Achieve this result</p>
+                            </div>
+                        </div>
+                        
+                        {/* Actions Group */}
+                        <div className="flex items-center gap-2">
+                            {/* Download Button (Icon Only) */}
+                            {retouchedImage && (
+                                <a 
+                                    href={retouchedImage} 
+                                    download="skinos-projection.jpg" 
+                                    className="w-12 h-12 rounded-[1.2rem] bg-white/5 hover:bg-white/10 border border-white/5 text-zinc-400 hover:text-white flex items-center justify-center transition-all active:scale-95"
+                                >
+                                    <Download size={18} strokeWidth={2} />
+                                </a>
+                            )}
                             
-                            <div className="flex gap-2">
-                                {retouchedImage && (
-                                    <a href={retouchedImage} download="skinos-projection.jpg" className="w-12 h-12 rounded-xl bg-white/10 border border-white/10 text-white/80 hover:text-white flex items-center justify-center transition-colors hover:bg-white/20"><Download size={18} /></a>
-                                )}
-                                
-                                {/* Buttons remain sleeker glass style */}
-                                {!plan && !isGeneratingPlan && !isRetouching && !errorText && retouchedImage && (
-                                    <button onClick={() => handleGeneratePlan()} className="bg-white/10 border border-white/20 text-white px-6 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg flex items-center gap-2 hover:bg-white/20 transition-colors backdrop-blur-md"><Sparkles size={14} className="text-teal-400" /> Generate Plan</button>
-                                )}
+                            {/* Primary Action Button */}
+                            {!plan && !isGeneratingPlan && !isRetouching && !errorText && retouchedImage && (
+                                <button 
+                                    onClick={() => handleGeneratePlan()} 
+                                    className="h-12 px-6 rounded-[1.2rem] bg-zinc-800 hover:bg-zinc-700 border border-white/10 text-white text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95 whitespace-nowrap"
+                                >
+                                    <Sparkles size={14} className="text-teal-400" /> 
+                                    <span>Generate</span>
+                                </button>
+                            )}
 
-                                {(plan || isGeneratingPlan) && (
-                                    <button onClick={() => setIsPlanOpen(true)} className="bg-white/10 border border-white/20 text-white px-6 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg flex items-center gap-2 hover:bg-white/20 transition-colors backdrop-blur-md">
-                                        {isGeneratingPlan ? <Loader size={14} className="animate-spin text-teal-400" /> : <ChevronUp size={14} />} View Plan
-                                    </button>
-                                )}
-                            </div>
+                            {(plan || isGeneratingPlan) && (
+                                <button 
+                                    onClick={() => setIsPlanOpen(true)} 
+                                    className="h-12 px-6 rounded-[1.2rem] bg-white hover:bg-zinc-200 text-black text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95 shadow-[0_0_20px_rgba(255,255,255,0.1)] whitespace-nowrap"
+                                >
+                                    {isGeneratingPlan ? (
+                                        <Loader size={14} className="animate-spin" />
+                                    ) : (
+                                        <ChevronUp size={14} strokeWidth={3} />
+                                    )}
+                                    <span>View Plan</span>
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
