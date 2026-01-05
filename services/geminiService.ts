@@ -369,7 +369,7 @@ export const generateImprovementPlan = async (
     targetImage: string, 
     user: UserProfile
 ): Promise<any> => {
-    return runWithTimeout<any>(async () => {
+    return runWithTimeout<any>((async () => {
         // Prepare Target Image: If it's a URL, convert to Base64 first
         let targetData = targetImage;
         if (targetImage.startsWith('http')) {
@@ -385,7 +385,7 @@ export const generateImprovementPlan = async (
         targetData = targetData.includes(',') ? targetData.split(',')[1] : targetData;
 
         const prompt = `
-        ACT AS A WORLD-CLASS DERMATOLOGIST EXPLAINING A TREATMENT PLAN TO A PATIENT.
+        ACT AS A FRIENDLY DERMATOLOGIST EXPLAINING A ROUTINE TO A BEGINNER.
 
         INPUT:
         Image 1: Current Patient Skin (Baseline)
@@ -395,9 +395,15 @@ export const generateImprovementPlan = async (
         TASK:
         Generate a structured clinical protocol to achieve the result in Image 2.
 
+        CRITICAL LANGUAGE RULES:
+        1. DO NOT USE SCIENTIFIC JARGON. Use simple, everyday words.
+           - Bad: "Erythema", "Comedones", "Hyperpigmentation", "Sebum".
+           - Good: "Redness", "Clogged pores", "Dark spots", "Oil".
+        2. Be encouraging and clear.
+
         OUTPUT JSON (Strict):
         {
-          "analysis": "2-3 sentences explaining the high-level plan to achieve the goal in plain English.",
+          "analysis": "2-3 simple sentences explaining the plan to achieve the goal.",
           "weeks": [
             {
               "title": "Weeks 1-4",
@@ -441,5 +447,5 @@ export const generateImprovementPlan = async (
         });
 
         return parseJSONFromText(response.text || "{}");
-    }, 60000);
+    })(), 60000);
 };
