@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { UserProfile, UserPreferences, SkinMetrics, Product } from '../types';
-import { ArrowLeft, ArrowRight, Check, Sparkles, Target, Zap, Activity, TrendingUp, LineChart, X, Trash2, Settings2, ChevronDown, ChevronRight, Minus, Trophy, LogOut, AlertCircle, Clock, Calendar, Edit2, Loader, CheckCircle2, MessageCircle, Baby, Pill, ShieldCheck, ShieldAlert, Feather, Download, Cog, Crown, Lock } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Sparkles, Target, Zap, Activity, TrendingUp, LineChart, X, Trash2, Settings2, ChevronDown, ChevronRight, Minus, Trophy, LogOut, AlertCircle, Clock, Calendar, Edit2, Loader, CheckCircle2, MessageCircle, Baby, Pill, ShieldCheck, ShieldAlert, Feather, Download, Cog, Crown, Lock, Share, PlusSquare } from 'lucide-react';
 import { signOut, auth } from '../services/firebase';
 
 // Helper to parse markdown-style bolding from string
@@ -568,6 +568,10 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [scanToDelete, setScanToDelete] = useState<SkinMetrics | null>(null);
   
+  const [showIOSGuide, setShowIOSGuide] = useState(false);
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
+  const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
+
   const history = useMemo(() => {
       const raw = user.scanHistory || (user.biometrics ? [user.biometrics] : []);
       // Filter out invalid entries to prevent crashes
@@ -718,6 +722,8 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
           installPrompt.userChoice.then((choiceResult: any) => {
               console.log(choiceResult.outcome);
           });
+      } else if (isIOS) {
+          setShowIOSGuide(!showIOSGuide);
       }
   };
 
@@ -1135,25 +1141,46 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
                       </div>
                   </button>
 
-                  {/* Install App (Only if prompt available) */}
-                  {installPrompt && (
-                      <button 
-                          onClick={handleInstallApp}
-                          className="w-full flex items-center justify-between p-5 hover:bg-zinc-50 transition-colors group text-left"
-                      >
-                          <div className="flex items-center gap-4">
-                              <div className="w-10 h-10 rounded-full bg-zinc-900 text-white flex items-center justify-center shadow-lg shadow-zinc-900/10">
-                                  <Download size={20} />
+                  {/* Install App (Only if prompt available OR iOS) */}
+                  {(installPrompt || (isIOS && !isStandalone)) && (
+                      <div className="border-t border-zinc-100 transition-all duration-300">
+                          <button 
+                              onClick={handleInstallApp}
+                              className="w-full flex items-center justify-between p-5 hover:bg-zinc-50 transition-colors group text-left"
+                          >
+                              <div className="flex items-center gap-4">
+                                  <div className="w-10 h-10 rounded-full bg-zinc-900 text-white flex items-center justify-center shadow-lg shadow-zinc-900/10">
+                                      <Download size={20} />
+                                  </div>
+                                  <div>
+                                      <h4 className="text-sm font-bold text-zinc-900">Install App</h4>
+                                      <p className="text-xs text-zinc-500 font-medium mt-0.5">
+                                          Add to Home Screen for faster access
+                                      </p>
+                                  </div>
                               </div>
-                              <div>
-                                  <h4 className="text-sm font-bold text-zinc-900">Install App</h4>
-                                  <p className="text-xs text-zinc-500 font-medium mt-0.5">
-                                      Add to Home Screen for faster access
-                                  </p>
+                              <ChevronRight size={16} className={`text-zinc-300 group-hover:text-zinc-500 transition-transform duration-300 ${showIOSGuide ? 'rotate-90' : ''}`} />
+                          </button>
+                          
+                          {/* iOS Guide */}
+                          {showIOSGuide && (
+                              <div className="px-5 pb-6 pt-0 animate-in slide-in-from-top-2">
+                                  <div className="bg-zinc-50 rounded-xl p-4 border border-zinc-100 text-zinc-600 text-xs font-medium leading-relaxed">
+                                      <p className="mb-3 font-bold text-zinc-800">To install on iPhone:</p>
+                                      <ol className="space-y-3">
+                                          <li className="flex items-center gap-2">
+                                              <span className="w-5 h-5 rounded-full bg-zinc-200 flex items-center justify-center text-[10px] font-bold shrink-0">1</span>
+                                              Tap the <Share size={14} className="mx-1 inline-block" /> <span className="font-bold">Share</span> button below
+                                          </li>
+                                          <li className="flex items-center gap-2">
+                                              <span className="w-5 h-5 rounded-full bg-zinc-200 flex items-center justify-center text-[10px] font-bold shrink-0">2</span>
+                                              Scroll down and select <PlusSquare size={14} className="mx-1 inline-block" /> <span className="font-bold">Add to Home Screen</span>
+                                          </li>
+                                      </ol>
+                                  </div>
                               </div>
-                          </div>
-                          <ChevronRight size={16} className="text-zinc-300 group-hover:text-zinc-500 transition-colors" />
-                      </button>
+                          )}
+                      </div>
                   )}
               </div>
           </section>
