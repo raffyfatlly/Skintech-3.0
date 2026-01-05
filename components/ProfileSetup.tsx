@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { UserProfile, UserPreferences, SkinMetrics, Product } from '../types';
-import { ArrowLeft, ArrowRight, Check, Sparkles, Target, Zap, Activity, TrendingUp, LineChart, X, Trash2, Settings2, ChevronDown, ChevronRight, Minus, Trophy, LogOut, AlertCircle, Clock, Calendar, Edit2, Loader, CheckCircle2, MessageCircle, Baby, Pill, ShieldCheck, ShieldAlert, Feather } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Sparkles, Target, Zap, Activity, TrendingUp, LineChart, X, Trash2, Settings2, ChevronDown, ChevronRight, Minus, Trophy, LogOut, AlertCircle, Clock, Calendar, Edit2, Loader, CheckCircle2, MessageCircle, Baby, Pill, ShieldCheck, ShieldAlert, Feather, Download, Cog } from 'lucide-react';
 import { signOut, auth } from '../services/firebase';
 
 // Helper to parse markdown-style bolding from string
@@ -85,6 +85,7 @@ interface ProfileSetupProps {
   onBack: () => void;
   onReset: () => void;
   onLoginRequired: (trigger: string) => void;
+  installPrompt?: any; // New prop for PWA Install
 }
 
 // --- SUB-COMPONENT: MONTH GROUP (Expandable) ---
@@ -549,7 +550,7 @@ const ScanDetailModal: React.FC<{ scan: SkinMetrics; onClose: () => void }> = ({
     );
 };
 
-const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplete, onBack, onReset, onLoginRequired }) => {
+const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplete, onBack, onReset, onLoginRequired, installPrompt }) => {
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
   const [selectedScan, setSelectedScan] = useState<SkinMetrics | null>(null);
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
@@ -709,6 +710,15 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
     onReset(); // Clear local state in App
   }
 
+  const handleInstallApp = () => {
+      if (installPrompt) {
+          installPrompt.prompt();
+          installPrompt.userChoice.then((choiceResult: any) => {
+              console.log(choiceResult.outcome);
+          });
+      }
+  };
+
   // --- RENDER: OVERVIEW ---
   const sortedHistory = [...history].sort((a, b) => b.timestamp - a.timestamp);
   const latest = sortedHistory[0];
@@ -816,6 +826,13 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
         diff: scoreDiff 
     };
   }, [latest, previous, shelf]);
+
+  // Determine active safety flags for display
+  const safetyFlags = [];
+  if (user.preferences?.isPregnant) safetyFlags.push("Pregnancy Safe");
+  if (user.preferences?.hasEczema) safetyFlags.push("Eczema Safe");
+  if (user.preferences?.onMedication) safetyFlags.push("Medication Safe");
+  if (user.preferences?.sensitivity === 'VERY_SENSITIVE') safetyFlags.push("Sensitive Skin");
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-32 min-h-screen bg-gradient-to-br from-teal-50 via-white to-teal-50/30 flex flex-col">
@@ -952,7 +969,7 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
              </div>
           )}
 
-          {/* GOAL PROGRESS CARDS (RESIZED SMALLER AS REQUESTED) */}
+          {/* GOAL TRACKING CARD */}
           <section>
                <div className="flex justify-between items-end mb-4 px-1">
                    <h3 className="text-xs font-bold text-teal-800/60 uppercase tracking-widest flex items-center gap-2">
@@ -1027,7 +1044,6 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
                        <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-widest flex items-center gap-2">
                           <LineChart size={14} className="text-teal-500" /> Skin Health Journey
                       </h3>
-                      {/* Optional summary info can go here */}
                   </div>
                   
                   {/* High-Res Canvas Chart (Always visible if data exists) */}
@@ -1061,6 +1077,58 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
                       ))}
                   </div>
               )}
+          </section>
+
+          {/* NEW: APP & CONFIGURATION */}
+          <section className="mt-6">
+              <h3 className="text-xs font-bold text-teal-800/60 uppercase tracking-widest flex items-center gap-2 mb-4 px-1">
+                  <Cog size={14} /> Safety & Config
+              </h3>
+              
+              <div className="bg-white rounded-[1.5rem] border border-zinc-100 shadow-sm overflow-hidden">
+                  
+                  {/* Safety Profile */}
+                  <button 
+                      onClick={() => setIsGoalModalOpen(true)}
+                      className="w-full flex items-center justify-between p-5 hover:bg-zinc-50 transition-colors group text-left border-b border-zinc-100 last:border-0"
+                  >
+                      <div className="flex items-center gap-4">
+                          <div className={`w-10 h-10 rounded-full flex items-center justify-center ${safetyFlags.length > 0 ? 'bg-indigo-50 text-indigo-600' : 'bg-zinc-50 text-zinc-400'}`}>
+                              {safetyFlags.length > 0 ? <ShieldCheck size={20} /> : <Feather size={20} />}
+                          </div>
+                          <div>
+                              <h4 className="text-sm font-bold text-zinc-900">Safety Profile</h4>
+                              <p className="text-xs text-zinc-500 font-medium mt-0.5">
+                                  {safetyFlags.length > 0 ? safetyFlags.join(', ') : 'Standard Analysis'}
+                              </p>
+                          </div>
+                      </div>
+                      <div className="text-xs font-bold text-teal-600 bg-teal-50 px-3 py-1.5 rounded-full group-hover:bg-teal-100 transition-colors">
+                          Edit
+                      </div>
+                  </button>
+
+                  {/* Install App (Only if prompt available) */}
+                  {installPrompt && (
+                      <button 
+                          onClick={handleInstallApp}
+                          className="w-full flex items-center justify-between p-5 hover:bg-zinc-50 transition-colors group text-left"
+                      >
+                          <div className="flex items-center gap-4">
+                              <div className="w-10 h-10 rounded-full bg-zinc-900 text-white flex items-center justify-center shadow-lg shadow-zinc-900/10">
+                                  <Download size={20} />
+                              </div>
+                              <div>
+                                  <h4 className="text-sm font-bold text-zinc-900">Install App</h4>
+                                  <p className="text-xs text-zinc-500 font-medium mt-0.5">
+                                      Add to Home Screen for faster access
+                                  </p>
+                              </div>
+                          </div>
+                          <ChevronRight size={16} className="text-zinc-300 group-hover:text-zinc-500 transition-colors" />
+                      </button>
+                  )}
+              </div>
           </section>
 
           {/* DANGER ZONE */}

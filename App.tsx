@@ -619,7 +619,8 @@ const App: React.FC = () => {
                       onComplete={handleProfileUpdate} 
                       onBack={() => setCurrentView(AppView.DASHBOARD)} 
                       onReset={handleResetApp} 
-                      onLoginRequired={(trigger) => openAuth(trigger as AuthTrigger)} 
+                      onLoginRequired={(trigger) => openAuth(trigger as AuthTrigger)}
+                      installPrompt={installPrompt}
                   />
               ) : null;
           case AppView.ROUTINE_BUILDER:
