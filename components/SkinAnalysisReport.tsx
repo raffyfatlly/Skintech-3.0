@@ -370,7 +370,15 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
                       
                       {/* Group Orbs */}
                       {BIOMARKER_GROUPS.map(group => {
-                          const avg = Math.round(group.metrics.reduce((acc, m) => acc + (metrics[m.key as keyof typeof metrics] as number), 0) / group.metrics.length);
+                          // Find primary metric (lowest score) to align with overlay
+                          const sorted = [...group.metrics].sort((a, b) => {
+                              const valA = metrics[a.key as keyof typeof metrics] as number;
+                              const valB = metrics[b.key as keyof typeof metrics] as number;
+                              return valA - valB;
+                          });
+                          const primaryMetric = sorted[0];
+                          const score = Math.round(metrics[primaryMetric.key as keyof typeof metrics] as number);
+                          
                           const isActive = focusedGroup === group.id;
 
                           return (
@@ -381,10 +389,10 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
                             >
                                 <div className={`relative w-14 h-14 rounded-full backdrop-blur-md flex items-center justify-center shadow-lg transition-all duration-500 ${isActive ? 'bg-white/20 border border-white/40 text-white' : 'bg-black/20 border border-white/10 text-white/70'}`}>
                                     <group.icon size={20} strokeWidth={isActive ? 2 : 1.5} />
-                                    {avg < 60 && <div className="absolute top-0 right-0 w-3 h-3 bg-amber-500 rounded-full border-2 border-black"></div>}
+                                    {score < 60 && <div className="absolute top-0 right-0 w-3 h-3 bg-amber-500 rounded-full border-2 border-black"></div>}
                                 </div>
                                 <div className="text-center">
-                                    <span className={`block text-sm font-bold leading-none mb-1 ${isActive ? 'text-teal-300' : 'text-white'}`}>{avg}</span>
+                                    <span className={`block text-sm font-bold leading-none mb-1 ${isActive ? 'text-teal-300' : 'text-white'}`}>{score}</span>
                                     <span className="block text-[9px] font-medium text-white/80 uppercase tracking-widest">{group.title}</span>
                                 </div>
                             </button>
@@ -454,7 +462,7 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
                               <h3 className="text-[10px] font-bold text-white uppercase tracking-widest mb-4 px-2 flex items-center gap-2">
                                   <group.icon size={12} className="text-white" /> {group.title}
                               </h3>
-                              <div className="bg-black/40 backdrop-blur-md rounded-[2.5rem] border border-white/5 p-5 shadow-inner">
+                              <div className="bg-black/20 rounded-[2rem] p-6 border border-white/10 shadow-lg relative overflow-hidden backdrop-blur-md">
                                   {group.metrics.map(m => (
                                       <DetailRow 
                                           key={m.key}
