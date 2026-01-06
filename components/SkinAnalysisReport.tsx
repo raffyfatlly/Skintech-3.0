@@ -486,7 +486,7 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
 
           {/* --- SECTION 3: TOOLS (Snap 3) --- */}
           <section className="h-[100dvh] w-full px-2 snap-start snap-always shrink-0 flex flex-col justify-end pb-4 pt-4">
-              <div className="rounded-[2.5rem] backdrop-blur-3xl bg-zinc-900/80 border border-white/10 shadow-2xl relative overflow-hidden h-[92vh] flex flex-col">
+              <div className="w-full rounded-[2.5rem] backdrop-blur-3xl bg-zinc-900/80 border border-white/10 shadow-2xl relative overflow-hidden h-[92vh] flex flex-col">
                   <div className="absolute top-6 right-6 z-20">
                       <button onClick={() => scrollToSection(1)} className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-white/20">
                           <ChevronUp size={20} />
@@ -494,6 +494,7 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
                   </div>
                   <div className="pt-12 pb-2 px-8 shrink-0 text-center relative z-10">
                       <h2 className="text-4xl font-thin text-white tracking-tighter">Active Protocol</h2>
+                      <p className="text-xs font-bold text-teal-400 uppercase tracking-widest mt-2">AI Features</p>
                   </div>
                   {/* Added pb-24 to prevent bottom nav overlap */}
                   <div className="flex-1 overflow-y-auto relative z-10 scroll-smooth snap-y snap-mandatory scrollbar-hide pb-24 pt-4">
