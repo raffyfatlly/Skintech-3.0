@@ -26,12 +26,16 @@ interface Message {
 // Robust text polisher for live speech
 const polishText = (text: string) => {
     if (!text) return "";
-    return text
+    let clean = text
+        .replace(/\s+/g, ' ') // Collapse multiple spaces first
         .replace(/(\b\w+\b)(?:\s+\1\b)+/gi, '$1') // Remove repeated words (e.g. "I I" -> "I")
-        .replace(/\b(um|uh|ah)\b/gi, '') // Remove common fillers
-        .replace(/\s+/g, ' ') // Collapse multiple spaces
-        .trim()
-        .replace(/^[a-z]/, (c) => c.toUpperCase()); // Capitalize first letter
+        .replace(/\b(um|uh|ah|like)\b/gi, '') // Remove common fillers
+        .replace(/\s+([.,!?:;])/g, '$1') // Fix space before punctuation
+        .replace(/([.,!?:;])([^\s])/g, '$1 $2') // Ensure space after punctuation
+        .trim();
+    
+    if (!clean) return "";
+    return clean.charAt(0).toUpperCase() + clean.slice(1);
 };
 
 const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, onUnlockPremium, location = "Global", onClose }) => {
@@ -111,10 +115,11 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
           };
 
           recognitionRef.current.onresult = (event: any) => {
+              // Crucial Fix: Join with space to avoid "Whywhywhy" concatenation
               const current = Array.from(event.results)
                 .map((result: any) => result[0])
                 .map((result) => result.transcript)
-                .join('');
+                .join(' ');
               
               transcriptRef.current = current;
               
