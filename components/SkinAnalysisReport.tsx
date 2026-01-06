@@ -108,12 +108,10 @@ const getInsightText = (metricKey: string, score: number): string => {
     }
 };
 
-const ComparisonWidget = ({ userScore, age, metric }: { userScore: number, age: number, metric: string }) => {
+const ComparisonWidget = ({ userScore, globalScore, age }: { userScore: number, globalScore: number, age: number }) => {
     const [animate, setAnimate] = useState(false);
     
-    const avgScore = useMemo(() => getAgeAdjustedAverage(age, metric), [age, metric]);
-    
-    const diff = userScore - avgScore;
+    const diff = userScore - globalScore;
     const isBetter = diff >= 0;
 
     useEffect(() => {
@@ -145,10 +143,10 @@ const ComparisonWidget = ({ userScore, age, metric }: { userScore: number, age: 
                 <div className="relative">
                     <div className="flex justify-between text-[10px] font-bold text-zinc-400 mb-1.5">
                         <span>Global Average</span>
-                        <span>{avgScore}</span>
+                        <span>{globalScore}</span>
                     </div>
                     <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
-                        <div className="h-full bg-zinc-500/80 transition-all duration-1000 ease-out rounded-full" style={{ width: animate ? `${avgScore}%` : '0%' }} />
+                        <div className="h-full bg-zinc-500/80 transition-all duration-1000 ease-out rounded-full" style={{ width: animate ? `${globalScore}%` : '0%' }} />
                     </div>
                 </div>
             </div>
@@ -317,27 +315,35 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
                               const group = BIOMARKER_GROUPS.find(g => g.id === focusedGroup);
                               if (!group) return null;
                               
+                              // Calculate Group Average (for Display)
+                              const groupAverage = Math.round(group.metrics.reduce((acc, m) => acc + (metrics[m.key as keyof typeof metrics] as number), 0) / group.metrics.length);
+                              
+                              // Calculate Global Group Average (for Comparison)
+                              const globalGroupTotal = group.metrics.reduce((acc, m) => acc + getAgeAdjustedAverage(userProfile.age, m.key), 0);
+                              const groupGlobalAvg = Math.round(globalGroupTotal / group.metrics.length);
+
+                              // Identify Primary Concern (Lowest Score) for Insight Text
                               const sortedMetrics = [...group.metrics].sort((a, b) => {
                                   const valA = metrics[a.key as keyof typeof metrics] as number;
                                   const valB = metrics[b.key as keyof typeof metrics] as number;
                                   return valA - valB;
                               });
                               const primaryMetric = sortedMetrics[0];
-                              const score = metrics[primaryMetric.key as keyof typeof metrics] as number;
+                              const primaryScore = metrics[primaryMetric.key as keyof typeof metrics] as number;
                               
                               return (
                                   <>
                                     <div className="inline-flex items-center gap-2 mb-4 animate-in fade-in zoom-in duration-500 mx-auto">
                                         <group.icon size={18} className="text-teal-400" />
-                                        <span className="text-xs font-bold text-teal-400 uppercase tracking-[0.3em]">{primaryMetric.label}</span>
+                                        <span className="text-xs font-bold text-teal-400 uppercase tracking-[0.3em]">{group.title} Score</span>
                                     </div>
                                     <h2 className="text-4xl font-thin text-white leading-tight drop-shadow-lg mb-2 text-center max-w-sm mx-auto">
-                                        {getInsightText(primaryMetric.key, score)}
+                                        {getInsightText(primaryMetric.key, primaryScore)}
                                     </h2>
                                     <p className="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em] mb-4 text-center">
-                                        {primaryMetric.desc.toUpperCase()}
+                                        Primary Impact: {primaryMetric.desc.toUpperCase()}
                                     </p>
-                                    <ComparisonWidget userScore={score} age={userProfile.age} metric={primaryMetric.key} />
+                                    <ComparisonWidget userScore={groupAverage} globalScore={groupGlobalAvg} age={userProfile.age} />
                                   </>
                               );
                           })()}
@@ -370,15 +376,7 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
                       
                       {/* Group Orbs */}
                       {BIOMARKER_GROUPS.map(group => {
-                          // Find primary metric (lowest score) to align with overlay
-                          const sorted = [...group.metrics].sort((a, b) => {
-                              const valA = metrics[a.key as keyof typeof metrics] as number;
-                              const valB = metrics[b.key as keyof typeof metrics] as number;
-                              return valA - valB;
-                          });
-                          const primaryMetric = sorted[0];
-                          const score = Math.round(metrics[primaryMetric.key as keyof typeof metrics] as number);
-                          
+                          const avg = Math.round(group.metrics.reduce((acc, m) => acc + (metrics[m.key as keyof typeof metrics] as number), 0) / group.metrics.length);
                           const isActive = focusedGroup === group.id;
 
                           return (
@@ -389,10 +387,10 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
                             >
                                 <div className={`relative w-14 h-14 rounded-full backdrop-blur-md flex items-center justify-center shadow-lg transition-all duration-500 ${isActive ? 'bg-white/20 border border-white/40 text-white' : 'bg-black/20 border border-white/10 text-white/70'}`}>
                                     <group.icon size={20} strokeWidth={isActive ? 2 : 1.5} />
-                                    {score < 60 && <div className="absolute top-0 right-0 w-3 h-3 bg-amber-500 rounded-full border-2 border-black"></div>}
+                                    {avg < 60 && <div className="absolute top-0 right-0 w-3 h-3 bg-amber-500 rounded-full border-2 border-black"></div>}
                                 </div>
                                 <div className="text-center">
-                                    <span className={`block text-sm font-bold leading-none mb-1 ${isActive ? 'text-teal-300' : 'text-white'}`}>{score}</span>
+                                    <span className={`block text-sm font-bold leading-none mb-1 ${isActive ? 'text-teal-300' : 'text-white'}`}>{avg}</span>
                                     <span className="block text-[9px] font-medium text-white/80 uppercase tracking-widest">{group.title}</span>
                                 </div>
                             </button>
