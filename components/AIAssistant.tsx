@@ -1,108 +1,196 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, Product } from '../types';
-import { createDermatologistSession, isQuotaError } from '../services/geminiService';
-import { Sparkles, Send, RotateCcw, Lock, Crown } from 'lucide-react';
-import type { Chat, GenerateContentResponse } from "@google/genai";
+import { createDermatologistSession as initSession, isQuotaError } from '../services/geminiService'; 
+import { 
+    Send, Mic, X, ChevronLeft, Trash2, Keyboard, Sparkles, 
+    AudioWaveform, MessageSquare
+} from 'lucide-react';
+import type { Chat, GenerateContentResponse, Part } from "@google/genai";
 
 interface AIAssistantProps {
   user: UserProfile;
   shelf: Product[];
   triggerQuery?: string | null;
   onUnlockPremium: () => void;
-  location?: string; 
+  location?: string;
+  onClose?: () => void;
 }
 
 interface Message {
     role: 'user' | 'model';
     text: string;
+    image?: string;
+    isStreaming?: boolean;
 }
 
-// Format Helper Component
-const MessageContent: React.FC<{ text: string }> = ({ text }) => {
-    const lines = text.split('\n');
-    return (
-        <div className="space-y-1">
-            {lines.map((line, i) => {
-                const isListItem = line.trim().startsWith('* ') || line.trim().startsWith('- ');
-                const cleanLine = isListItem ? line.trim().substring(2) : line;
-                const parts = cleanLine.split(/(\*\*.*?\*\*)/g);
-
-                const renderedLine = (
-                    <span className={isListItem ? "block pl-2" : "block min-h-[1.2em]"}>
-                        {parts.map((part, j) => {
-                            if (part.startsWith('**') && part.endsWith('**')) {
-                                return <strong key={j} className="font-bold text-teal-100">{part.slice(2, -2)}</strong>;
-                            }
-                            return <span key={j}>{part}</span>;
-                        })}
-                    </span>
-                );
-
-                if (isListItem) {
-                    return (
-                        <div key={i} className="flex items-start gap-2">
-                            <span className="text-teal-300 mt-1.5 text-[6px] shrink-0">●</span>
-                            <div className="flex-1">{renderedLine}</div>
-                        </div>
-                    )
-                }
-                if (!line.trim()) return <div key={i} className="h-2" />
-                return <div key={i}>{renderedLine}</div>;
-            })}
-        </div>
-    );
-}
-
-const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, onUnlockPremium, location = "Global" }) => {
+const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, onUnlockPremium, location = "Global", onClose }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [session, setSession] = useState<Chat | null>(null);
+  
+  // Interaction Modes: VOICE (Live Session) vs TEXT (Chat History)
+  const [inputMode, setInputMode] = useState<'VOICE' | 'TEXT'>('VOICE');
+  const [orbState, setOrbState] = useState<'IDLE' | 'LISTENING' | 'THINKING' | 'SPEAKING'>('IDLE');
+
+  // Media Input State
+  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [isListening, setIsListening] = useState(false);
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const processedTriggerRef = useRef<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const recognitionRef = useRef<any>(null);
+  const transcriptRef = useRef<string>('');
 
-  // Unlock for all users
-  const isChatEnabled = true;
-
+  // Initialize Chat
   useEffect(() => {
-      if (!session && isChatEnabled) {
-          // Pass location to session creation
-          const newSession = createDermatologistSession(user, shelf, location);
-          setSession(newSession);
-          if (messages.length === 0) {
-             setMessages([{ role: 'model', text: `Analysis complete. I can help optimize your routine or suggest professional treatments.` }]);
+      if (!session) {
+          try {
+              const newSession = initSession(user, shelf, location);
+              setSession(newSession);
+          } catch (e) {
+              console.error("Failed to init chat session", e);
           }
       }
-  }, [user, shelf, session, isChatEnabled, location]); 
+  }, [user, shelf, session, location]);
 
   // Handle Trigger Query
   useEffect(() => {
-      if (isChatEnabled && triggerQuery && triggerQuery !== processedTriggerRef.current && session) {
-          processedTriggerRef.current = triggerQuery;
+      if (triggerQuery && session && messages.length === 0) {
           handleSend(triggerQuery);
       }
-  }, [triggerQuery, session, isChatEnabled]);
+  }, [triggerQuery, session]);
 
-  // Auto-scroll
+  // Auto-scroll in Text Mode
   useEffect(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isTyping]);
+      if (inputMode === 'TEXT') {
+          setTimeout(() => {
+              messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+          }, 100);
+      }
+  }, [messages, isTyping, selectedImage, inputMode]);
+
+  // Sync Orb State
+  useEffect(() => {
+      if (isTyping) setOrbState('THINKING');
+      else if (isListening) setOrbState('LISTENING');
+      else if (messages.length > 0 && inputMode === 'VOICE') setOrbState('SPEAKING'); 
+      else setOrbState('IDLE');
+  }, [isTyping, isListening, messages, inputMode]);
+
+  // Setup Speech
+  useEffect(() => {
+      if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+          const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+          recognitionRef.current = new SpeechRecognition();
+          recognitionRef.current.continuous = true; // Changed to true for hold-to-talk
+          recognitionRef.current.interimResults = true; 
+          recognitionRef.current.lang = 'en-US';
+
+          recognitionRef.current.onstart = () => {
+              setIsListening(true);
+          };
+
+          recognitionRef.current.onresult = (event: any) => {
+              const current = Array.from(event.results)
+                .map((result: any) => result[0])
+                .map((result) => result.transcript)
+                .join('');
+              
+              transcriptRef.current = current;
+              // Show what user is saying in real-time
+              if (inputMode === 'VOICE') {
+                  // We update inputText just for display purposes during listening
+                  setInputText(current);
+              }
+          };
+
+          recognitionRef.current.onerror = (event: any) => {
+              console.error("Speech Recognition Error:", event.error);
+              if (event.error === 'not-allowed') {
+                  alert("Microphone access denied.");
+              }
+              setIsListening(false);
+          };
+
+          recognitionRef.current.onend = () => {
+              setIsListening(false);
+              // Auto-send on end (release)
+              if (transcriptRef.current.trim()) {
+                  handleSend(transcriptRef.current);
+                  transcriptRef.current = '';
+              }
+          };
+      }
+  }, [session, inputMode]);
+
+  const startListening = () => {
+      if (!recognitionRef.current) {
+          alert("Voice input not supported.");
+          return;
+      }
+      if (isListening) return;
+      
+      transcriptRef.current = '';
+      setInputText('');
+      try {
+          recognitionRef.current.start();
+      } catch (e) {
+          console.error("Start listening failed", e);
+      }
+  };
+
+  const stopListening = () => {
+      if (!recognitionRef.current || !isListening) return;
+      try {
+          recognitionRef.current.stop();
+          // onend triggers the send
+      } catch (e) {
+          console.error("Stop listening failed", e);
+      }
+  };
+
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+              setSelectedImage(ev.target?.result as string);
+              setInputMode('TEXT'); 
+          };
+          reader.readAsDataURL(file);
+      }
+  };
 
   const handleSend = async (textOverride?: string) => {
-      const msgText = textOverride || inputText;
-      if (!msgText.trim() || !session) return;
-      
-      if (!textOverride) setInputText('');
-      
-      setMessages(prev => [...prev, { role: 'user', text: msgText }]);
+      const textToSend = textOverride || inputText;
+      const imageToSend = selectedImage;
+
+      if ((!textToSend.trim() && !imageToSend) || !session) return;
+
+      // Clear input immediately
+      setInputText('');
+      if (!textOverride) setSelectedImage(null);
+
+      setMessages(prev => [...prev, { role: 'user', text: textToSend, image: imageToSend || undefined }]);
       setIsTyping(true);
 
       try {
-          const result = await session.sendMessageStream({ message: msgText });
+          let result;
+          if (imageToSend) {
+              const base64Data = imageToSend.includes(',') ? imageToSend.split(',')[1] : imageToSend;
+              const parts: Part[] = [
+                  { inlineData: { mimeType: 'image/jpeg', data: base64Data } }
+              ];
+              if (textToSend) parts.push({ text: textToSend });
+              result = await session.sendMessageStream({ message: parts });
+          } else {
+              result = await session.sendMessageStream({ message: textToSend });
+          }
+
           let fullResponse = "";
-          
-          setMessages(prev => [...prev, { role: 'model', text: "" }]); 
+          setMessages(prev => [...prev, { role: 'model', text: "", isStreaming: true }]);
 
           for await (const chunk of result) {
               const text = (chunk as GenerateContentResponse).text;
@@ -110,138 +198,279 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
                   fullResponse += text;
                   setMessages(prev => {
                       const newArr = [...prev];
-                      newArr[newArr.length - 1].text = fullResponse;
+                      const lastMsg = newArr[newArr.length - 1];
+                      if (lastMsg.role === 'model') {
+                          lastMsg.text = fullResponse;
+                      }
                       return newArr;
                   });
               }
           }
-      } catch (e) {
-          console.error("Chat Error", e);
-          const isQuota = isQuotaError(e);
-          setMessages(prev => [...prev, { 
-              role: 'model', 
-              text: isQuota 
-                ? "I'm currently at capacity due to high demand. Please try asking again in a few moments." 
-                : "I'm having trouble connecting right now. Please try again." 
-          }]);
+          
+          setMessages(prev => {
+              const newArr = [...prev];
+              newArr[newArr.length - 1].isStreaming = false;
+              return newArr;
+          });
+
+      } catch (e: any) {
+          const errorMsg = isQuotaError(e)
+              ? "System busy. Retry shortly." 
+              : "Connection interrupted.";
+          
+          setMessages(prev => {
+              const last = prev[prev.length - 1];
+              if (last.role === 'model' && last.isStreaming) {
+                  const newArr = [...prev];
+                  newArr[newArr.length - 1].text = errorMsg;
+                  newArr[newArr.length - 1].isStreaming = false;
+                  return newArr;
+              } else {
+                  return [...prev, { role: 'model', text: errorMsg }];
+              }
+          });
       } finally {
           setIsTyping(false);
       }
   };
 
-  const handleReset = (e: React.MouseEvent) => {
-      e.stopPropagation();
-      setSession(null);
-      setMessages([{ role: 'model', text: `Session reset. Ready for your next query.` }]);
-      const newSession = createDermatologistSession(user, shelf, location);
-      setSession(newSession);
+  const handleClose = () => {
+      if (onClose) onClose();
+      else {
+          const event = new CustomEvent('navigate-home');
+          window.dispatchEvent(event);
+      }
   };
 
-  return (
-    <div className="fixed inset-0 z-40 bg-zinc-50 flex flex-col animate-in fade-in duration-500 overflow-hidden">
-          
-          {/* Header (Fixed Height) */}
-          <div className="flex shrink-0 items-center justify-between px-6 py-6 border-b border-zinc-200/50 bg-white pt-safe-top z-30">
-              <div className="flex items-center gap-2">
-                   <div className="w-10 h-10 rounded-full bg-teal-50 flex items-center justify-center text-teal-600 border border-teal-100/50">
-                       <Sparkles size={20} /> 
-                   </div>
-                   <div>
-                       <span className="text-sm font-black text-zinc-900 uppercase tracking-widest block leading-none">
-                           SkinOS { !user.isPremium && <span className="text-teal-600 text-[10px] ml-1">(Free Trial)</span> }
-                       </span>
-                       <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">Skin Assistant</span>
-                   </div>
-              </div>
-              <div className="flex items-center gap-2">
-                  {isChatEnabled && (
-                      <button onClick={handleReset} className="text-zinc-400 hover:text-zinc-600 transition-colors p-2 bg-zinc-50 rounded-full active:scale-95 border border-zinc-100" title="Reset Chat">
-                          <RotateCcw size={20} />
-                      </button>
-                  )}
-              </div>
-          </div>
+  const renderText = (text: string) => {
+      const parts = text.split(/(\*\*.*?\*\*)/g);
+      return parts.map((part, i) => {
+          if (part.startsWith('**') && part.endsWith('**')) {
+              return <strong key={i} className="text-teal-700 font-bold">{part.slice(2, -2)}</strong>;
+          }
+          return part;
+      });
+  };
 
-          {/* CHAT AREA (Flex Grow) */}
-          {!isChatEnabled ? (
-              <div className="flex-1 flex flex-col items-center justify-center p-8 bg-zinc-50 text-center">
-                  <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mb-6 shadow-xl border border-zinc-100">
-                      <Lock size={32} className="text-zinc-300" />
-                  </div>
-                  <h3 className="text-2xl font-black text-zinc-900 mb-2">Skin Assistant Locked</h3>
-                  <p className="text-sm text-zinc-500 font-medium mb-8 max-w-xs leading-relaxed">
-                      Unlock premium to chat with our AI expert about your specific skin concerns, ingredients, and routines.
-                  </p>
-                  <button 
-                      onClick={onUnlockPremium}
-                      className="px-8 py-4 bg-zinc-900 text-white rounded-full font-bold text-xs uppercase tracking-widest flex items-center gap-2 shadow-lg hover:scale-105 active:scale-95 transition-all"
-                  >
-                      <Crown size={14} className="text-amber-300" /> Unlock Now
-                  </button>
-              </div>
-          ) : (
-              <>
-                <div className="flex-1 overflow-y-auto p-6 space-y-6 pb-4">
-                    {messages.map((msg, idx) => (
-                        <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            <div 
-                            className={`max-w-[85%] p-4 rounded-2xl text-sm leading-relaxed shadow-sm animate-in fade-in slide-in-from-bottom-2 ${
-                                msg.role === 'user' 
-                                    ? 'bg-zinc-100 text-zinc-800 rounded-tr-sm font-medium' 
-                                    : 'bg-gradient-to-br from-teal-600 to-teal-700 text-white rounded-tl-sm shadow-teal-500/20'
-                            }`}
-                            >
-                                {msg.role === 'model' && (
-                                    <div className="flex items-center gap-2 mb-2 opacity-70 border-b border-white/20 pb-1.5">
-                                        <Sparkles size={10} />
-                                        <span className="text-[9px] font-bold uppercase tracking-widest">SkinOS Analysis</span>
+  const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
+  const lastUserMessage = messages.slice().reverse().find(m => m.role === 'user');
+
+  return (
+    <div className="fixed inset-0 z-[200] font-sans h-[100dvh] overflow-hidden flex flex-col bg-black text-zinc-800">
+        
+        {/* --- DYNAMIC BACKGROUND --- */}
+        <div className="absolute inset-0 z-0">
+            {user.faceImage ? (
+                <img 
+                    src={user.faceImage} 
+                    className="w-full h-full object-cover opacity-80" 
+                    alt="Background" 
+                />
+            ) : (
+                <div className="w-full h-full bg-gradient-to-br from-teal-100 via-white to-rose-50" />
+            )}
+        </div>
+
+        {/* --- MAIN GLASS CONTAINER --- */}
+        <div className="absolute inset-2 z-10 bg-white/70 backdrop-blur-3xl rounded-[2.5rem] border border-white/50 shadow-2xl flex flex-col overflow-hidden">
+            
+            {/* --- HEADER --- */}
+            <div className={`absolute top-0 left-0 right-0 px-6 pt-6 pb-4 flex items-center justify-between z-50 transition-all duration-500`}>
+                <button 
+                    onClick={handleClose} 
+                    className="w-10 h-10 rounded-full flex items-center justify-center text-zinc-600 hover:text-zinc-900 transition-colors active:scale-95 bg-white/40 backdrop-blur-md border border-white/50 shadow-sm"
+                >
+                    <ChevronLeft size={24} strokeWidth={1.5} />
+                </button>
+                
+                {/* Mini Status Pill */}
+                <div className="bg-white/40 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/50 shadow-sm flex items-center gap-2">
+                    <div className={`w-1.5 h-1.5 rounded-full ${orbState === 'THINKING' ? 'bg-teal-500 animate-pulse' : 'bg-zinc-400'}`}></div>
+                    <span className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest font-sans">
+                        {inputMode === 'VOICE' ? 'Live Session' : 'Chat Mode'}
+                    </span>
+                </div>
+
+                <button 
+                    onClick={() => setMessages([])}
+                    className="w-10 h-10 rounded-full flex items-center justify-center text-zinc-400 hover:text-rose-500 transition-colors active:scale-95 bg-white/40 backdrop-blur-md border border-white/50 shadow-sm"
+                >
+                    <Trash2 size={18} strokeWidth={1.5} />
+                </button>
+            </div>
+
+            {/* --- UNIFIED VISUAL AREA --- */}
+            
+            {/* 1. THE ORB (FIXED HEADER ANCHOR) */}
+            <div className="w-full h-[45%] shrink-0 flex items-center justify-center pt-28 relative z-10">
+                <div className="relative flex items-center justify-center w-48 h-48">
+                    {/* Outer Pulse Rings */}
+                    <div className="absolute inset-0 rounded-full border-2 border-teal-500/10 animate-[spin_8s_linear_infinite]"></div>
+                    <div className="absolute inset-4 rounded-full border border-teal-500/20 animate-[spin_6s_linear_infinite_reverse]"></div>
+                    
+                    {/* Core Orb */}
+                    <div 
+                        className={`rounded-full bg-gradient-to-tr from-teal-400 to-teal-200 flex items-center justify-center shadow-2xl relative z-10 transition-all duration-500 w-full h-full ${orbState === 'LISTENING' ? 'scale-110 shadow-teal-500/50' : 'animate-[bounce_3s_ease-in-out_infinite]'}`}
+                    >
+                        {orbState === 'LISTENING' ? (
+                            <AudioWaveform className="text-white animate-pulse w-20 h-20" />
+                        ) : orbState === 'THINKING' ? (
+                            <Sparkles className="text-white animate-spin w-20 h-20" />
+                        ) : (
+                            <AudioWaveform className="text-white drop-shadow-md w-20 h-20" strokeWidth={1.5} />
+                        )}
+                    </div>
+
+                    {orbState === 'LISTENING' && (
+                        <div className="absolute inset-0 rounded-full border-2 border-teal-400 animate-[ping_1.5s_cubic-bezier(0,0,0.2,1)_infinite]"></div>
+                    )}
+                </div>
+            </div>
+
+            {/* 2. TEXT CONTENT AREA (FLEXIBLE) */}
+            <div className="flex-1 relative overflow-hidden w-full z-20">
+                {inputMode === 'VOICE' ? (
+                    /* VOICE MODE: Teleprompter (Latest Msg Only) */
+                    <div className="absolute inset-0 flex flex-col items-center justify-start pt-4 px-6 text-center animate-in fade-in slide-in-from-bottom-8 duration-500 font-sans">
+                        {isListening ? (
+                            <div className="w-full animate-pulse">
+                                <p className="text-2xl font-semibold text-zinc-400 leading-relaxed italic">
+                                    "{inputText || 'Listening...'}"
+                                </p>
+                            </div>
+                        ) : lastMessage ? (
+                            <>
+                                {lastMessage.role === 'model' && lastUserMessage && (
+                                    <div className="mb-4 animate-in fade-in zoom-in-95 duration-500">
+                                        <p className="text-sm font-medium text-zinc-400 max-w-xs mx-auto leading-tight opacity-70 italic">
+                                            "{lastUserMessage.text}"
+                                        </p>
                                     </div>
                                 )}
-                                {msg.role === 'user' ? (
-                                    <div>{msg.text}</div>
-                                ) : (
-                                    <MessageContent text={msg.text} />
-                                )}
+                                <div className="w-full">
+                                    <p className="text-xl md:text-2xl font-semibold text-zinc-900 leading-relaxed drop-shadow-sm">
+                                        {renderText(lastMessage.text)}
+                                        {lastMessage.isStreaming && <span className="inline-block w-2 h-5 ml-1 bg-teal-500 align-middle animate-pulse rounded-full"/>}
+                                    </p>
+                                </div>
+                            </>
+                        ) : (
+                            <div className="text-center animate-in fade-in zoom-in duration-700">
+                                <h2 className="text-3xl font-black text-zinc-900 tracking-tight mb-2">Hi, {user.name.split(' ')[0]}.</h2>
+                                <p className="text-zinc-500 font-medium text-sm">Hold the mic to speak.</p>
                             </div>
-                        </div>
-                    ))}
-                    {isTyping && (
-                        <div className="flex justify-start">
-                            <div className="bg-white border border-zinc-100 px-4 py-3 rounded-2xl rounded-tl-sm flex gap-1.5 items-center shadow-sm">
-                                <div className="w-1.5 h-1.5 bg-teal-400 rounded-full animate-bounce" />
-                                <div className="w-1.5 h-1.5 bg-teal-500 rounded-full animate-bounce delay-100" />
-                                <div className="w-1.5 h-1.5 bg-teal-600 rounded-full animate-bounce delay-200" />
-                            </div>
-                        </div>
-                    )}
-                    <div ref={messagesEndRef} />
-                </div>
-
-                {/* INPUT AREA - Sticky to bottom of flex container */}
-                <div className="shrink-0 p-4 bg-white/80 backdrop-blur-md border-t border-zinc-100 z-40 relative">
-                    <div className="relative flex items-center">
-                        <input 
-                            type="text" 
-                            value={inputText}
-                            onChange={(e) => setInputText(e.target.value)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                            placeholder="Ask about your routine..." 
-                            className="w-full bg-zinc-50 border border-zinc-200 rounded-full pl-6 pr-14 py-4 text-sm font-medium text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:border-teal-500 focus:ring-1 focus:ring-teal-500/20 transition-all shadow-inner"
-                        />
-                        <button 
-                            onClick={() => handleSend()}
-                            disabled={!inputText.trim() || isTyping}
-                            className="absolute right-2 p-2.5 bg-zinc-900 text-white rounded-full hover:bg-zinc-800 disabled:opacity-50 disabled:scale-95 transition-all shadow-md active:scale-90"
-                        >
-                            <Send size={18} />
-                        </button>
+                        )}
                     </div>
-                </div>
+                ) : (
+                    /* TEXT MODE: Scrollable Teleprompter History */
+                    <div className="absolute inset-0 overflow-y-auto no-scrollbar px-6 pb-32 pt-4 animate-in fade-in duration-500 font-sans">
+                        <div className="w-full max-w-md mx-auto flex flex-col justify-start space-y-8 min-h-min">
+                            {messages.length === 0 && (
+                                <div className="flex-1 flex flex-col items-center justify-center text-center text-zinc-400 opacity-50 py-10">
+                                    <MessageSquare size={32} className="mx-auto mb-2 opacity-20" />
+                                    <p className="text-xs font-medium uppercase tracking-widest">Chat History Empty</p>
+                                </div>
+                            )}
+                            {messages.map((msg, idx) => (
+                                <div key={idx} className="w-full flex flex-col items-center text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                    
+                                    {msg.image && (
+                                        <img src={msg.image} className="w-32 h-32 rounded-2xl object-cover mb-4 border-2 border-white shadow-lg" />
+                                    )}
 
-                {/* Spacer for Floating Nav (approx 80px - reduced from 96px to reduce gap) */}
-                <div className="shrink-0 h-[80px] w-full bg-zinc-50" />
-              </>
-          )}
+                                    {msg.role === 'user' ? (
+                                        <div className="mb-2 animate-in fade-in zoom-in-95 duration-500">
+                                            <p className="text-sm font-medium text-zinc-400 max-w-xs mx-auto leading-tight opacity-70 italic">
+                                                "{msg.text}"
+                                            </p>
+                                        </div>
+                                    ) : (
+                                        <div className="w-full relative">
+                                            <p className="text-xl md:text-2xl font-semibold text-zinc-900 leading-relaxed drop-shadow-sm">
+                                                {renderText(msg.text)}
+                                                {msg.isStreaming && <span className="inline-block w-2 h-5 ml-1 bg-teal-500 align-middle animate-pulse rounded-full"/>}
+                                            </p>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                            <div ref={messagesEndRef} className="h-1" />
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* --- BOTTOM CONTROLS --- */}
+            <div className="absolute bottom-0 left-0 right-0 p-6 pb-8 z-40 bg-gradient-to-t from-white/90 via-white/80 to-transparent">
+                <div className="flex items-center justify-between max-w-sm mx-auto w-full">
+                    
+                    {/* Mode Toggle */}
+                    <button 
+                        onClick={() => setInputMode(inputMode === 'VOICE' ? 'TEXT' : 'VOICE')}
+                        className="w-12 h-12 rounded-full bg-white border border-zinc-100 flex items-center justify-center text-zinc-500 hover:text-zinc-900 transition-all active:scale-95 shadow-sm"
+                    >
+                        {inputMode === 'VOICE' ? <Keyboard size={20} /> : <AudioWaveform size={20} />}
+                    </button>
+
+                    {/* Main Input */}
+                    <div className="relative select-none">
+                        {inputMode === 'VOICE' ? (
+                            <button 
+                                onMouseDown={startListening}
+                                onMouseUp={stopListening}
+                                onMouseLeave={stopListening}
+                                onTouchStart={startListening}
+                                onTouchEnd={stopListening}
+                                className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-200 shadow-xl border-4 ${isListening ? 'bg-teal-50 border-teal-200 shadow-teal-200 scale-110' : 'bg-white border-white/50 shadow-lg hover:shadow-2xl active:scale-95'}`}
+                            >
+                                <div className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors ${isListening ? 'bg-teal-500 text-white' : 'bg-zinc-50 text-zinc-400'}`}>
+                                    <Mic size={28} strokeWidth={isListening ? 2 : 1.5} />
+                                </div>
+                                {isListening && (
+                                    <span className="absolute -top-8 text-[10px] font-bold text-teal-600 bg-white/80 px-2 py-1 rounded-full shadow-sm animate-bounce">
+                                        Release to Send
+                                    </span>
+                                )}
+                            </button>
+                        ) : (
+                            <div className="w-full max-w-[200px] bg-white rounded-full p-1.5 flex items-center shadow-lg border border-zinc-100">
+                                <input 
+                                    value={inputText}
+                                    onChange={(e) => setInputText(e.target.value)}
+                                    onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                                    placeholder="Type a message..."
+                                    className="bg-transparent border-none outline-none text-sm font-medium px-3 w-full text-zinc-800 placeholder:text-zinc-400 font-sans"
+                                    autoFocus
+                                />
+                                <button 
+                                    onClick={() => handleSend()}
+                                    disabled={!inputText.trim()}
+                                    className="w-9 h-9 rounded-full bg-teal-600 text-white flex items-center justify-center disabled:opacity-50 transition-all active:scale-90"
+                                >
+                                    <Send size={16} />
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Close (Repeated) */}
+                    <button 
+                        onClick={handleClose}
+                        className="w-12 h-12 rounded-full bg-white border border-zinc-100 flex items-center justify-center text-zinc-500 hover:text-rose-500 transition-all active:scale-95 shadow-sm"
+                    >
+                        <X size={20} />
+                    </button>
+                </div>
+            </div>
+
+            <input
+                type="file"
+                ref={fileInputRef}
+                accept="image/*"
+                className="hidden"
+                onChange={handleImageSelect}
+            />
+        </div>
     </div>
   );
 };

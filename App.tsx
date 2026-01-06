@@ -576,8 +576,8 @@ const App: React.FC = () => {
   // Determine if BottomNav should be visible
   const shouldShowNav = userProfile && 
                         userProfile.hasScannedFace && 
-                        [AppView.DASHBOARD, AppView.SMART_SHELF, AppView.PROFILE_SETUP, AppView.ROUTINE_BUILDER, AppView.AI_ASSISTANT].includes(currentView) &&
-                        !analyzedProduct; // Hide on Buying Assistant
+                        [AppView.DASHBOARD, AppView.SMART_SHELF, AppView.PROFILE_SETUP, AppView.ROUTINE_BUILDER].includes(currentView) &&
+                        !analyzedProduct; 
 
   const renderView = () => {
       if (!userProfile && ![AppView.LANDING, AppView.ONBOARDING].includes(currentView)) {
@@ -729,6 +729,7 @@ const App: React.FC = () => {
                       triggerQuery={aiQuery} 
                       onUnlockPremium={handleUnlockPremium}
                       location={userLocation} 
+                      onClose={() => setCurrentView(AppView.DASHBOARD)}
                   />
               ) : null;
           default: return <LandingPage onGetStarted={() => setCurrentView(AppView.ONBOARDING)} onLogin={() => openAuth('GENERIC')} />;
