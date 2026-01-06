@@ -158,10 +158,23 @@ const ComparisonWidget = ({ userScore, age, metric }: { userScore: number, age: 
 
 const DetailRow: React.FC<{ label: string, value: number, description: string, avg: number }> = ({ label, value, description, avg }) => {
     const [width, setWidth] = useState(0);
+    const rowRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        const t = setTimeout(() => setWidth(value), 100);
-        return () => clearTimeout(t);
+        const observer = new IntersectionObserver((entries) => {
+            if (entries[0].isIntersecting) {
+                // Add staggered delay for visual effect
+                const delay = Math.random() * 150;
+                setTimeout(() => setWidth(value), delay);
+                observer.disconnect();
+            }
+        }, { threshold: 0.1 });
+
+        if (rowRef.current) {
+            observer.observe(rowRef.current);
+        }
+
+        return () => observer.disconnect();
     }, [value]);
 
     const getBarColor = (val: number) => {
@@ -171,7 +184,7 @@ const DetailRow: React.FC<{ label: string, value: number, description: string, a
     };
 
     return (
-        <div className="group py-4 px-2 border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors rounded-xl">
+        <div ref={rowRef} className="group py-4 px-2 border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors rounded-xl">
             <div className="flex justify-between items-end mb-2">
                 <h4 className="text-xs font-bold text-white uppercase tracking-wider">{label}</h4>
                 <div className="flex items-center gap-2">
@@ -227,6 +240,19 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
 
   const handleMainScroll = (e: React.UIEvent<HTMLDivElement>) => {
       const currentScrollY = e.currentTarget.scrollTop;
+      const viewportHeight = e.currentTarget.clientHeight;
+      
+      // Calculate active section index (0, 1, 2)
+      // Using Math.round to determine which section takes up the majority of the view
+      const activeSectionIndex = Math.round(currentScrollY / viewportHeight);
+
+      // Section 3 (index 2) is "Active Protocol" - force nav visibility here
+      if (activeSectionIndex === 2) {
+           window.dispatchEvent(new CustomEvent('set-bottom-nav-visibility', { detail: true }));
+           lastMainScrollY.current = currentScrollY;
+           return;
+      }
+
       const diff = Math.abs(currentScrollY - lastMainScrollY.current);
       if (diff > 10) {
           if (currentScrollY > lastMainScrollY.current) window.dispatchEvent(new CustomEvent('set-bottom-nav-visibility', { detail: false }));
@@ -463,7 +489,8 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
                   <div className="pt-12 pb-2 px-8 shrink-0 text-center relative z-10">
                       <h2 className="text-4xl font-thin text-white tracking-tighter">Active Protocol</h2>
                   </div>
-                  <div className="flex-1 overflow-y-auto relative z-10 scroll-smooth snap-y snap-mandatory scrollbar-hide pb-safe pt-4">
+                  {/* Added pb-24 to prevent bottom nav overlap */}
+                  <div className="flex-1 overflow-y-auto relative z-10 scroll-smooth snap-y snap-mandatory scrollbar-hide pb-24 pt-4">
                       {tools.map((tool, i) => (
                           <div key={i} className="snap-start snap-always shrink-0 w-full h-full flex flex-col justify-center px-8">
                               <button onClick={tool.action} className="text-left group opacity-80 hover:opacity-100 transition-all">
