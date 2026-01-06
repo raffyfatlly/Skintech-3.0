@@ -123,7 +123,7 @@ const ComparisonWidget = ({ userScore, age, metric }: { userScore: number, age: 
     }, [userScore]); // Re-animate on score change
 
     return (
-        <div className="w-full max-w-[260px] mx-auto mt-8 bg-white/10 backdrop-blur-md rounded-2xl p-5 border border-white/20 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300 shadow-2xl">
+        <div className="w-full max-w-[260px] mx-auto mt-8 bg-black/60 backdrop-blur-md rounded-2xl p-5 border border-white/10 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300 shadow-2xl">
             <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-3">
                 <span className="text-[9px] font-bold text-white/50 uppercase tracking-widest">
                     Avg for Age {age}
@@ -284,8 +284,8 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
           ) : (
               <div className="w-full h-full bg-gradient-to-br from-zinc-900 to-black"></div>
           )}
-          {/* Lighter scrim to ensure text readability but keep photo bright */}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/20 to-black/80"></div>
+          {/* Dynamic Overlay: Light by default, Dark when focused */}
+          <div className={`absolute inset-0 transition-all duration-700 ease-in-out ${focusedGroup ? 'bg-black/80 backdrop-blur-sm' : 'bg-gradient-to-b from-black/0 via-black/0 to-black/60'}`}></div>
       </div>
 
       <div 
