@@ -37,6 +37,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
   // Media Input State
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
+  const [liveTranscript, setLiveTranscript] = useState('');
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -62,20 +63,19 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
       }
   }, [triggerQuery, session]);
 
-  // Auto-scroll in Text Mode
+  // Auto-scroll logic
   useEffect(() => {
-      if (inputMode === 'TEXT') {
-          setTimeout(() => {
-              messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-          }, 100);
-      }
-  }, [messages, isTyping, selectedImage, inputMode]);
+      // Scroll on new messages or when listening (live transcript updates)
+      setTimeout(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+  }, [messages, isTyping, selectedImage, inputMode, liveTranscript, isListening]);
 
   // Sync Orb State
   useEffect(() => {
       if (isTyping) setOrbState('THINKING');
       else if (isListening) setOrbState('LISTENING');
-      else if (messages.length > 0 && inputMode === 'VOICE') setOrbState('SPEAKING'); 
+      else if (messages.length > 0 && messages[messages.length-1].role === 'model') setOrbState('SPEAKING'); // Simple heuristic
       else setOrbState('IDLE');
   }, [isTyping, isListening, messages, inputMode]);
 
@@ -84,12 +84,13 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
       if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
           const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
           recognitionRef.current = new SpeechRecognition();
-          recognitionRef.current.continuous = true; // Changed to true for hold-to-talk
+          recognitionRef.current.continuous = true;
           recognitionRef.current.interimResults = true; 
           recognitionRef.current.lang = 'en-US';
 
           recognitionRef.current.onstart = () => {
               setIsListening(true);
+              setLiveTranscript('');
           };
 
           recognitionRef.current.onresult = (event: any) => {
@@ -99,11 +100,10 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
                 .join('');
               
               transcriptRef.current = current;
-              // Show what user is saying in real-time
-              if (inputMode === 'VOICE') {
-                  // We update inputText just for display purposes during listening
-                  setInputText(current);
-              }
+              
+              // Helper to capitalize first letter for display
+              const formatted = current.charAt(0).toUpperCase() + current.slice(1);
+              setLiveTranscript(formatted);
           };
 
           recognitionRef.current.onerror = (event: any) => {
@@ -112,6 +112,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
                   alert("Microphone access denied.");
               }
               setIsListening(false);
+              setLiveTranscript('');
           };
 
           recognitionRef.current.onend = () => {
@@ -121,6 +122,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
                   handleSend(transcriptRef.current);
                   transcriptRef.current = '';
               }
+              setLiveTranscript('');
           };
       }
   }, [session, inputMode]);
@@ -133,7 +135,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
       if (isListening) return;
       
       transcriptRef.current = '';
-      setInputText('');
+      setLiveTranscript('');
       try {
           recognitionRef.current.start();
       } catch (e) {
@@ -252,9 +254,6 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
       });
   };
 
-  const lastMessage = messages.length > 0 ? messages[messages.length - 1] : null;
-  const lastUserMessage = messages.slice().reverse().find(m => m.role === 'user');
-
   return (
     <div className="fixed inset-0 z-[200] font-sans h-[100dvh] overflow-hidden flex flex-col bg-black text-zinc-800">
         
@@ -327,77 +326,57 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
                 </div>
             </div>
 
-            {/* 2. TEXT CONTENT AREA (FLEXIBLE) */}
+            {/* 2. TEXT CONTENT AREA (UNIFIED SCROLLABLE LIST) */}
             <div className="flex-1 relative overflow-hidden w-full z-20">
-                {inputMode === 'VOICE' ? (
-                    /* VOICE MODE: Teleprompter (Latest Msg Only) */
-                    <div className="absolute inset-0 flex flex-col items-center justify-start pt-4 px-6 text-center animate-in fade-in slide-in-from-bottom-8 duration-500 font-sans">
-                        {isListening ? (
-                            <div className="w-full animate-pulse">
-                                <p className="text-2xl font-semibold text-zinc-400 leading-relaxed italic">
-                                    "{inputText || 'Listening...'}"
+                <div className="absolute inset-0 overflow-y-auto no-scrollbar px-6 pb-32 pt-4 animate-in fade-in duration-500 font-sans">
+                    <div className="w-full max-w-md mx-auto flex flex-col justify-start space-y-8 min-h-min">
+                        {messages.length === 0 && !isListening && (
+                            <div className="flex-1 flex flex-col items-center justify-center text-center text-zinc-400 opacity-50 py-10">
+                                <MessageSquare size={32} className="mx-auto mb-2 opacity-20" />
+                                <p className="text-xs font-medium uppercase tracking-widest">
+                                    {inputMode === 'VOICE' ? "Hold mic to speak" : "Type a message"}
                                 </p>
                             </div>
-                        ) : lastMessage ? (
-                            <>
-                                {lastMessage.role === 'model' && lastUserMessage && (
-                                    <div className="mb-4 animate-in fade-in zoom-in-95 duration-500">
+                        )}
+                        
+                        {messages.map((msg, idx) => (
+                            <div key={idx} className="w-full flex flex-col items-center text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
+                                
+                                {msg.image && (
+                                    <img src={msg.image} className="w-32 h-32 rounded-2xl object-cover mb-4 border-2 border-white shadow-lg" />
+                                )}
+
+                                {msg.role === 'user' ? (
+                                    <div className="mb-2 animate-in fade-in zoom-in-95 duration-500">
                                         <p className="text-sm font-medium text-zinc-400 max-w-xs mx-auto leading-tight opacity-70 italic">
-                                            "{lastUserMessage.text}"
+                                            "{msg.text}"
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <div className="w-full relative">
+                                        <p className="text-xl md:text-2xl font-semibold text-zinc-900 leading-relaxed drop-shadow-sm">
+                                            {renderText(msg.text)}
+                                            {msg.isStreaming && <span className="inline-block w-2 h-5 ml-1 bg-teal-500 align-middle animate-pulse rounded-full"/>}
                                         </p>
                                     </div>
                                 )}
-                                <div className="w-full">
-                                    <p className="text-xl md:text-2xl font-semibold text-zinc-900 leading-relaxed drop-shadow-sm">
-                                        {renderText(lastMessage.text)}
-                                        {lastMessage.isStreaming && <span className="inline-block w-2 h-5 ml-1 bg-teal-500 align-middle animate-pulse rounded-full"/>}
+                            </div>
+                        ))}
+
+                        {/* Live Transcript Bubble */}
+                        {isListening && liveTranscript && (
+                            <div className="w-full flex flex-col items-center text-center animate-in fade-in slide-in-from-bottom-2 duration-300">
+                                <div className="mb-2">
+                                    <p className="text-sm font-medium text-zinc-400 max-w-xs mx-auto leading-tight opacity-70 italic">
+                                        "{liveTranscript}..."
                                     </p>
                                 </div>
-                            </>
-                        ) : (
-                            <div className="text-center animate-in fade-in zoom-in duration-700">
-                                <h2 className="text-3xl font-black text-zinc-900 tracking-tight mb-2">Hi, {user.name.split(' ')[0]}.</h2>
-                                <p className="text-zinc-500 font-medium text-sm">Hold the mic to speak.</p>
                             </div>
                         )}
-                    </div>
-                ) : (
-                    /* TEXT MODE: Scrollable Teleprompter History */
-                    <div className="absolute inset-0 overflow-y-auto no-scrollbar px-6 pb-32 pt-4 animate-in fade-in duration-500 font-sans">
-                        <div className="w-full max-w-md mx-auto flex flex-col justify-start space-y-8 min-h-min">
-                            {messages.length === 0 && (
-                                <div className="flex-1 flex flex-col items-center justify-center text-center text-zinc-400 opacity-50 py-10">
-                                    <MessageSquare size={32} className="mx-auto mb-2 opacity-20" />
-                                    <p className="text-xs font-medium uppercase tracking-widest">Chat History Empty</p>
-                                </div>
-                            )}
-                            {messages.map((msg, idx) => (
-                                <div key={idx} className="w-full flex flex-col items-center text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                    
-                                    {msg.image && (
-                                        <img src={msg.image} className="w-32 h-32 rounded-2xl object-cover mb-4 border-2 border-white shadow-lg" />
-                                    )}
 
-                                    {msg.role === 'user' ? (
-                                        <div className="mb-2 animate-in fade-in zoom-in-95 duration-500">
-                                            <p className="text-sm font-medium text-zinc-400 max-w-xs mx-auto leading-tight opacity-70 italic">
-                                                "{msg.text}"
-                                            </p>
-                                        </div>
-                                    ) : (
-                                        <div className="w-full relative">
-                                            <p className="text-xl md:text-2xl font-semibold text-zinc-900 leading-relaxed drop-shadow-sm">
-                                                {renderText(msg.text)}
-                                                {msg.isStreaming && <span className="inline-block w-2 h-5 ml-1 bg-teal-500 align-middle animate-pulse rounded-full"/>}
-                                            </p>
-                                        </div>
-                                    )}
-                                </div>
-                            ))}
-                            <div ref={messagesEndRef} className="h-1" />
-                        </div>
+                        <div ref={messagesEndRef} className="h-1" />
                     </div>
-                )}
+                </div>
             </div>
 
             {/* --- BOTTOM CONTROLS --- */}
