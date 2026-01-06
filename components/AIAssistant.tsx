@@ -23,16 +23,27 @@ interface Message {
     isStreaming?: boolean;
 }
 
-// Robust text polisher for live speech
+// Robust text polisher for final speech output
 const polishText = (text: string) => {
     if (!text) return "";
-    let clean = text
-        .replace(/\s+/g, ' ') // Collapse multiple spaces first
-        .replace(/(\b\w+\b)(?:\s+\1\b)+/gi, '$1') // Remove repeated words (e.g. "I I" -> "I")
-        .replace(/\b(um|uh|ah|like)\b/gi, '') // Remove common fillers
-        .replace(/\s+([.,!?:;])/g, '$1') // Fix space before punctuation
-        .replace(/([.,!?:;])([^\s])/g, '$1 $2') // Ensure space after punctuation
-        .trim();
+    
+    // 1. Normalize spaces first
+    let clean = text.replace(/\s+/g, ' ').trim();
+    
+    // 2. Remove repeated words (case insensitive): "Why Why" -> "Why"
+    clean = clean.replace(/(\b\w+\b)(?:\s+\1\b)+/gi, '$1');
+    
+    // 3. Remove repeated phrases
+    clean = clean.replace(/(\b\w+\s+\w+\b)(?:\s+\1\b)+/gi, '$1');
+    
+    // 4. Remove fillers
+    clean = clean.replace(/\b(um|uh|ah|like)\b/gi, '');
+    
+    // 5. Fix punctuation spacing
+    clean = clean.replace(/\s+([.,!?:;])/g, '$1').replace(/([.,!?:;])([^\s])/g, '$1 $2');
+    
+    // Final cleanup
+    clean = clean.replace(/\s+/g, ' ').trim();
     
     if (!clean) return "";
     return clean.charAt(0).toUpperCase() + clean.slice(1);
@@ -51,13 +62,11 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
   // Media Input State
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
-  const [liveTranscript, setLiveTranscript] = useState('');
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
   const transcriptRef = useRef<string>('');
-  const throttleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Initialize Chat
   useEffect(() => {
@@ -83,7 +92,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
       setTimeout(() => {
           messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
-  }, [messages, isTyping, selectedImage, inputMode, liveTranscript, isListening]);
+  }, [messages, isTyping, selectedImage, inputMode, isListening]);
 
   // Sync Orb State
   useEffect(() => {
@@ -92,13 +101,6 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
       else if (messages.length > 0 && messages[messages.length-1].role === 'model') setOrbState('SPEAKING'); 
       else setOrbState('IDLE');
   }, [isTyping, isListening, messages, inputMode]);
-
-  // Cleanup throttle on unmount
-  useEffect(() => {
-      return () => {
-          if (throttleTimeoutRef.current) clearTimeout(throttleTimeoutRef.current);
-      };
-  }, []);
 
   // Setup Speech
   useEffect(() => {
@@ -111,27 +113,16 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
 
           recognitionRef.current.onstart = () => {
               setIsListening(true);
-              setLiveTranscript('');
           };
 
           recognitionRef.current.onresult = (event: any) => {
-              // Crucial Fix: Join with space to avoid "Whywhywhy" concatenation
+              // Capture text silently
               const current = Array.from(event.results)
                 .map((result: any) => result[0])
                 .map((result) => result.transcript)
                 .join(' ');
               
               transcriptRef.current = current;
-              
-              // Throttle visual updates to reduce jitter/messiness (150ms delay)
-              if (!throttleTimeoutRef.current) {
-                  throttleTimeoutRef.current = setTimeout(() => {
-                      // Only show last 150 chars to avoid UI overflow
-                      const displaySlice = current.length > 150 ? "..." + current.slice(-150) : current;
-                      setLiveTranscript(polishText(displaySlice));
-                      throttleTimeoutRef.current = null;
-                  }, 150);
-              }
           };
 
           recognitionRef.current.onerror = (event: any) => {
@@ -140,22 +131,17 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
                   alert("Microphone access denied.");
               }
               setIsListening(false);
-              setLiveTranscript('');
           };
 
           recognitionRef.current.onend = () => {
               setIsListening(false);
-              setLiveTranscript(''); 
               
-              if (throttleTimeoutRef.current) {
-                  clearTimeout(throttleTimeoutRef.current);
-                  throttleTimeoutRef.current = null;
-              }
-
-              // Auto-send on release, using the full tracked transcript
+              // Only process and show text when the user releases (stops)
               if (transcriptRef.current.trim()) {
                   const refinedText = polishText(transcriptRef.current);
-                  handleSend(refinedText);
+                  if (refinedText.length > 1) { 
+                      handleSend(refinedText);
+                  }
                   transcriptRef.current = '';
               }
           };
@@ -170,7 +156,6 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
       if (isListening) return;
       
       transcriptRef.current = '';
-      setLiveTranscript('');
       try {
           recognitionRef.current.start();
       } catch (e) {
@@ -396,17 +381,6 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
                                 )}
                             </div>
                         ))}
-
-                        {/* Live Transcript Bubble - Shows ONLY during hold */}
-                        {isListening && liveTranscript && (
-                            <div className="w-full flex flex-col items-center text-center animate-in fade-in slide-in-from-bottom-2 duration-300">
-                                <div className="mb-2">
-                                    <p className="text-sm font-medium text-zinc-400 max-w-xs mx-auto leading-tight opacity-70 italic">
-                                        "{liveTranscript}..."
-                                    </p>
-                                </div>
-                            </div>
-                        )}
 
                         <div ref={messagesEndRef} className="h-1" />
                     </div>
