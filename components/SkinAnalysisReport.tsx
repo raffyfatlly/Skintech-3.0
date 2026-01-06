@@ -122,7 +122,7 @@ const ComparisonWidget = ({ userScore, age, metric }: { userScore: number, age: 
     }, [userScore]); // Re-animate on score change
 
     return (
-        <div className="w-full max-w-[260px] mt-8 bg-black/40 backdrop-blur-md rounded-2xl p-5 border border-white/10 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300 shadow-2xl">
+        <div className="w-full max-w-[260px] mx-auto mt-8 bg-black/40 backdrop-blur-md rounded-2xl p-5 border border-white/10 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300 shadow-2xl">
             <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-3">
                 <span className="text-[9px] font-bold text-white/50 uppercase tracking-widest">
                     Avg for Age {age}
@@ -287,7 +287,7 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
 
               {/* OVERLAY for Focused Group */}
               {focusedGroup && (
-                  <div className="absolute top-24 left-0 right-0 z-30 px-8 flex flex-col items-center text-center pointer-events-none">
+                  <div className="absolute top-24 left-0 right-0 z-30 px-8 flex flex-col items-center justify-center text-center pointer-events-none w-full">
                       <div className="animate-in fade-in slide-in-from-top-4 duration-500 ease-out w-full flex flex-col items-center">
                           {/* We find the 'worst' or most relevant metric in the group to display as the headline */}
                           {(() => {
@@ -305,14 +305,14 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
                               
                               return (
                                   <>
-                                    <div className="inline-flex items-center gap-2 mb-4 animate-in fade-in zoom-in duration-500">
+                                    <div className="inline-flex items-center gap-2 mb-4 animate-in fade-in zoom-in duration-500 mx-auto">
                                         <group.icon size={18} className="text-teal-400" />
                                         <span className="text-xs font-bold text-teal-400 uppercase tracking-[0.3em]">{primaryMetric.label}</span>
                                     </div>
-                                    <h2 className="text-4xl font-thin text-white leading-tight drop-shadow-lg mb-2">
+                                    <h2 className="text-4xl font-thin text-white leading-tight drop-shadow-lg mb-2 text-center max-w-sm mx-auto">
                                         {getInsightText(primaryMetric.key, score)}
                                     </h2>
-                                    <p className="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em] mb-4">
+                                    <p className="text-[10px] font-bold text-white/50 uppercase tracking-[0.2em] mb-4 text-center">
                                         {primaryMetric.desc.toUpperCase()}
                                     </p>
                                     <ComparisonWidget userScore={score} age={userProfile.age} metric={primaryMetric.key} />

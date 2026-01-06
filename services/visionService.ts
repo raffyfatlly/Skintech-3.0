@@ -186,29 +186,31 @@ export const analyzeSkinFrame = (
     }
     const redness = count ? (rSum/count) / (gSum/count) : 1.2;
     const seed = count;
-    const score = 70 + (seed % 20);
+    
+    // More realistic range: 55 - 88 (Lower averages to allow for improvement)
+    const baseScore = 55 + (seed % 34); 
 
     return {
-        overallScore: score,
-        // Breakout
-        acneActive: Math.min(99, Math.max(10, 100 - (redness - 1.1) * 100)),
-        blackheads: score + 5,
-        acneMarks: score - 2, // Was acneScars
+        overallScore: baseScore,
+        // Breakout (Highly variable)
+        acneActive: Math.min(99, Math.max(20, 100 - (redness - 1.05) * 120)),
+        blackheads: Math.min(95, Math.max(40, baseScore + 5 - (seed % 10))),
+        acneMarks: Math.min(95, Math.max(40, baseScore - 5 + (seed % 10))),
         
         // Tone
-        darkSpots: score - 5, // Was pigmentation
-        redness: Math.min(99, Math.max(10, 100 - (redness - 1.1) * 80)),
-        darkCircles: score - 5,
+        darkSpots: Math.min(95, Math.max(30, baseScore - 10 + (seed % 15))),
+        redness: Math.min(99, Math.max(20, 100 - (redness - 1.05) * 100)),
+        darkCircles: Math.min(90, Math.max(30, baseScore - (seed % 20))),
         
         // Surface
-        pores: score + 2, // Was poreSize
-        texture: score,
-        oiliness: 60,
-        hydration: score - 10,
+        pores: Math.min(95, Math.max(30, baseScore - 5 + (seed % 10))),
+        texture: baseScore,
+        oiliness: 50 + (seed % 40), // 50-90 (Oily to Dry/Normal)
+        hydration: Math.min(90, Math.max(20, baseScore - 15 + (seed % 10))), // Often low
         
-        // Aging
-        wrinkles: score,
-        firmness: 85, // Was sagging
+        // Aging (Usually better for younger users, base on score)
+        wrinkles: Math.min(98, Math.max(50, baseScore + 5)),
+        firmness: Math.min(98, Math.max(50, baseScore + 2)),
         
         timestamp: Date.now()
     }

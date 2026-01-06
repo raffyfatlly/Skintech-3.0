@@ -25,14 +25,6 @@ const SCAN_TIPS = [
   "Consistent weekly scans build the most accurate skin profile."
 ];
 
-// Re-defining groups for display on result screen
-const RESULT_GROUPS = [
-    { name: 'Breakout', keys: ['acneActive', 'blackheads', 'acneMarks'] },
-    { name: 'Tone', keys: ['darkSpots', 'redness', 'darkCircles'] },
-    { name: 'Surface', keys: ['pores', 'texture', 'oiliness', 'hydration'] },
-    { name: 'Aging', keys: ['wrinkles', 'firmness'] }
-];
-
 const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, onCancel, referenceImage, shelf = [] }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -484,28 +476,9 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[220px] h-[220px] border border-white/5 rounded-full animate-[spin_15s_linear_infinite_reverse]" />
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[160px] h-[160px] bg-teal-500/20 blur-[60px] rounded-full" />
                     
-                    <div className="relative z-10 flex flex-col items-center">
+                    <div className="relative z-10 flex flex-col items-center text-center">
                         <span className="text-xs font-bold text-teal-200 uppercase tracking-[0.3em] mb-2 animate-in fade-in duration-1000 delay-300 shadow-black drop-shadow-md">Overall Score</span>
                         <div className="text-[7rem] leading-[0.85] font-black text-white tracking-tighter drop-shadow-2xl animate-in zoom-in-50 duration-1000 ease-out select-none mb-6">{animatedScore}</div>
-                        
-                        {/* NEW: 12 Biomarkers Summary Grid */}
-                        <div className="w-full max-w-sm grid grid-cols-2 gap-2 px-4 animate-in slide-in-from-bottom-12 duration-700 delay-300 max-h-[35vh] overflow-y-auto no-scrollbar">
-                            {RESULT_GROUPS.map(group => (
-                                <div key={group.name} className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10">
-                                    <h4 className="text-[10px] font-bold text-teal-300 uppercase tracking-widest mb-2 border-b border-white/10 pb-1">{group.name}</h4>
-                                    <div className="space-y-1.5">
-                                        {group.keys.map(key => (
-                                            <div key={key} className="flex justify-between items-center">
-                                                <span className="text-[10px] text-white/80 font-medium capitalize truncate max-w-[80px]">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
-                                                <span className={`text-[10px] font-bold ${(resultMetrics[key as keyof typeof resultMetrics] as number) > 80 ? 'text-emerald-400' : (resultMetrics[key as keyof typeof resultMetrics] as number) < 60 ? 'text-rose-400' : 'text-amber-400'}`}>
-                                                    {resultMetrics[key as keyof typeof resultMetrics]}
-                                                </span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
                     </div>
                 </div>
 
