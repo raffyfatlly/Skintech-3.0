@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, Product } from '../types';
 import { createDermatologistSession as initSession, isQuotaError } from '../services/geminiService'; 
@@ -24,14 +23,15 @@ interface Message {
     isStreaming?: boolean;
 }
 
-// Helper to polish text (remove repeated words, fix spacing, capitalize)
+// Robust text polisher for live speech
 const polishText = (text: string) => {
     if (!text) return "";
-    let clean = text
-        .replace(/\s+/g, ' ') // Normalize spaces
-        .replace(/(\b\w+\b)( \1\b)+/gi, '$1') // Remove repeated words (e.g. "I I" -> "I")
-        .trim();
-    return clean.charAt(0).toUpperCase() + clean.slice(1);
+    return text
+        .replace(/(\b\w+\b)(?:\s+\1\b)+/gi, '$1') // Remove repeated words (e.g. "I I" -> "I")
+        .replace(/\b(um|uh|ah)\b/gi, '') // Remove common fillers
+        .replace(/\s+/g, ' ') // Collapse multiple spaces
+        .trim()
+        .replace(/^[a-z]/, (c) => c.toUpperCase()); // Capitalize first letter
 };
 
 const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, onUnlockPremium, location = "Global", onClose }) => {
@@ -53,6 +53,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
   const transcriptRef = useRef<string>('');
+  const throttleTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Initialize Chat
   useEffect(() => {
@@ -75,7 +76,6 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
 
   // Auto-scroll logic
   useEffect(() => {
-      // Scroll on new messages or when listening (live transcript updates)
       setTimeout(() => {
           messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
@@ -88,6 +88,13 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
       else if (messages.length > 0 && messages[messages.length-1].role === 'model') setOrbState('SPEAKING'); 
       else setOrbState('IDLE');
   }, [isTyping, isListening, messages, inputMode]);
+
+  // Cleanup throttle on unmount
+  useEffect(() => {
+      return () => {
+          if (throttleTimeoutRef.current) clearTimeout(throttleTimeoutRef.current);
+      };
+  }, []);
 
   // Setup Speech
   useEffect(() => {
@@ -111,11 +118,15 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
               
               transcriptRef.current = current;
               
-              // Only show the last 150 chars for the live bubble to prevent obstruction
-              const displaySlice = current.length > 150 ? "..." + current.slice(-150) : current;
-              
-              // Format for display
-              setLiveTranscript(polishText(displaySlice));
+              // Throttle visual updates to reduce jitter/messiness (150ms delay)
+              if (!throttleTimeoutRef.current) {
+                  throttleTimeoutRef.current = setTimeout(() => {
+                      // Only show last 150 chars to avoid UI overflow
+                      const displaySlice = current.length > 150 ? "..." + current.slice(-150) : current;
+                      setLiveTranscript(polishText(displaySlice));
+                      throttleTimeoutRef.current = null;
+                  }, 150);
+              }
           };
 
           recognitionRef.current.onerror = (event: any) => {
@@ -129,9 +140,14 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
 
           recognitionRef.current.onend = () => {
               setIsListening(false);
-              setLiveTranscript(''); // Clear immediate view
+              setLiveTranscript(''); 
               
-              // Auto-send on end (release), with polish
+              if (throttleTimeoutRef.current) {
+                  clearTimeout(throttleTimeoutRef.current);
+                  throttleTimeoutRef.current = null;
+              }
+
+              // Auto-send on release, using the full tracked transcript
               if (transcriptRef.current.trim()) {
                   const refinedText = polishText(transcriptRef.current);
                   handleSend(refinedText);
@@ -161,7 +177,6 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
       if (!recognitionRef.current || !isListening) return;
       try {
           recognitionRef.current.stop();
-          // onend triggers the send
       } catch (e) {
           console.error("Stop listening failed", e);
       }
@@ -185,11 +200,10 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
 
       if ((!textToSend.trim() && !imageToSend) || !session) return;
 
-      // Clear input immediately
       setInputText('');
       if (!textOverride) setSelectedImage(null);
 
-      // Add user message to UI immediately (polished)
+      // Add user message immediately
       setMessages(prev => [...prev, { role: 'user', text: textToSend, image: imageToSend || undefined }]);
       setIsTyping(true);
 
