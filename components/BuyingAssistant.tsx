@@ -18,7 +18,6 @@ interface BuyingAssistantProps {
 
 const LIMIT_VIEWS = 3;
 
-// Helper to render bold text from Markdown with customizable highlight class
 const renderFormattedText = (text: string, highlightClass: string = "font-black") => {
   if (!text) return null;
   const parts = text.split(/(\*\*.*?\*\*)/g);
@@ -31,17 +30,14 @@ const renderFormattedText = (text: string, highlightClass: string = "font-black"
 };
 
 const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf, onAddToShelf, onDiscard, onUnlockPremium, usageCount, onIncrementUsage }) => {
-  // If user is premium, unlocked by default
   const [isUnlocked, setIsUnlocked] = useState(!!user.isPremium);
   const [showDetails, setShowDetails] = useState(false);
   const detailsRef = useRef<HTMLDivElement>(null);
   
-  // Sync if user becomes premium while viewing
   useEffect(() => {
     setIsUnlocked(!!user.isPremium);
   }, [user.isPremium]);
 
-  // Auto-scroll when expanded
   useEffect(() => {
       if (showDetails && detailsRef.current) {
           setTimeout(() => {
@@ -58,9 +54,7 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
               onIncrementUsage();
               setShowDetails(true);
           } else {
-              // Show premium wall over details
               setShowDetails(true);
-              // But ensure locked state handles the CTA
           }
       }
   };
@@ -70,13 +64,11 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
   }, [product, shelf, user]);
 
   const comparableProducts = useMemo(() => {
-      // Show all products on shelf for comprehensive comparison
       return shelf.filter(p => p.id !== product.id);
   }, [shelf, product.id]);
 
   const { verdict, audit, shelfConflicts, comparison } = decisionData;
 
-  // --- SIMPLIFIED VERDICT LOGIC ---
   const simpleVerdict = useMemo(() => {
       const rawDecision = verdict.decision;
       if (['BUY', 'GREAT FIND', 'SWAP'].includes(rawDecision)) {
@@ -96,19 +88,18 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
       const typeLabel = product.type === 'UNKNOWN' ? 'product' : 
                         product.type.charAt(0).toUpperCase() + product.type.slice(1).toLowerCase();
 
-      // Helper to get nice labels for targets based on benefits
       const getTargetLabels = () => {
           const uniqueTargets = Array.from(new Set(product.benefits.map(b => b.target)));
           const labels = uniqueTargets.map(t => {
               switch(t) {
                   case 'acneActive': return 'Acne';
-                  case 'acneScars': return 'Scarring';
-                  case 'wrinkleFine': case 'wrinkleDeep': return 'Anti-Aging';
-                  case 'pigmentation': return 'Brightening';
+                  case 'acneMarks': return 'Scarring';
+                  case 'wrinkles': return 'Anti-Aging';
+                  case 'darkSpots': return 'Brightening';
                   case 'hydration': return 'Hydration';
                   case 'redness': return 'Redness';
                   case 'oiliness': return 'Oil Control';
-                  case 'poreSize': return 'Pores';
+                  case 'pores': return 'Pores';
                   case 'texture': return 'Texture';
                   default: return null;
               }
@@ -120,7 +111,6 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
 
       const targets = getTargetLabels();
 
-      // 1. GOOD MATCH
       if (decision === 'GREAT') {
           if (targets) {
               return `Great choice. This **${typeLabel}** targets your **${targets}** goals while keeping your skin barrier safe.`;
@@ -128,26 +118,16 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
           return `Excellent match. This **${typeLabel}** is safe and aligns perfectly with your skin profile.`;
       }
 
-      // 2. CONSIDER
       if (decision === 'CONSIDER') {
-          // Only show caution if risk is relevant to a low biometric score
           const getRelevantRisk = () => {
               if (!product.risks || product.risks.length === 0) return null;
               const b = user.biometrics;
               
-              // Find a risk that matches a vulnerability (score < 60)
               return product.risks.find(r => {
                   const content = (r.ingredient + ' ' + r.reason).toLowerCase();
-                  
-                  // Sensitivity/Redness
                   if (b.redness < 60 && (content.includes('irritat') || content.includes('sensit') || content.includes('alcohol') || content.includes('fragrance') || content.includes('acid') || content.includes('exfolia'))) return true;
-                  
-                  // Dryness/Hydration
                   if (b.hydration < 60 && (content.includes('dry') || content.includes('strip') || content.includes('alcohol') || content.includes('sulfate'))) return true;
-                  
-                  // Acne/Oily/Pores
-                  if ((b.acneActive < 60 || b.oiliness < 60 || b.poreSize < 60) && (content.includes('clog') || content.includes('comedogen') || content.includes('oil') || content.includes('butter') || content.includes('coconut'))) return true;
-
+                  if ((b.acneActive < 60 || b.oiliness < 60 || b.pores < 60) && (content.includes('clog') || content.includes('comedogen') || content.includes('oil') || content.includes('butter') || content.includes('coconut'))) return true;
                   return false;
               });
           };
@@ -156,11 +136,8 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
 
           if (risk) {
               let reason = risk.reason.trim();
-              
-              // Simplify language
               reason = reason.replace(/is flagged for potential/i, 'may cause');
               reason = reason.replace(/increase the feeling of/i, 'cause');
-              
               reason = reason.charAt(0).toUpperCase() + reason.slice(1);
               if (!reason.endsWith('.')) reason += '.';
               
@@ -170,7 +147,6 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
           return `It's okay, but not the best fit. This **${typeLabel}** is safe, but there are better options for your skin goals.`;
       }
 
-      // 3. AVOID
       if (decision === 'AVOID') {
           const risk = product.risks.find(r => r.riskLevel === 'HIGH') || product.risks[0];
           if (risk) {
@@ -179,7 +155,6 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
           return `Not recommended. This **${typeLabel}** has ingredients that may conflict with your skin type.`;
       }
 
-      // 4. UNKNOWN
       if (decision === 'UNKNOWN') {
           return `We couldn't auto-retrieve the full ingredient list. To keep your routine safe, please verify this product using **Google AI Overview** below.`;
       }
@@ -221,14 +196,11 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
   };
 
   const theme = getThemeClasses();
-  
-  // Calculate lock status based on usage if not premium
   const isUsageLimitReached = !user.isPremium && usageCount >= LIMIT_VIEWS;
   
   return (
     <div className="min-h-screen pb-32 animate-in slide-in-from-bottom-8 duration-500 bg-zinc-50 font-sans">
         
-        {/* HERO HEADER */}
         <div 
             className="pt-12 pb-12 px-6 rounded-b-[2.5rem] relative overflow-hidden shadow-xl"
             style={{ backgroundColor: 'rgb(163, 206, 207)' }}
@@ -260,7 +232,6 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
 
         <div className="px-6 -mt-8 relative z-20 space-y-4">
             
-            {/* VERDICT CARD */}
             <div className={`bg-white rounded-[2rem] p-6 shadow-xl shadow-zinc-200/50 border border-zinc-100 relative overflow-hidden`}>
                 <div className={`absolute top-0 left-0 right-0 h-1.5 ${theme.bg.replace('50', '500')}`}></div>
                 
@@ -297,13 +268,11 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
                     </div>
                 ) : (
                     <>
-                        {/* MATCH SCORE: Use Adjusted Score to reflect penalties */}
                         <div className="flex items-center justify-between text-xs font-bold text-zinc-500 px-1">
                             <span>Skin Match Score</span>
                             <span className={`text-lg font-black ${theme.accent}`}>{Math.min(99, audit.adjustedScore)}%</span>
                         </div>
                         
-                        {/* Score Bar with Comparisons */}
                         <div className="relative mt-2 mb-2">
                             <div className="h-2 w-full bg-zinc-100 rounded-full overflow-hidden">
                                 <div 
@@ -312,9 +281,7 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
                                 />
                             </div>
 
-                            {/* Shelf Markers - Updated to compute Adjusted Score for apple-to-apple comparison */}
                             {comparableProducts.map(p => {
-                                // Compute adjusted score on the fly for accurate comparison against user's specific constraints
                                 const pAudit = auditProduct(p, user);
                                 const pScore = pAudit.adjustedScore;
                                 
@@ -328,7 +295,6 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
                                         <span className="text-teal-700 uppercase tracking-widest text-[8px] mb-0.5">{p.type}</span>
                                         <span className="text-zinc-900 text-[10px]">{p.brand || p.name.substring(0, 10)}</span>
                                         <span className="text-zinc-400 font-medium mt-0.5">Match: {pScore}%</span>
-                                        {/* Pointer Arrow */}
                                         <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-white border-b border-r border-zinc-100 rotate-45"></div>
                                     </div>
                                 </div>
@@ -347,7 +313,6 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
                 )}
             </div>
 
-            {/* EXPAND ACTION - HIDE IF UNKNOWN */}
             {!showDetails && simpleVerdict.type !== 'UNKNOWN' && (
                 <button 
                     onClick={handleExpand}
@@ -365,11 +330,9 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
                 </button>
             )}
 
-            {/* DETAILED ANALYSIS - EXPANDABLE */}
             {showDetails && simpleVerdict.type !== 'UNKNOWN' && (
                 <div ref={detailsRef} className="relative animate-in slide-in-from-bottom-4 duration-500 fade-in pt-2">
                      
-                     {/* LOCKED OVERLAY (If Not Premium AND Usage Limit Reached) */}
                      {isUsageLimitReached && (
                          <div className="absolute inset-x-0 top-0 bottom-0 z-30 flex flex-col items-center justify-center bg-white/80 backdrop-blur-[2px] rounded-[2rem] border border-zinc-100 shadow-sm p-6 text-center">
                              <div className="w-14 h-14 bg-zinc-100 rounded-full flex items-center justify-center mb-4">
@@ -390,7 +353,6 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
 
                      <div className={`space-y-4 transition-all duration-700 ${isUsageLimitReached ? 'filter blur-md opacity-50 pointer-events-none select-none h-[400px] overflow-hidden' : ''}`}>
                         
-                        {/* SOURCES */}
                         {product.sources && product.sources.length > 0 && (
                             <div className="px-2">
                                 <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2 flex items-center gap-1.5">
@@ -418,7 +380,6 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
                             </div>
                         )}
 
-                        {/* EXPERT REVIEW */}
                         {product.expertReview && (
                             <div className="bg-white p-6 rounded-[1.5rem] border border-zinc-100 shadow-sm">
                                  <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-widest mb-3 flex items-center gap-2">
@@ -430,7 +391,6 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
                             </div>
                         )}
 
-                        {/* USAGE TIPS */}
                         {product.usageTips && (
                             <div className="bg-gradient-to-br from-indigo-50 to-white p-6 rounded-[1.5rem] border border-indigo-100 shadow-sm relative overflow-hidden">
                                 <div className="absolute top-0 right-0 p-4 opacity-10">
@@ -445,7 +405,6 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
                             </div>
                         )}
 
-                        {/* RISKS */}
                         <div className="bg-white p-6 rounded-[1.5rem] border border-zinc-100 shadow-sm">
                             <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-widest mb-4 flex items-center gap-2">
                                 <AlertOctagon size={14} className="text-rose-500" /> Risk Analysis
@@ -469,7 +428,6 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
                             </div>
                         </div>
 
-                        {/* CONFLICTS */}
                         {shelfConflicts.length > 0 && (
                             <div className="bg-white p-6 rounded-[1.5rem] border border-zinc-100 shadow-sm">
                                 <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -486,7 +444,6 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
                             </div>
                         )}
 
-                        {/* BENEFITS */}
                         {product.benefits.length > 0 && (
                             <div className="bg-white p-6 rounded-[1.5rem] border border-zinc-100 shadow-sm">
                                 <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -523,7 +480,6 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
             )}
         </div>
 
-        {/* FIXED BOTTOM BAR - Only visible when unlocked or missing info */}
         {(isUnlocked || !isUsageLimitReached || simpleVerdict.type === 'UNKNOWN') && (
             <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 backdrop-blur-xl border-t border-zinc-100 z-50 pb-safe animate-in slide-in-from-bottom-full duration-500">
                 <div className="flex gap-3 max-w-md mx-auto">

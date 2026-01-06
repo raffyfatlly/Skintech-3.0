@@ -1,3 +1,4 @@
+
 import { SkinMetrics } from '../../types';
 import { runWithTimeout, runWithRetry, parseJSONFromText, MODEL_FAST, SAFETY_SETTINGS_NONE } from './core';
 
@@ -5,60 +6,80 @@ export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, 
     return runWithTimeout<SkinMetrics>(async (ai) => {
         const prompt = `
         ACT AS A DERMATOLOGICAL GRADING AI. 
-        Analyze the face image for VISIBLE BLEMISHES and PHYSICAL IMPERFECTIONS.
+        Analyze the face image using the 12 BIOMARKERS defined below.
         
-        INPUT CV METRICS (Reference Only): ${JSON.stringify(localMetrics)}. 
+        INPUT CV METRICS (Reference): ${JSON.stringify(localMetrics)}. 
         
-        CRITICAL GRADING RUBRIC (0-100 Scale, 100 = Flawless):
+        --- SCORING RUBRIC (0-100) ---
+        100 = Perfect/Clear/Healthy.
+        0 = Severe/Damaged/Unhealthy.
+
+        1. THE "BREAKOUT" GROUP
+        - acneActive: Live pimples, cysts, bacterial inflammation.
+        - blackheads: Oxidized clogged pores (nose/chin).
+        - acneMarks: Post-Acne Marks (PIH brown spots, PIE red spots). NOTE: Do not confuse with active acne.
+
+        2. THE "TONE" GROUP
+        - darkSpots: Sun damage, melasma, age spots (distinct from acne marks).
+        - redness: Sensitivity, broken capillaries, general inflammation.
+        - darkCircles: Pigment or shadows under eyes.
+
+        3. THE "SURFACE" GROUP
+        - pores: Visible size/openness.
+        - texture: Bumpiness, roughness, closed comedones.
+        - oiliness: Shine intensity (T-zone).
+        - hydration: Water content (Score 100 = Plump, Score 0 = Dehydrated/Flaking).
+
+        4. THE "AGING" GROUP
+        - wrinkles: Static lines (forehead, crows feet, nasolabial).
+        - firmness: Jawline definition, sagging, elasticity.
+
+        --- LOGIC TREE DIAGNOSIS (HOLISTIC) ---
+        Use this logic to generate the 'headline' and 'generalCondition':
         
-        1. ACNE & BLEMISHES ('acneActive'):
-           - Look for: Raised bumps, whiteheads, cysts, and inflammatory papules.
-           - Score < 60: Visible active breakouts.
-           - Score > 90: Flat surface, no active inflammation.
-           
-        2. ACNE MARKS & SCARS ('acneScars'):
-           - LOOK FOR: Post-Inflammatory Hyperpigmentation (PIH - brown spots from old acne) and Post-Inflammatory Erythema (PIE - red spots from old acne).
-           - LOOK FOR: Physical indentations (Icepick, Boxcar, Rolling scars).
-           - DISTINCTION: If the spot is flat and red/brown where a pimple used to be, it is a MARK, not active acne.
-           
-        3. PIGMENTATION ('pigmentation'):
-           - FOCUS: Sun Damage, Melasma, and Solar Lentigines.
-           - DISTINCTION: Do not confuse PIH (acne marks) with Sun Spots.
-           - Sun Spots: Usually larger, clustered on cheeks/nose/forehead, often freckle-like.
-           - Acne Marks: Individual distinct spots, often on jawline/cheeks/chin.
-           
-        4. TEXTURE ('texture'):
-           - Focus on physical surface roughness, closed comedones (skin colored bumps), and milia.
+        RULE 1: BARRIER FIRST. 
+        IF (Redness < 50 OR Hydration < 50):
+           Diagnosis: "Compromised Barrier".
+           Advice: Stop actives. Focus on repair.
         
+        RULE 2: ACNE TYPES.
+        IF (AcneActive < 60):
+           IF (Oiliness < 50): Diagnosis = "Congestion Oily". Focus: BHA/Clay.
+           IF (Oiliness > 80): Diagnosis = "Dry/Irritated Breakouts". Focus: Hydration + Gentle Spot Treat.
+        
+        RULE 3: AGING vs DEHYDRATION.
+        IF (Wrinkles < 60):
+           IF (Hydration < 60): Diagnosis = "Dehydration Lines". Focus: Hyaluronic Acid (reversible).
+           IF (Hydration > 80): Diagnosis = "Static Wrinkles". Focus: Retinoids/Peptides.
+
         OUTPUT JSON (Strict):
         {
           "overallScore": number,
           "acneActive": number,
-          "acneScars": number,
-          "poreSize": number,
           "blackheads": number,
-          "wrinkleFine": number,
-          "wrinkleDeep": number,
-          "sagging": number,
-          "pigmentation": number,
+          "acneMarks": number,
+          "darkSpots": number,
           "redness": number,
-          "texture": number,
-          "hydration": number,
-          "oiliness": number,
           "darkCircles": number,
+          "pores": number,
+          "texture": number,
+          "oiliness": number,
+          "hydration": number,
+          "wrinkles": number,
+          "firmness": number,
           "skinAge": number,
           "analysisSummary": {
-            "headline": "Short clinical diagnosis (e.g. 'Mild Comedonal Acne with PIH')",
-            "generalCondition": "2 sentences. Explicitly state if pigmentation is 'Sun Induced' or 'Post-Acne Origin'.",
+            "headline": "Short clinical diagnosis (e.g. 'Compromised Barrier with Mild Acne')",
+            "generalCondition": "2 sentences explaining the holistic situation based on the Logic Tree.",
             "points": [
-                { "subtitle": "Primary Blemish", "content": "Identify the main visible imperfection (e.g. 'Inflammatory Papules on Cheeks')." },
-                { "subtitle": "Pigment Analysis", "content": "Distinguish the source: 'Spots appear to be Post-Inflammatory Hyperpigmentation from previous breakouts' OR 'Signs of UV-related solar lentigines'." }
+                { "subtitle": "Primary Concern", "content": "The main issue identified." },
+                { "subtitle": "Secondary Observation", "content": "Another notable finding (e.g. 'Dehydration is exacerbating fine lines')." }
             ]
           },
-          "immediateAction": "One specific clinical tip based on the specific blemish type detected.",
+          "immediateAction": "One specific clinical tip.",
           "observations": { 
-             "acneActive": "Location and type of active spots",
-             "pigmentation": "Differentiation between sun spots vs acne marks"
+             "acneActive": "Details...",
+             "tone": "Details..."
           }
         }
         `;
@@ -96,7 +117,7 @@ export const compareFaceIdentity = async (newImage: string, referenceImage: stri
         const refData = referenceImage.includes(',') ? referenceImage.split(',')[1] : referenceImage;
 
         const response = await ai.models.generateContent({
-            model: MODEL_FAST, // Use Flash Preview for better visual reasoning
+            model: MODEL_FAST, 
             contents: {
                 parts: [
                     { inlineData: { mimeType: 'image/jpeg', data: refData } },

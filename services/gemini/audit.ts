@@ -1,3 +1,4 @@
+
 import { Product, UserProfile, UserPreferences } from '../../types';
 
 // --- SYNCHRONOUS HELPERS (NO AI CALLS) ---
@@ -21,33 +22,37 @@ export const auditProduct = (product: Product, user: UserProfile) => {
 
     const prefs = user.preferences || {} as Partial<UserPreferences>;
 
+    // 1. HYDRATION / DEHYDRATION CHECK
     if (bio.hydration < 50 || prefs.onMedication) {
         const dryingAgents = ['alcohol denat', 'sd alcohol', 'isopropyl alcohol', 'sodium lauryl sulfate', 'sls'];
         const found = dryingAgents.find(a => ingStr.includes(a));
         if (found) {
             adjustedScore -= 30;
-            warnings.unshift({ severity: 'CRITICAL', reason: `Contains ${found}, which dehydrates skin (Risky with medication/dryness).` });
+            warnings.unshift({ severity: 'CRITICAL', reason: `Contains ${found}, which exacerbates dehydration.` });
         }
     }
 
+    // 2. REDNESS / SENSITIVITY CHECK
     if (bio.redness < 50 || prefs.sensitivity === 'VERY_SENSITIVE' || prefs.hasEczema || prefs.onMedication) {
         const irritants = ['fragrance', 'parfum', 'alcohol denat', 'essential oil', 'menthol', 'peppermint'];
         const found = irritants.find(a => ingStr.includes(a));
         if (found) {
             adjustedScore = Math.min(adjustedScore, 40);
-            warnings.unshift({ severity: 'CRITICAL', reason: `Contains ${found}, a known trigger for sensitive/medicated skin.` });
+            warnings.unshift({ severity: 'CRITICAL', reason: `Contains ${found}, a trigger for redness/sensitivity.` });
         }
     }
 
-    if (bio.acneActive < 55) {
+    // 3. ACNE / OIL / PORE CHECK
+    if (bio.acneActive < 55 || bio.oiliness < 50 || bio.pores < 50) {
         const cloggers = ['coconut oil', 'cocoa butter', 'isopropyl myristate', 'algae extract', 'palm oil', 'wheat germ'];
         const found = cloggers.find(a => ingStr.includes(a));
         if (found) {
             adjustedScore = Math.min(adjustedScore, 35);
-            warnings.unshift({ severity: 'CRITICAL', reason: `Contains ${found}, a pore clogger.` });
+            warnings.unshift({ severity: 'CRITICAL', reason: `Contains ${found}, which can clog pores.` });
         }
     }
 
+    // 4. PREGNANCY SAFETY
     if (prefs.isPregnant) {
         const unsafe = ['retinol', 'retinyl', 'tretinoin', 'hydroquinone', 'arbutin', 'salicylic acid', 'adapalene', 'tazarotene', 'isotretinoin']; 
         const found = unsafe.find(a => ingStr.includes(a));
@@ -102,7 +107,7 @@ export const analyzeProductContext = (product: Product, shelf: Product[]) => {
 export const getClinicalTreatmentSuggestions = (user: UserProfile) => {
     const s = [];
     if (user.biometrics.acneActive < 70) s.push({ type: 'FACIAL', name: 'Deep Cleanse', benefit: 'Clears congestion', downtime: 'None' });
-    if (user.biometrics.pigmentation < 70) s.push({ type: 'PEEL', name: 'Brightening Peel', benefit: 'Fades spots', downtime: '2 Days' });
+    if (user.biometrics.darkSpots < 70) s.push({ type: 'PEEL', name: 'Brightening Peel', benefit: 'Fades spots', downtime: '2 Days' });
     return s;
 };
 

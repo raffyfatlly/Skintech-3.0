@@ -1,38 +1,35 @@
 
 export interface SkinMetrics {
   overallScore: number; // 0-100 (Higher is Better)
-  skinAge?: number; // New: AI Estimated Skin Age
+  skinAge?: number; 
   
-  // 1. Acne & Blemishes
-  acneActive: number; // Higher = Clearer (No active breakouts)
-  acneScars: number; // Higher = Clearer (No scarring)
+  // Group 1: Breakout
+  acneActive: number; // Higher = Clearer
+  blackheads: number; // Higher = Clearer
+  acneMarks: number;  // Higher = Clearer (PIH/PIE)
   
-  // 2. Pore Health
-  poreSize: number; // Higher = Smaller/Invisible Pores
-  blackheads: number; // Higher = Clearer (No blackheads)
+  // Group 2: Tone
+  darkSpots: number;  // Higher = Clearer (Sun/Melasma)
+  redness: number;    // Higher = Calm
+  darkCircles: number;// Higher = Bright
   
-  // 3. Aging Signs
-  wrinkleFine: number; // Higher = Smoother (No fine lines)
-  wrinkleDeep: number; // Higher = Smoother (No deep creases)
-  sagging: number; // Higher = Firmer/Tighter Jawline
+  // Group 3: Surface
+  pores: number;      // Higher = Refined/Invisible
+  texture: number;    // Higher = Smooth
+  oiliness: number;   // Higher = Balanced (Not greasy)
+  hydration: number;  // Higher = Plump/Hydrated
   
-  // 4. Tone & Texture
-  pigmentation: number; // Higher = Even Tone (No dark spots)
-  redness: number; // Higher = Calm Skin (No inflammation)
-  texture: number; // Higher = Glass Skin (Smooth)
+  // Group 4: Aging
+  wrinkles: number;   // Higher = Smooth/No Lines
+  firmness: number;   // Higher = Lifted/Tight
   
-  // 5. Hydration & Glow
-  hydration: number; // Higher = Hydrated/Plump
-  oiliness: number; // Higher = Balanced (Not too oily, not too dry)
-  darkCircles: number; // Higher = Bright Under-eyes
-  
-  // Updated to support structured object with generalCondition
+  // Analysis
   analysisSummary?: string | { 
       headline: string; 
       generalCondition?: string; 
       points: { subtitle: string; content: string }[] 
   }; 
-  observations?: Record<string, string>; // New: Specific per-metric observation (e.g. "Redness on cheeks")
+  observations?: Record<string, string>;
   timestamp: number;
 }
 
@@ -52,17 +49,16 @@ export interface UserPreferences {
   sunscreenFrequency: 'DAILY' | 'SUNNY' | 'RARELY';
   lifestyle: string[];
   buyingPriority: string;
-  // New Safety Flags
   isPregnant?: boolean;
-  hasEczema?: boolean; // Replaced usesRetinol
+  hasEczema?: boolean;
   onMedication?: boolean;
 }
 
 export interface UsageStats {
   buyingAssistantViews: number;
-  manualScans: number; // Shared for Product Scanner and Search
+  manualScans: number;
   routineGenerations: number;
-  simulatorViews?: number; // New: Track Glowup Visualizer usage
+  simulatorViews?: number;
 }
 
 export interface UserProfile {
@@ -71,16 +67,16 @@ export interface UserProfile {
   skinType: SkinType;
   hasScannedFace: boolean;
   biometrics: SkinMetrics;
-  scanHistory?: SkinMetrics[]; // New: Track history for progress comparison
-  faceImage?: string | null; // Base64 Data URL or null if cleared
-  simulatedSkinImage?: string | null; // New: Cached simulation result
-  simulatedSkinPlan?: any; // New: Cached clinical plan JSON
-  isAnonymous?: boolean; // For lazy signup detection
+  scanHistory?: SkinMetrics[];
+  faceImage?: string | null;
+  simulatedSkinImage?: string | null;
+  simulatedSkinPlan?: any;
+  isAnonymous?: boolean;
   preferences?: UserPreferences;
-  isPremium?: boolean; // NEW: Tracks payment status
-  usage?: UsageStats; // NEW: Track free tier usage
-  wishlist?: Product[]; // NEW: Saved products for future
-  lastUpdated?: number; // NEW: Version control timestamp
+  isPremium?: boolean;
+  usage?: UsageStats;
+  wishlist?: Product[];
+  lastUpdated?: number;
 }
 
 export interface IngredientRisk {
@@ -93,7 +89,7 @@ export interface Benefit {
   ingredient: string;
   target: keyof SkinMetrics;
   description: string;
-  relevance: 'HIGH' | 'MAINTENANCE'; // High if user has low score in this metric
+  relevance: 'HIGH' | 'MAINTENANCE';
 }
 
 export interface Product {
@@ -104,13 +100,13 @@ export interface Product {
   dateScanned: number;
   risks: IngredientRisk[];
   benefits: Benefit[];
-  suitabilityScore: number; // 0-100
-  estimatedPrice?: number; // USD or Local Currency
+  suitabilityScore: number;
+  estimatedPrice?: number;
   type: 'CLEANSER' | 'TONER' | 'SERUM' | 'MOISTURIZER' | 'SPF' | 'TREATMENT' | 
         'FOUNDATION' | 'CONCEALER' | 'POWDER' | 'PRIMER' | 'SETTING_SPRAY' | 'BLUSH' | 'BRONZER' | 'UNKNOWN';
-  sources?: string[]; // URLs from Google Search Grounding
-  usageTips?: string; // New: Personalized advice (Climate, Conflicts, Layering)
-  expertReview?: string; // New: Summary of expert reviews
+  sources?: string[];
+  usageTips?: string;
+  expertReview?: string;
 }
 
 export interface RecommendedProduct {
@@ -141,5 +137,5 @@ export enum AppView {
   BUYING_ASSISTANT = 'BUYING_ASSISTANT',
   ROUTINE_BUILDER = 'ROUTINE_BUILDER', 
   SKIN_SIMULATOR = 'SKIN_SIMULATOR',
-  AI_ASSISTANT = 'AI_ASSISTANT' // NEW: Chat is now a full page
+  AI_ASSISTANT = 'AI_ASSISTANT'
 }

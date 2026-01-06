@@ -25,12 +25,19 @@ const SCAN_TIPS = [
   "Consistent weekly scans build the most accurate skin profile."
 ];
 
+// Re-defining groups for display on result screen
+const RESULT_GROUPS = [
+    { name: 'Breakout', keys: ['acneActive', 'blackheads', 'acneMarks'] },
+    { name: 'Tone', keys: ['darkSpots', 'redness', 'darkCircles'] },
+    { name: 'Surface', keys: ['pores', 'texture', 'oiliness', 'hydration'] },
+    { name: 'Aging', keys: ['wrinkles', 'firmness'] }
+];
+
 const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, onCancel, referenceImage, shelf = [] }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // Optimization Refs
   const metricsBuffer = useRef<SkinMetrics[]>([]); 
   const lastFacePos = useRef<{ cx: number, cy: number } | undefined>(undefined);
   const lastTimeRef = useRef<number>(0);
@@ -48,16 +55,13 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
   const [capturedSnapshot, setCapturedSnapshot] = useState<string | null>(null);
   const [currentTip, setCurrentTip] = useState<string>("");
   
-  // Identity Verification State
   const [identityStatus, setIdentityStatus] = useState<'CHECKING' | 'MATCH' | 'MISMATCH' | 'SKIPPED'>('SKIPPED');
   const [showIdentityWarning, setShowIdentityWarning] = useState(false);
   
-  // Result Display Logic
   const [resultMetrics, setResultMetrics] = useState<SkinMetrics | null>(null);
   const [showResult, setShowResult] = useState(false);
   const [animatedScore, setAnimatedScore] = useState(0);
 
-  // Focus Logic
   const [showFocusTarget, setShowFocusTarget] = useState<{x: number, y: number} | null>(null);
   const [currentStream, setCurrentStream] = useState<MediaStream | null>(null);
 
@@ -104,7 +108,6 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
     };
   }, []);
 
-  // Simulate AI Progress & Cycle Tips
   useEffect(() => {
       let progressInterval: ReturnType<typeof setInterval>;
       let tipInterval: ReturnType<typeof setInterval>;
@@ -132,7 +135,6 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
       };
   }, [isProcessingAI, showIdentityWarning]);
 
-  // Score Animation Effect
   useEffect(() => {
     if (showResult && resultMetrics) {
       let start = 0;
@@ -173,51 +175,52 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
   };
 
   const calculateAverageMetrics = (buffer: SkinMetrics[]): SkinMetrics => {
+      // Default fallback
       if (buffer.length === 0) return { 
-          overallScore: 70, acneActive: 70, acneScars: 70, poreSize: 70, blackheads: 70, 
-          wrinkleFine: 70, wrinkleDeep: 70, sagging: 70, pigmentation: 70, redness: 70, 
-          texture: 70, hydration: 70, oiliness: 70, darkCircles: 70, timestamp: Date.now() 
+          overallScore: 70, acneActive: 70, blackheads: 70, acneMarks: 70, 
+          darkSpots: 70, redness: 70, darkCircles: 70, 
+          pores: 70, texture: 70, oiliness: 70, hydration: 70, 
+          wrinkles: 70, firmness: 70, timestamp: Date.now() 
       };
 
       const sum = buffer.reduce((acc, curr) => ({
           overallScore: acc.overallScore + curr.overallScore,
           acneActive: acc.acneActive + curr.acneActive,
-          acneScars: acc.acneScars + curr.acneScars,
-          poreSize: acc.poreSize + curr.poreSize,
           blackheads: acc.blackheads + curr.blackheads,
-          wrinkleFine: acc.wrinkleFine + curr.wrinkleFine,
-          wrinkleDeep: acc.wrinkleDeep + curr.wrinkleDeep,
-          sagging: acc.sagging + curr.sagging,
-          pigmentation: acc.pigmentation + curr.pigmentation,
+          acneMarks: acc.acneMarks + curr.acneMarks,
+          darkSpots: acc.darkSpots + curr.darkSpots,
           redness: acc.redness + curr.redness,
-          texture: acc.texture + curr.texture,
-          hydration: acc.hydration + curr.hydration,
-          oiliness: acc.oiliness + curr.oiliness,
           darkCircles: acc.darkCircles + curr.darkCircles,
+          pores: acc.pores + curr.pores,
+          texture: acc.texture + curr.texture,
+          oiliness: acc.oiliness + curr.oiliness,
+          hydration: acc.hydration + curr.hydration,
+          wrinkles: acc.wrinkles + curr.wrinkles,
+          firmness: acc.firmness + curr.firmness,
           skinAge: (acc.skinAge || 0) + (curr.skinAge || 25),
           timestamp: 0
       }), { 
-          overallScore: 0, acneActive: 0, acneScars: 0, poreSize: 0, blackheads: 0, 
-          wrinkleFine: 0, wrinkleDeep: 0, sagging: 0, pigmentation: 0, redness: 0, 
-          texture: 0, hydration: 0, oiliness: 0, darkCircles: 0, skinAge: 0, timestamp: 0 
+          overallScore: 0, acneActive: 0, blackheads: 0, acneMarks: 0,
+          darkSpots: 0, redness: 0, darkCircles: 0,
+          pores: 0, texture: 0, oiliness: 0, hydration: 0,
+          wrinkles: 0, firmness: 0, skinAge: 0, timestamp: 0 
       });
 
       const len = buffer.length;
       return {
           overallScore: Math.round(sum.overallScore / len),
           acneActive: Math.round(sum.acneActive / len),
-          acneScars: Math.round(sum.acneScars / len),
-          poreSize: Math.round(sum.poreSize / len),
           blackheads: Math.round(sum.blackheads / len),
-          wrinkleFine: Math.round(sum.wrinkleFine / len),
-          wrinkleDeep: Math.round(sum.wrinkleDeep / len),
-          sagging: Math.round(sum.sagging / len),
-          pigmentation: Math.round(sum.pigmentation / len),
+          acneMarks: Math.round(sum.acneMarks / len),
+          darkSpots: Math.round(sum.darkSpots / len),
           redness: Math.round(sum.redness / len),
-          texture: Math.round(sum.texture / len),
-          hydration: Math.round(sum.hydration / len),
-          oiliness: Math.round(sum.oiliness / len),
           darkCircles: Math.round(sum.darkCircles / len),
+          pores: Math.round(sum.pores / len),
+          texture: Math.round(sum.texture / len),
+          oiliness: Math.round(sum.oiliness / len),
+          hydration: Math.round(sum.hydration / len),
+          wrinkles: Math.round(sum.wrinkles / len),
+          firmness: Math.round(sum.firmness / len),
           skinAge: Math.round(sum.skinAge! / len),
           observations: buffer[buffer.length-1].observations,
           timestamp: Date.now()
@@ -440,12 +443,6 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
       return "Finalizing...";
   };
 
-  const getStatusColor = () => {
-      // Biomarker glass style for instruction pill
-      return 'backdrop-blur-md bg-black/30 border border-white/10 text-white shadow-lg';
-  }
-
-  // --- RENDER: IDENTITY WARNING ---
   if (showIdentityWarning) {
       return (
         <div className="h-[100dvh] w-full bg-black flex flex-col items-center justify-center relative overflow-hidden font-sans p-6 animate-in fade-in duration-300">
@@ -469,7 +466,6 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
       )
   }
 
-  // --- RENDER: RESULT OVERLAY ---
   if (showResult && resultMetrics && capturedSnapshot) {
       return (
         <div className="relative h-[100dvh] w-full bg-black font-sans overflow-hidden animate-in fade-in duration-700">
@@ -482,17 +478,39 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
                         <span className="text-xs font-bold text-white uppercase tracking-widest">Analysis Complete</span>
                     </div>
                 </div>
-                <div className="flex flex-col items-center justify-center relative w-full">
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] border border-white/10 rounded-full animate-[spin_20s_linear_infinite]" />
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[240px] h-[240px] border border-white/5 rounded-full animate-[spin_15s_linear_infinite_reverse]" />
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[180px] h-[180px] bg-teal-500/20 blur-[60px] rounded-full" />
+                
+                <div className="flex flex-col items-center justify-center relative w-full flex-1">
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[280px] h-[280px] border border-white/10 rounded-full animate-[spin_20s_linear_infinite]" />
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[220px] h-[220px] border border-white/5 rounded-full animate-[spin_15s_linear_infinite_reverse]" />
+                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[160px] h-[160px] bg-teal-500/20 blur-[60px] rounded-full" />
+                    
                     <div className="relative z-10 flex flex-col items-center">
-                        <span className="text-xs font-bold text-teal-200 uppercase tracking-[0.3em] mb-4 animate-in fade-in duration-1000 delay-300 shadow-black drop-shadow-md">Overall Score</span>
-                        <div className="text-[9rem] leading-[0.85] font-black text-white tracking-tighter drop-shadow-2xl animate-in zoom-in-50 duration-1000 ease-out select-none">{animatedScore}</div>
+                        <span className="text-xs font-bold text-teal-200 uppercase tracking-[0.3em] mb-2 animate-in fade-in duration-1000 delay-300 shadow-black drop-shadow-md">Overall Score</span>
+                        <div className="text-[7rem] leading-[0.85] font-black text-white tracking-tighter drop-shadow-2xl animate-in zoom-in-50 duration-1000 ease-out select-none mb-6">{animatedScore}</div>
+                        
+                        {/* NEW: 12 Biomarkers Summary Grid */}
+                        <div className="w-full max-w-sm grid grid-cols-2 gap-2 px-4 animate-in slide-in-from-bottom-12 duration-700 delay-300 max-h-[35vh] overflow-y-auto no-scrollbar">
+                            {RESULT_GROUPS.map(group => (
+                                <div key={group.name} className="bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/10">
+                                    <h4 className="text-[10px] font-bold text-teal-300 uppercase tracking-widest mb-2 border-b border-white/10 pb-1">{group.name}</h4>
+                                    <div className="space-y-1.5">
+                                        {group.keys.map(key => (
+                                            <div key={key} className="flex justify-between items-center">
+                                                <span className="text-[10px] text-white/80 font-medium capitalize truncate max-w-[80px]">{key.replace(/([A-Z])/g, ' $1').trim()}</span>
+                                                <span className={`text-[10px] font-bold ${(resultMetrics[key as keyof typeof resultMetrics] as number) > 80 ? 'text-emerald-400' : (resultMetrics[key as keyof typeof resultMetrics] as number) < 60 ? 'text-rose-400' : 'text-amber-400'}`}>
+                                                    {resultMetrics[key as keyof typeof resultMetrics]}
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 </div>
-                <div className="w-full max-w-xs animate-in slide-in-from-bottom-8 duration-700 delay-500 flex flex-col items-center">
-                    <p className="text-center text-white/90 text-sm font-medium mb-8 leading-relaxed max-w-[260px] drop-shadow-md">Your clinical metrics are ready.</p>
+
+                <div className="w-full max-w-xs animate-in slide-in-from-bottom-8 duration-700 delay-500 flex flex-col items-center pt-4">
+                    <p className="text-center text-white/90 text-sm font-medium mb-6 leading-relaxed max-w-[260px] drop-shadow-md">Your clinical metrics are ready.</p>
                     <button onClick={() => onScanComplete(resultMetrics, capturedSnapshot)} className="w-full h-16 bg-white text-teal-950 rounded-[2rem] font-black text-sm uppercase tracking-widest hover:scale-105 active:scale-95 transition-all shadow-[0_0_40px_rgba(255,255,255,0.2)] flex items-center justify-center gap-3 group">
                         Reveal Skin Result <div className="w-8 h-8 rounded-full bg-teal-950/10 flex items-center justify-center group-hover:translate-x-1 transition-transform"><ArrowRight size={16} /></div>
                     </button>
@@ -502,7 +520,6 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
       )
   }
 
-  // --- PROCESSING STATE ---
   if (isProcessingAI) {
       return (
           <div className="h-[100dvh] w-full bg-black flex flex-col items-center justify-center relative overflow-hidden font-sans">
@@ -530,11 +547,8 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
   const radius = 130;
   const circumference = 2 * Math.PI * radius;
 
-  // --- IMMERSIVE SCANNER LAYOUT (Updated) ---
   return (
     <div className="relative h-[100dvh] w-full bg-black overflow-hidden font-sans select-none">
-      
-      {/* 1. Camera Feed (Full Screen) */}
       <div 
         className="absolute inset-0 cursor-pointer"
         onClick={handleTapToFocus}
@@ -565,8 +579,6 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
           </div>
       )}
 
-      {/* 2. Blur Overlay Mask (The "Glass Frame") */}
-      {/* Uses mask-image to create a clear hole in the center, blurred periphery */}
       <div 
         className="absolute inset-0 pointer-events-none z-10 backdrop-blur-md bg-zinc-900/20"
         style={{
@@ -575,10 +587,7 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
         }}
       />
       
-      {/* 3. UI Layer (Floating Glass Elements) */}
       <div className="absolute inset-0 z-20 flex flex-col justify-between pointer-events-none">
-          
-          {/* Header - Biomarker Glass Style */}
           <div className="w-full p-6 pt-safe-top mt-2 flex justify-between items-start pointer-events-auto">
              <div className="backdrop-blur-md bg-black/20 border border-white/10 rounded-full px-4 py-2 flex items-center gap-2 shadow-lg">
                 <ScanFace size={16} className="text-teal-400" />
@@ -595,7 +604,6 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
              )}
           </div>
 
-          {/* Floating Instruction Pill */}
           {isScanning && (
               <div className="absolute top-28 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 w-full px-8 transition-all duration-300">
                   <div className={`backdrop-blur-md bg-black/30 border border-white/10 text-white rounded-full px-6 py-3 shadow-xl flex items-center gap-3 transition-colors duration-300`}>
@@ -605,7 +613,6 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
               </div>
           )}
 
-          {/* Scanner Ring (Progress) */}
           <div className="absolute top-[45%] left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] h-[300px] flex items-center justify-center pointer-events-none">
               {!isScanning && (
                   <div className="absolute inset-0 border border-white/20 rounded-[48%] opacity-40 animate-pulse"></div>
@@ -629,7 +636,6 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
               )}
           </div>
 
-          {/* Bottom Controls - Clean Floating Layout */}
           <div className="w-full pb-safe pointer-events-auto px-6 mb-8 flex flex-col items-center justify-end">
                 {streamError ? (
                      <div className="backdrop-blur-md bg-black/30 border border-rose-500/30 px-6 py-6 rounded-3xl text-center max-w-sm mx-auto shadow-xl">
@@ -653,7 +659,7 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
                             <div className="w-18 h-18 bg-white rounded-full w-[85%] h-[85%] group-hover:scale-90 transition-transform duration-300 shadow-inner"></div>
                         </button>
                         
-                        <div className="w-14 h-14" /> {/* Spacer for balance */}
+                        <div className="w-14 h-14" />
                     </div>
                 ) : (
                     <div className="text-center mb-4">

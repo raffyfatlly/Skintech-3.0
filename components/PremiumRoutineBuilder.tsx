@@ -29,21 +29,14 @@ const CATEGORIES = [
 
 const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onBack, onUnlockPremium, usageCount, onIncrementUsage, onProductSelect, savedResults, onSaveResults, onGenerateBackground, onAddToWishlist }) => {
     
-    // Dynamic Goal Generation based on Biometrics
     const displayGoals = useMemo(() => {
         const b = user.biometrics;
         if (!b) return [{ label: 'Hydration Boost', score: 0, icon: Droplet }];
 
-        // Context-Aware Labels based on severity
-        // 1. SCARS vs MARKS
         let scarLabel = 'Fade Dark Marks';
-        if (b.acneScars < 65) scarLabel = 'Repair Pitted Scars'; 
+        if (b.acneMarks < 65) scarLabel = 'Repair Pitted Scars'; 
         
-        // 2. ACNE
         const acneLabel = b.acneActive < 60 ? 'Treat Active Acne' : 'Prevent Breakouts';
-        
-        // 3. TEXTURE (Distinguish from scars)
-        // Texture usually means roughness/bumps, not deep indentations.
         const textureLabel = b.texture < 70 ? 'Smooth Roughness' : 'Refine Texture';
 
         const candidates = [
@@ -52,20 +45,17 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
             { label: 'Hydration Boost', score: b.hydration, icon: Droplet },
             { label: 'Oil Control', score: b.oiliness, icon: Sliders },
             { label: textureLabel, score: b.texture, icon: Activity }, 
-            { label: 'Minimize Pores', score: b.poreSize, icon: Scan },
+            { label: 'Minimize Pores', score: b.pores, icon: Scan },
             { label: 'Clear Blackheads', score: b.blackheads, icon: Target },
-            { label: 'Brighten Spots', score: b.pigmentation, icon: Sun },
-            { label: 'Anti-Aging', score: (b.wrinkleFine + b.wrinkleDeep + b.sagging) / 3, icon: Star },
-            { label: scarLabel, score: b.acneScars, icon: Eraser },
+            { label: 'Brighten Spots', score: b.darkSpots, icon: Sun },
+            { label: 'Anti-Aging', score: (b.wrinkles + b.firmness) / 2, icon: Star },
+            { label: scarLabel, score: b.acneMarks, icon: Eraser },
         ];
 
-        // Sort by Score Ascending (Lower score = Higher Priority/Problem Area)
         candidates.sort((a, b) => a.score - b.score);
 
-        // Filter: Keep mostly issues that are not "Perfect" (>88)
         let priorities = candidates.filter(c => c.score < 88);
 
-        // Fallback for good skin
         if (priorities.length === 0) {
             return [
                 { label: 'Maintain Glow', score: 95, icon: Sparkles },
@@ -75,11 +65,9 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
             ];
         }
 
-        // Limit to top 6 most critical
         return priorities.slice(0, 6);
     }, [user.biometrics]);
 
-    // Default to the most critical goal (index 0)
     const [selectedGoals, setSelectedGoals] = useState<string[]>([displayGoals[0].label]);
     const [selectedCategory, setSelectedCategory] = useState('Cleanser');
     const [maxPrice, setMaxPrice] = useState(100);
@@ -120,7 +108,7 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
     const hasFreeUsage = usageCount < LIMIT_ROUTINES;
 
     const toggleGoal = (goal: string) => {
-        if (isGenerating) return; // Locked during generation
+        if (isGenerating) return; 
         if (selectedGoals.includes(goal)) {
             setSelectedGoals(selectedGoals.filter(g => g !== goal));
         } else {
@@ -145,7 +133,7 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                 name: rec.name,
                 brand: rec.brand,
                 type: selectedCategory.toUpperCase() as any,
-                ingredients: [], // Placeholder
+                ingredients: [], 
                 estimatedPrice: price,
                 suitabilityScore: rec.rating,
                 risks: [],
@@ -158,7 +146,6 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
     };
 
     const renderStars = (rating: number) => {
-        // Normalize 0-100 to 0-5 if needed
         const score = rating > 5 ? rating / 20 : rating;
         const fullStars = Math.floor(score);
         const hasHalfStar = score % 1 >= 0.5;
@@ -180,8 +167,6 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
 
     return (
         <div className="min-h-screen bg-zinc-50 pb-32 animate-in fade-in slide-in-from-bottom-8 duration-500 font-sans relative">
-            
-            {/* LOADING OVERLAY */}
             {isGenerating && (
                 <div className="fixed inset-0 z-[60] bg-gradient-to-br from-teal-900 to-zinc-900 flex flex-col items-center justify-center p-6 text-center animate-in fade-in duration-500 font-sans">
                     <div className="relative mb-10">
@@ -207,7 +192,6 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                 </div>
             )}
 
-            {/* HEADER */}
             <div 
                 className="pt-12 pb-10 px-6 rounded-b-[2.5rem] relative overflow-hidden shadow-2xl"
                 style={{ backgroundColor: 'rgb(163, 206, 207)' }}
@@ -230,9 +214,7 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
             </div>
 
             <div className="px-6 -mt-6 relative z-20">
-                {/* FILTER CARD - LOCKED WHEN GENERATING */}
                 <div className={`bg-white rounded-[2rem] p-6 shadow-xl shadow-zinc-200/50 border border-zinc-100 transition-opacity duration-300 ${isGenerating ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
-                    {/* Goals */}
                     <div className="mb-6">
                         <div className="flex justify-between items-center mb-3 px-1">
                             <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
@@ -267,7 +249,6 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                         </p>
                     </div>
 
-                    {/* Categories */}
                     <div className="mb-6">
                         <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block mb-3 pl-1">Product Category</label>
                         <div className="grid grid-cols-3 gap-2">
@@ -285,7 +266,6 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                         </div>
                     </div>
 
-                    {/* Price Slider */}
                     <div className="mb-6">
                         <div className="flex justify-between items-end mb-3 px-1">
                             <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Max Budget</label>
@@ -303,7 +283,6 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                         />
                     </div>
 
-                    {/* Button */}
                     <div className="space-y-3">
                         <button 
                             onClick={handleGenerate}
@@ -317,7 +296,6 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                 </div>
             </div>
 
-            {/* RESULTS */}
             <div className="px-6 mt-8 space-y-4">
                 {results.length > 0 ? (
                     <div className="animate-in slide-in-from-bottom-4 duration-500">
@@ -345,11 +323,9 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                                                 <Heart size={16} fill={isSaved ? "currentColor" : "none"} />
                                             </button>
                                         </div>
-                                        
                                         <p className="text-xs text-zinc-600 font-medium leading-relaxed mb-4 border-l-2 border-teal-100 pl-3">
                                             {prod.reason}
                                         </p>
-                                        
                                         <div className="flex items-center gap-3">
                                             {renderStars(prod.rating)}
                                             <div className="w-px h-3 bg-zinc-200"></div>

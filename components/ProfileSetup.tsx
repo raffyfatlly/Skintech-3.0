@@ -4,10 +4,9 @@ import { UserProfile, UserPreferences, SkinMetrics, Product } from '../types';
 import { ArrowLeft, ArrowRight, Check, Sparkles, Target, Zap, Activity, TrendingUp, LineChart, X, Trash2, Settings2, ChevronDown, ChevronRight, Minus, Trophy, LogOut, AlertCircle, Clock, Calendar, Edit2, Loader, CheckCircle2, MessageCircle, Baby, Pill, ShieldCheck, ShieldAlert, Feather, Download, Cog, Crown, Lock, Share, PlusSquare } from 'lucide-react';
 import { signOut, auth } from '../services/firebase';
 
-// Helper to parse markdown-style bolding from string
 const renderFormattedText = (input: string) => {
   if (!input) return null;
-  const text = String(input); // Safety cast
+  const text = String(input); 
   const parts = text.split(/(\*\*.*?\*\*)/g);
   return parts.map((part, i) => {
     if (part.startsWith('**') && part.endsWith('**')) {
@@ -17,15 +16,11 @@ const renderFormattedText = (input: string) => {
   });
 };
 
-// NEW: Rich Renderer for History Details (Restores missing details)
 const renderRichAnalysis = (data: any) => {
     if (!data) return null;
-
-    // 1. Handle Structured Object (New Format)
     if (typeof data === 'object' && data !== null) {
         return (
             <div className="space-y-5">
-                {/* Headline */}
                 {data.headline && (
                     <div>
                         <p className="text-zinc-900 font-black text-lg uppercase tracking-tight leading-snug">
@@ -33,15 +28,11 @@ const renderRichAnalysis = (data: any) => {
                         </p>
                     </div>
                 )}
-                
-                {/* General Condition / Summary */}
                 {data.generalCondition && (
                     <div className="text-sm text-zinc-600 font-medium leading-relaxed border-l-2 border-teal-100 pl-3">
                         {renderFormattedText(data.generalCondition)}
                     </div>
                 )}
-                
-                {/* Detailed Points */}
                 {Array.isArray(data.points) && (
                     <div className="space-y-3">
                         {data.points.map((point: any, i: number) => (
@@ -57,16 +48,9 @@ const renderRichAnalysis = (data: any) => {
                         ))}
                     </div>
                 )}
-
-                {/* Fallback if object exists but empty specific fields */}
-                {!data.headline && !data.points && (
-                    <div className="text-sm text-zinc-500 italic">No detailed analysis available for this scan.</div>
-                )}
             </div>
         );
     }
-
-    // 2. Handle Legacy String Format
     if (typeof data === 'string') {
         return (
             <div className="text-sm font-medium text-zinc-700 leading-relaxed">
@@ -74,7 +58,6 @@ const renderRichAnalysis = (data: any) => {
             </div>
         );
     }
-
     return null;
 };
 
@@ -85,10 +68,9 @@ interface ProfileSetupProps {
   onBack: () => void;
   onReset: () => void;
   onLoginRequired: (trigger: string) => void;
-  installPrompt?: any; // New prop for PWA Install
+  installPrompt?: any;
 }
 
-// --- SUB-COMPONENT: MONTH GROUP (Expandable) ---
 const MonthGroup: React.FC<{ 
     monthYear: string; 
     scans: SkinMetrics[]; 
@@ -142,8 +124,6 @@ const MonthGroup: React.FC<{
                                       </div>
                                   </div>
                               </button>
-                              
-                              {/* Delete Button */}
                               {canDelete && (
                                 <button 
                                     onClick={(e) => {
@@ -164,7 +144,6 @@ const MonthGroup: React.FC<{
     );
 };
 
-// --- SUB-COMPONENT: GOAL EDIT MODAL ---
 const GoalEditModal: React.FC<{ 
     currentPreferences: UserPreferences; 
     onSave: (prefs: UserPreferences) => void; 
@@ -173,7 +152,6 @@ const GoalEditModal: React.FC<{
     const [goals, setGoals] = useState<string[]>(currentPreferences.goals || []);
     const [sensitivity, setSensitivity] = useState(currentPreferences.sensitivity || 'MILD');
     
-    // New States for Safety Flags
     const [isPregnant, setIsPregnant] = useState(!!currentPreferences.isPregnant);
     const [hasEczema, setHasEczema] = useState(!!currentPreferences.hasEczema);
     const [onMedication, setOnMedication] = useState(!!currentPreferences.onMedication);
@@ -207,7 +185,6 @@ const GoalEditModal: React.FC<{
                 </div>
                 
                 <div className="space-y-8">
-                    {/* Goals */}
                     <div>
                         <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest block mb-3 pl-1">Skin Goals</label>
                         <div className="grid grid-cols-1 gap-2">
@@ -230,7 +207,6 @@ const GoalEditModal: React.FC<{
                         </div>
                     </div>
 
-                    {/* Safety Profile */}
                     <div>
                         <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest block mb-3 pl-1">Safety & Conditions</label>
                         <div className="space-y-2">
@@ -258,7 +234,6 @@ const GoalEditModal: React.FC<{
                         </div>
                     </div>
 
-                    {/* Sensitivity */}
                     <div>
                          <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest block mb-3 pl-1">Skin Sensitivity</label>
                          <div className="flex bg-zinc-100/50 p-1 rounded-2xl border border-zinc-100">
@@ -293,7 +268,6 @@ const GoalEditModal: React.FC<{
     )
 }
 
-// --- SUB-COMPONENT: HISTORY CHART (CANVAS) ---
 const HistoryChart: React.FC<{ history: SkinMetrics[] }> = ({ history }) => {
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
@@ -308,7 +282,6 @@ const HistoryChart: React.FC<{ history: SkinMetrics[] }> = ({ history }) => {
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        // Handle High DPI
         const dpr = window.devicePixelRatio || 1;
         const rect = container.getBoundingClientRect();
         
@@ -324,7 +297,6 @@ const HistoryChart: React.FC<{ history: SkinMetrics[] }> = ({ history }) => {
         const drawWidth = width - padding.left - padding.right;
         const drawHeight = height - padding.top - padding.bottom;
 
-        // Data Prep
         const data = [...history].sort((a, b) => a.timestamp - b.timestamp);
         const scores = data.map(d => d.overallScore);
         const minScore = Math.min(...scores, 60) - 5;
@@ -334,13 +306,11 @@ const HistoryChart: React.FC<{ history: SkinMetrics[] }> = ({ history }) => {
         const getX = (i: number) => padding.left + (i / (data.length - 1)) * drawWidth;
         const getY = (s: number) => height - padding.bottom - ((s - minScore) / range) * drawHeight;
 
-        // Clear
         ctx.clearRect(0, 0, width, height);
 
         const points = data.map((d, i) => ({ x: getX(i), y: getY(d.overallScore), metric: d }));
-        pointsRef.current = points; // Store for hit testing
+        pointsRef.current = points; 
 
-        // Gradient Fill (Curve)
         const gradient = ctx.createLinearGradient(0, padding.top, 0, height - padding.bottom);
         gradient.addColorStop(0, 'rgba(13, 148, 136, 0.15)');
         gradient.addColorStop(1, 'rgba(13, 148, 136, 0)');
@@ -349,20 +319,16 @@ const HistoryChart: React.FC<{ history: SkinMetrics[] }> = ({ history }) => {
         ctx.moveTo(points[0].x, height - padding.bottom);
         ctx.lineTo(points[0].x, points[0].y);
         
-        // Draw Curve
         for (let i = 0; i < points.length - 1; i++) {
             const midX = (points[i].x + points[i+1].x) / 2;
             const midY = (points[i].y + points[i+1].y) / 2;
             const p1 = points[i];
-            
-            // Quadratic curve logic for smoothness
             if (i === 0) {
                  ctx.quadraticCurveTo(p1.x, p1.y, midX, midY);
             } else {
                  ctx.quadraticCurveTo(points[i].x, points[i].y, midX, midY);
             }
         }
-        // Connect to last point
         const last = points[points.length-1];
         ctx.lineTo(last.x, last.y);
         ctx.lineTo(last.x, height - padding.bottom);
@@ -370,7 +336,6 @@ const HistoryChart: React.FC<{ history: SkinMetrics[] }> = ({ history }) => {
         ctx.fillStyle = gradient;
         ctx.fill();
 
-        // Stroke (Curve)
         ctx.beginPath();
         ctx.moveTo(points[0].x, points[0].y);
         for (let i = 0; i < points.length - 1; i++) {
@@ -388,7 +353,6 @@ const HistoryChart: React.FC<{ history: SkinMetrics[] }> = ({ history }) => {
         ctx.lineJoin = 'round';
         ctx.stroke();
 
-        // Dots
         points.forEach((p, i) => {
             ctx.beginPath();
             ctx.arc(p.x, p.y, 3.5, 0, Math.PI * 2);
@@ -398,11 +362,9 @@ const HistoryChart: React.FC<{ history: SkinMetrics[] }> = ({ history }) => {
             ctx.strokeStyle = '#0d9488';
             ctx.stroke();
 
-            // Label
-            ctx.fillStyle = '#52525b'; // zinc-600
+            ctx.fillStyle = '#52525b'; 
             ctx.font = 'bold 10px sans-serif';
             ctx.textAlign = 'center';
-            // Always show first and last, show others if spare
             if (i === 0 || i === points.length - 1) {
                  ctx.fillText(scores[i].toString(), p.x, p.y - 12);
             } else if (points.length < 10) {
@@ -422,7 +384,7 @@ const HistoryChart: React.FC<{ history: SkinMetrics[] }> = ({ history }) => {
         
         pointsRef.current.forEach(p => {
             const dist = Math.abs(p.x - x);
-            if (dist < minDist && dist < 40) { // 40px hit radius
+            if (dist < minDist && dist < 40) { 
                 minDist = dist;
                 nearest = p;
             }
@@ -459,13 +421,11 @@ const HistoryChart: React.FC<{ history: SkinMetrics[] }> = ({ history }) => {
                     <div className="bg-zinc-800 text-white rounded-lg shadow-xl shadow-zinc-900/20 py-2 px-3 flex flex-col items-center">
                         <span className="text-sm font-black leading-none mb-0.5">{tooltip.score}</span>
                         <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-wide leading-none">{tooltip.date}</span>
-                        {/* Triangle */}
                         <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 bg-zinc-800 rotate-45"></div>
                     </div>
                 </div>
             )}
 
-            {/* Active Point Indicator */}
             {tooltip && (
                 <div 
                     className="absolute w-3 h-3 rounded-full border-2 border-white bg-teal-500 shadow-md pointer-events-none transform -translate-x-1/2 -translate-y-1/2"
@@ -476,17 +436,15 @@ const HistoryChart: React.FC<{ history: SkinMetrics[] }> = ({ history }) => {
     );
 };
 
-// --- SUB-COMPONENT: HISTORY DETAIL MODAL ---
 const ScanDetailModal: React.FC<{ scan: SkinMetrics; onClose: () => void }> = ({ scan, onClose }) => {
     const dateStr = new Date(scan.timestamp).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' });
     
-    // Calculate primary concern for this specific scan
     const concerns = [
         { label: 'Acne', val: scan.acneActive },
         { label: 'Hydration', val: scan.hydration },
         { label: 'Redness', val: scan.redness },
         { label: 'Texture', val: scan.texture },
-        { label: 'Wrinkles', val: scan.wrinkleFine },
+        { label: 'Wrinkles', val: scan.wrinkles },
     ].sort((a,b) => a.val - b.val);
     
     const primaryIssue = concerns[0];
@@ -512,7 +470,6 @@ const ScanDetailModal: React.FC<{ scan: SkinMetrics; onClose: () => void }> = ({
                             <Activity size={14} className="text-teal-500" /> Primary Analysis
                         </h4>
                         
-                        {/* RESTORED: Uses rich renderer to show full details (points/headline) if available */}
                         {renderRichAnalysis(scan.analysisSummary || `During this scan, your primary concern was ${primaryIssue.label.toLowerCase()} (Score: ${primaryIssue.val}).`)}
                     </div>
 
@@ -556,25 +513,20 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
   const [selectedScan, setSelectedScan] = useState<SkinMetrics | null>(null);
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
-  
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editName, setEditName] = useState(user.name);
   const [editAge, setEditAge] = useState(user.age.toString());
-  
   const [isDeleting, setIsDeleting] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [actionToast, setActionToast] = useState<{message: string, type: 'success'|'error'} | null>(null);
-  
   const [showClearConfirm, setShowClearConfirm] = useState(false);
   const [scanToDelete, setScanToDelete] = useState<SkinMetrics | null>(null);
-  
   const [showIOSGuide, setShowIOSGuide] = useState(false);
   const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
   const isStandalone = window.matchMedia('(display-mode: standalone)').matches;
 
   const history = useMemo(() => {
       const raw = user.scanHistory || (user.biometrics ? [user.biometrics] : []);
-      // Filter out invalid entries to prevent crashes
       return raw.filter(x => x && typeof x.overallScore === 'number' && x.timestamp);
   }, [user.scanHistory, user.biometrics]);
 
@@ -589,7 +541,7 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
 
       switch(goal) {
           case "Clear Acne & Blemishes":
-              metricKeys = ['acneActive', 'acneScars', 'blackheads'];
+              metricKeys = ['acneActive', 'acneMarks', 'blackheads'];
               label = "Acne & Clarity";
               break;
           case "Smooth & Hydrated Skin":
@@ -597,11 +549,11 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
               label = "Hydration & Texture";
               break;
           case "Look Younger & Firm":
-              metricKeys = ['wrinkleFine', 'wrinkleDeep', 'sagging'];
+              metricKeys = ['wrinkles', 'firmness'];
               label = "Youth & Firmness";
               break;
           case "Brighten Dark Spots":
-              metricKeys = ['pigmentation', 'darkCircles'];
+              metricKeys = ['darkSpots', 'darkCircles'];
               label = "Brightening";
               break;
           default:
@@ -626,7 +578,7 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
           label,
           current: Math.round(currentAvg),
           start: Math.round(initialAvg),
-          target: 90, // Aspiration
+          target: 90, 
           delta
       };
   };
@@ -641,13 +593,7 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
       if (editName && editAge) {
           setIsSavingProfile(true);
           await new Promise(r => setTimeout(r, 500));
-          
-          onComplete({
-              ...user,
-              name: editName,
-              age: parseInt(editAge)
-          });
-          
+          onComplete({ ...user, name: editName, age: parseInt(editAge) });
           setIsEditingProfile(false);
           setIsSavingProfile(false);
           showToast("Profile updated");
@@ -657,50 +603,34 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
   const handleDeleteScan = async () => {
       if (!scanToDelete) return;
       setIsDeleting(true);
-      
       try {
           await new Promise(r => setTimeout(r, 600));
-          
           const currentTimestamp = user.biometrics.timestamp;
           const deleteTimestamp = scanToDelete.timestamp;
-          
-          // 1. Filter out deleted scan from history
           const newHistory = (user.scanHistory || []).filter(s => s.timestamp !== deleteTimestamp);
-          
-          // 2. Check if we are deleting the CURRENT active scan
           const isDeletingActive = currentTimestamp === deleteTimestamp;
 
-          let newProfileUpdate: Partial<UserProfile> = {
-              scanHistory: newHistory
-          };
+          let newProfileUpdate: Partial<UserProfile> = { scanHistory: newHistory };
 
           if (isDeletingActive) {
-              // We deleted the active scan, need to rollback
               const sorted = [...newHistory].sort((a, b) => b.timestamp - a.timestamp);
-              
               if (sorted.length > 0) {
-                  // Rollback to next latest
                   newProfileUpdate.biometrics = sorted[0];
-                  // Important: Set faceImage to NULL to clear it (we don't store historical images)
                   newProfileUpdate.faceImage = null; 
                   newProfileUpdate.hasScannedFace = true;
               } else {
-                  // No scans left - Reset fully
                   newProfileUpdate.biometrics = { 
-                      overallScore: 0, acneActive: 0, acneScars: 0, poreSize: 0, blackheads: 0,
-                      wrinkleFine: 0, wrinkleDeep: 0, sagging: 0, pigmentation: 0, redness: 0,
-                      texture: 0, hydration: 0, oiliness: 0, darkCircles: 0, timestamp: Date.now()
+                      overallScore: 0, acneActive: 0, blackheads: 0, acneMarks: 0,
+                      darkSpots: 0, redness: 0, darkCircles: 0,
+                      pores: 0, texture: 0, oiliness: 0, hydration: 0,
+                      wrinkles: 0, firmness: 0, timestamp: Date.now()
                   };
                   newProfileUpdate.faceImage = null;
                   newProfileUpdate.hasScannedFace = false;
               }
           }
 
-          onComplete({
-              ...user,
-              ...newProfileUpdate
-          } as UserProfile);
-          
+          onComplete({ ...user, ...newProfileUpdate } as UserProfile);
           setScanToDelete(null);
           showToast("Scan deleted successfully");
       } catch (e) {
@@ -713,7 +643,7 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
 
   const handleSignOut = async () => {
     await signOut();
-    onReset(); // Clear local state in App
+    onReset();
   }
 
   const handleInstallApp = () => {
@@ -727,7 +657,6 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
       }
   };
 
-  // --- RENDER: OVERVIEW ---
   const sortedHistory = [...history].sort((a, b) => b.timestamp - a.timestamp);
   const latest = sortedHistory[0];
   const previous = sortedHistory.length > 1 ? sortedHistory[1] : null;
@@ -751,12 +680,10 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
 
     const isRapidRescan = hoursDiff < 24;
     const isShortTerm = daysDiff < 7;
-    const isMediumTerm = daysDiff >= 7 && daysDiff < 30;
-    const isLongTerm = daysDiff >= 30;
-
+    
     const scoreDiff = latest.overallScore - previous.overallScore;
     
-    const metricsToCheck: (keyof SkinMetrics)[] = ['redness', 'hydration', 'acneActive', 'texture', 'wrinkleFine', 'pigmentation'];
+    const metricsToCheck: (keyof SkinMetrics)[] = ['redness', 'hydration', 'acneActive', 'texture', 'wrinkles', 'darkSpots'];
     let biggestMover = { key: '', val: 0 };
     
     metricsToCheck.forEach(key => {
@@ -767,7 +694,6 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
     });
 
     const primaryFactorName = biggestMover.key === 'acneActive' ? 'Inflammation' : biggestMover.key.charAt(0).toUpperCase() + biggestMover.key.slice(1);
-    
     const addedProducts = shelf.filter(p => p.dateScanned > previous.timestamp && p.dateScanned < latest.timestamp);
     const latestProduct = addedProducts.length > 0 ? addedProducts[addedProducts.length - 1] : null;
 
@@ -835,7 +761,6 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
     };
   }, [latest, previous, shelf]);
 
-  // Determine active safety flags for display
   const safetyFlags = [];
   if (user.preferences?.isPregnant) safetyFlags.push("Pregnancy Safe");
   if (user.preferences?.hasEczema) safetyFlags.push("Eczema Safe");
@@ -844,12 +769,10 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
 
   return (
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-32 min-h-screen bg-gradient-to-br from-teal-50 via-white to-teal-50/30 flex flex-col">
-      {/* HEADER - SOLID RGB */}
       <div 
           className="px-6 pt-12 pb-8 text-white rounded-b-[2.5rem] shadow-xl relative overflow-hidden border-b border-white/20 shrink-0"
           style={{ backgroundColor: 'rgb(163, 206, 207)' }}
       >
-          {/* Subtle Texture Overlay */}
           <div className="absolute inset-0 opacity-10 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] pointer-events-none"></div>
           
           <div className="relative z-10">
@@ -911,20 +834,14 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
                                      <Edit2 size={14} />
                                  </button>
                              </div>
-                             {/* HIDE Unknown Skin Text Logic */}
                              <p className="text-sm font-bold text-white mt-1 drop-shadow-sm opacity-95">
                                  {user.age} Years
                              </p>
-
-                             {/* --- STATUS & USAGE BADGES --- */}
                              <div className="flex flex-wrap gap-2 mt-2">
-                                 {/* Subscription Status Badge */}
                                  <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border shadow-sm ${user.isPremium ? 'bg-amber-100 text-amber-700 border-amber-200' : 'bg-white/20 text-white border-white/30 backdrop-blur-md'}`}>
                                      {user.isPremium ? <Crown size={10} fill="currentColor" /> : <Lock size={10} />}
                                      <span>{user.isPremium ? "Premium" : "Free Plan"}</span>
                                  </div>
-
-                                 {/* Usage / Unlimited Badge */}
                                  <div className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border shadow-sm ${user.isPremium ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-white/20 text-white border-white/30 backdrop-blur-md'}`}>
                                      {user.isPremium ? (
                                          <>
@@ -936,7 +853,6 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
                                          </>
                                      )}
                                  </div>
-
                                  {auth && auth.currentUser && (
                                      <span className="text-[10px] font-bold bg-white/25 border border-white/30 px-3 py-1 rounded-full text-white inline-block drop-shadow-sm uppercase tracking-widest backdrop-blur-md">
                                          Cloud Synced
@@ -964,10 +880,7 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
           </div>
       </div>
 
-      {/* CONTENT CONTAINER */}
       <div className="space-y-6 px-6 pt-8 flex-1">
-          
-          {/* REFINED PROGRESS INTELLIGENCE (SIMPLIFIED UI) */}
           {progressIntel && (
              <div className="bg-white rounded-[2rem] p-6 border border-zinc-100 shadow-sm relative overflow-hidden animate-in slide-in-from-bottom-2">
                  <div className="flex justify-between items-start mb-4">
@@ -986,12 +899,10 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
                         </div>
                     )}
                  </div>
-
                  <div className="space-y-4">
                      <p className="text-sm font-medium text-zinc-500 leading-relaxed">
                          {progressIntel.desc}
                      </p>
-
                      <div className="bg-zinc-50 rounded-2xl p-4 border border-zinc-100/50">
                          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block mb-1">Recommendation</span>
                          <p className="text-sm font-semibold text-zinc-700 leading-snug">
@@ -1002,7 +913,6 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
              </div>
           )}
 
-          {/* GOAL TRACKING CARD */}
           <section>
                <div className="flex justify-between items-end mb-4 px-1">
                    <h3 className="text-xs font-bold text-teal-800/60 uppercase tracking-widest flex items-center gap-2">
@@ -1050,12 +960,9 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
                                        {stats.delta > 0 ? 'Improved' : stats.delta < 0 ? 'Declined' : 'Stable'} ({stats.delta > 0 ? '+' : ''}{stats.delta})
                                    </div>
                                </div>
-                               
-                               {/* Progress Bar */}
                                <div className="h-1.5 bg-zinc-100 rounded-full overflow-hidden relative z-10">
                                     <div className="absolute top-0 bottom-0 left-0 rounded-full transition-all duration-1000 bg-teal-500" style={{ width: `${progressPercent}%` }}></div>
                                </div>
-                               
                                <div className="flex justify-between mt-1.5 relative z-10">
                                    <span className="text-[9px] font-bold text-zinc-400">Baseline: {stats.start}</span>
                                    {progressPercent >= 100 ? (
@@ -1070,7 +977,6 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
                </div>
           </section>
 
-          {/* SKIN HEALTH JOURNEY */}
           <section className="bg-white rounded-[2rem] border border-teal-50 shadow-sm overflow-hidden transition-all duration-500 mt-6">
               <div className="p-6">
                   <div className="flex justify-between items-center mb-6">
@@ -1078,14 +984,11 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
                           <LineChart size={14} className="text-teal-500" /> Skin Health Journey
                       </h3>
                   </div>
-                  
-                  {/* High-Res Canvas Chart (Always visible if data exists) */}
                   {history.length > 1 && (
                       <div className="mb-6">
                            <HistoryChart history={history} />
                       </div>
                   )}
-
                   <button 
                       onClick={() => setIsHistoryExpanded(!isHistoryExpanded)}
                       className="w-full py-3 bg-zinc-50 hover:bg-zinc-100 rounded-xl flex items-center justify-center gap-2 text-xs font-bold text-zinc-500 hover:text-zinc-700 transition-colors"
@@ -1094,8 +997,6 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
                       <ChevronDown size={14} className={`transition-transform duration-300 ${isHistoryExpanded ? 'rotate-180' : ''}`} />
                   </button>
               </div>
-
-              {/* EXPANDED LIST AREA */}
               {isHistoryExpanded && (
                   <div className="border-t border-zinc-100 bg-zinc-50/30 animate-in slide-in-from-top-4 duration-300">
                       {Object.entries(groupedHistory).map(([monthYear, scans]) => (
@@ -1112,15 +1013,11 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
               )}
           </section>
 
-          {/* NEW: APP & CONFIGURATION */}
           <section className="mt-6">
               <h3 className="text-xs font-bold text-teal-800/60 uppercase tracking-widest flex items-center gap-2 mb-4 px-1">
                   <Cog size={14} /> Safety & Config
               </h3>
-              
               <div className="bg-white rounded-[1.5rem] border border-zinc-100 shadow-sm overflow-hidden">
-                  
-                  {/* Safety Profile */}
                   <button 
                       onClick={() => setIsGoalModalOpen(true)}
                       className="w-full flex items-center justify-between p-5 hover:bg-zinc-50 transition-colors group text-left border-b border-zinc-100 last:border-0"
@@ -1140,8 +1037,6 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
                           Edit
                       </div>
                   </button>
-
-                  {/* Install App (Only if prompt available OR iOS) */}
                   {(installPrompt || (isIOS && !isStandalone)) && (
                       <div className="border-t border-zinc-100 transition-all duration-300">
                           <button 
@@ -1161,8 +1056,6 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
                               </div>
                               <ChevronRight size={16} className={`text-zinc-300 group-hover:text-zinc-500 transition-transform duration-300 ${showIOSGuide ? 'rotate-90' : ''}`} />
                           </button>
-                          
-                          {/* iOS Guide */}
                           {showIOSGuide && (
                               <div className="px-5 pb-6 pt-0 animate-in slide-in-from-top-2">
                                   <div className="bg-zinc-50 rounded-xl p-4 border border-zinc-100 text-zinc-600 text-xs font-medium leading-relaxed">
@@ -1185,7 +1078,6 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
               </div>
           </section>
 
-          {/* DANGER ZONE */}
           <div className="mt-12 text-center pb-8">
                <button 
                   onClick={() => {
@@ -1202,7 +1094,6 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
           </div>
       </div>
 
-      {/* TOAST NOTIFICATION */}
       {actionToast && (
           <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[70] bg-zinc-900 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-2 animate-in slide-in-from-bottom-4 fade-in duration-300">
               <CheckCircle2 size={16} className={actionToast.type === 'success' ? 'text-emerald-400' : 'text-rose-400'} />
@@ -1210,7 +1101,6 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
           </div>
       )}
 
-      {/* MODALS */}
       {selectedScan && (
           <ScanDetailModal scan={selectedScan} onClose={() => setSelectedScan(null)} />
       )}
@@ -1230,7 +1120,6 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
           />
       )}
 
-      {/* DELETE SINGLE SCAN CONFIRMATION */}
       {scanToDelete && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-zinc-900/60 backdrop-blur-md animate-in fade-in">
              <div className="w-full max-w-sm bg-white rounded-[2rem] p-6 shadow-2xl animate-in zoom-in-95 text-center">
@@ -1241,7 +1130,6 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
                  <p className="text-sm text-zinc-500 mb-6 leading-relaxed">
                      This will remove the analysis record from {new Date(scanToDelete.timestamp).toLocaleDateString()}. This cannot be undone.
                  </p>
-                 
                  <div className="flex flex-col gap-3">
                      <button 
                         onClick={handleDeleteScan}
@@ -1262,7 +1150,6 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
         </div>
       )}
 
-      {/* Clear Data Confirmation Modal */}
       {showClearConfirm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-zinc-900/60 backdrop-blur-md animate-in fade-in">
              <div className="w-full max-w-sm bg-white rounded-[2rem] p-6 shadow-2xl animate-in zoom-in-95 text-center">
@@ -1271,13 +1158,9 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
                  </div>
                  <h3 className="text-xl font-black text-zinc-900 mb-2">Delete Everything?</h3>
                  <p className="text-sm text-zinc-500 mb-6 leading-relaxed">This will permanently delete your scan history, products, and profile data. This cannot be undone.</p>
-                 
                  <div className="flex flex-col gap-3">
                      <button 
-                        onClick={() => {
-                            setShowClearConfirm(false);
-                            onReset();
-                        }}
+                        onClick={() => { setShowClearConfirm(false); onReset(); }}
                         className="w-full py-3 bg-rose-600 text-white font-bold rounded-xl hover:bg-rose-700 transition-colors shadow-lg shadow-rose-900/10"
                      >
                          Yes, Delete Everything
