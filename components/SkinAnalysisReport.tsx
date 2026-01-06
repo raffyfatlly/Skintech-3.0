@@ -435,7 +435,11 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
 
               {/* Metrics Strip - The Stage */}
               <div className="mb-4 w-full animate-in slide-in-from-bottom-8 duration-700 pb-10">
-                  <div className="flex items-end gap-8 overflow-x-auto px-6 pb-8 no-scrollbar snap-x snap-mandatory min-h-[160px]">
+                  <div 
+                    className="flex items-end gap-8 overflow-x-auto px-6 pb-8 no-scrollbar snap-x snap-mandatory min-h-[160px]"
+                    onTouchStart={(e) => e.stopPropagation()}
+                    onTouchEnd={(e) => e.stopPropagation()}
+                  >
                       
                       {/* Main Dynamic Score Display */}
                       <div className="shrink-0 snap-center flex flex-col items-center justify-center pb-1 min-w-[100px]">
