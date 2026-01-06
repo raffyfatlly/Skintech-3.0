@@ -24,6 +24,16 @@ interface Message {
     isStreaming?: boolean;
 }
 
+// Helper to polish text (remove repeated words, fix spacing, capitalize)
+const polishText = (text: string) => {
+    if (!text) return "";
+    let clean = text
+        .replace(/\s+/g, ' ') // Normalize spaces
+        .replace(/(\b\w+\b)( \1\b)+/gi, '$1') // Remove repeated words (e.g. "I I" -> "I")
+        .trim();
+    return clean.charAt(0).toUpperCase() + clean.slice(1);
+};
+
 const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, onUnlockPremium, location = "Global", onClose }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
@@ -75,7 +85,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
   useEffect(() => {
       if (isTyping) setOrbState('THINKING');
       else if (isListening) setOrbState('LISTENING');
-      else if (messages.length > 0 && messages[messages.length-1].role === 'model') setOrbState('SPEAKING'); // Simple heuristic
+      else if (messages.length > 0 && messages[messages.length-1].role === 'model') setOrbState('SPEAKING'); 
       else setOrbState('IDLE');
   }, [isTyping, isListening, messages, inputMode]);
 
@@ -101,9 +111,11 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
               
               transcriptRef.current = current;
               
-              // Helper to capitalize first letter for display
-              const formatted = current.charAt(0).toUpperCase() + current.slice(1);
-              setLiveTranscript(formatted);
+              // Only show the last 150 chars for the live bubble to prevent obstruction
+              const displaySlice = current.length > 150 ? "..." + current.slice(-150) : current;
+              
+              // Format for display
+              setLiveTranscript(polishText(displaySlice));
           };
 
           recognitionRef.current.onerror = (event: any) => {
@@ -117,12 +129,14 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
 
           recognitionRef.current.onend = () => {
               setIsListening(false);
-              // Auto-send on end (release)
+              setLiveTranscript(''); // Clear immediate view
+              
+              // Auto-send on end (release), with polish
               if (transcriptRef.current.trim()) {
-                  handleSend(transcriptRef.current);
+                  const refinedText = polishText(transcriptRef.current);
+                  handleSend(refinedText);
                   transcriptRef.current = '';
               }
-              setLiveTranscript('');
           };
       }
   }, [session, inputMode]);
@@ -175,6 +189,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
       setInputText('');
       if (!textOverride) setSelectedImage(null);
 
+      // Add user message to UI immediately (polished)
       setMessages(prev => [...prev, { role: 'user', text: textToSend, image: imageToSend || undefined }]);
       setIsTyping(true);
 
@@ -363,7 +378,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
                             </div>
                         ))}
 
-                        {/* Live Transcript Bubble */}
+                        {/* Live Transcript Bubble - Shows ONLY during hold */}
                         {isListening && liveTranscript && (
                             <div className="w-full flex flex-col items-center text-center animate-in fade-in slide-in-from-bottom-2 duration-300">
                                 <div className="mb-2">
