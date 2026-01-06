@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, useState, useMemo } from 'react';
 import { UserProfile, Product } from '../types';
 import { TrendingUp, Droplet, Zap, ShieldCheck, Activity, ScanFace, Sun, ChevronUp, ChevronDown, Sparkles, ArrowRight, Microscope, Dna, Layers, ScanBarcode, AlignJustify, Palette, Clock, AlertCircle } from 'lucide-react';
@@ -122,19 +123,19 @@ const ComparisonWidget = ({ userScore, age, metric }: { userScore: number, age: 
     }, [userScore]); // Re-animate on score change
 
     return (
-        <div className="w-full max-w-[260px] mx-auto mt-8 bg-black/40 backdrop-blur-md rounded-2xl p-5 border border-white/10 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300 shadow-2xl">
+        <div className="w-full max-w-[260px] mx-auto mt-8 bg-white/10 backdrop-blur-md rounded-2xl p-5 border border-white/20 animate-in fade-in slide-in-from-bottom-4 duration-700 delay-300 shadow-2xl">
             <div className="flex justify-between items-center mb-4 border-b border-white/10 pb-3">
                 <span className="text-[9px] font-bold text-white/50 uppercase tracking-widest">
                     Avg for Age {age}
                 </span>
-                <span className={`text-[9px] font-bold uppercase tracking-wide ${isBetter ? 'text-emerald-400' : 'text-amber-400'}`}>
+                <span className={`text-[9px] font-bold uppercase tracking-wide ${isBetter ? 'text-emerald-300' : 'text-amber-300'}`}>
                     {isBetter ? `Top ${Math.max(1, 50 - Math.round(diff * 1.5))}%` : 'Below Avg'}
                 </span>
             </div>
             <div className="space-y-4">
                 <div className="relative">
                     <div className="flex justify-between text-[10px] font-bold text-white mb-1.5">
-                        <span className="text-teal-300">You</span>
+                        <span className="text-teal-200">You</span>
                         <span>{userScore}</span>
                     </div>
                     <div className="h-1.5 w-full bg-white/10 rounded-full overflow-hidden">
@@ -164,42 +165,39 @@ const DetailRow: React.FC<{ label: string, value: number, description: string, a
     }, [value]);
 
     const getBarColor = (val: number) => {
-        if (val >= 80) return 'bg-teal-500';
-        if (val >= 60) return 'bg-teal-400';
+        if (val >= 80) return 'bg-teal-400';
+        if (val >= 60) return 'bg-teal-500';
         return 'bg-amber-400';
     };
 
     return (
-        <div className="group py-3 border-b border-zinc-200/50 last:border-0 hover:bg-white/40 transition-colors rounded-xl px-2">
+        <div className="group py-4 px-2 border-b border-white/5 last:border-0 hover:bg-white/5 transition-colors rounded-xl">
             <div className="flex justify-between items-end mb-2">
-                <h4 className="text-xs font-bold text-zinc-700 uppercase tracking-wide">{label}</h4>
+                <h4 className="text-xs font-bold text-white uppercase tracking-wider">{label}</h4>
                 <div className="flex items-center gap-2">
-                    <span className="text-sm font-black text-zinc-900">{value}%</span>
+                    <span className="text-sm font-black text-white">{value}%</span>
                 </div>
             </div>
             
-            <div className="relative h-3 w-full mb-1 flex items-center">
-                {/* Track */}
-                <div className="absolute left-0 right-0 h-1.5 bg-zinc-200/60 rounded-full overflow-hidden">
-                    {/* Fill */}
-                    <div 
-                        className={`h-full rounded-full ${getBarColor(value)} transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)] shadow-[0_0_10px_rgba(45,212,191,0.3)]`} 
-                        style={{ width: `${width}%` }}
-                    ></div>
-                </div>
-
+            <div className="relative h-2 w-full mb-2 flex items-center bg-white/10 rounded-full overflow-hidden">
+                {/* Fill */}
+                <div 
+                    className={`h-full rounded-full ${getBarColor(value)} transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)] shadow-[0_0_15px_rgba(45,212,191,0.4)]`} 
+                    style={{ width: `${width}%` }}
+                ></div>
+                
                 {/* Global Average Marker */}
                 <div 
-                    className="absolute h-3 w-0.5 bg-zinc-400/80 z-10 top-0 bottom-0 rounded-full"
+                    className="absolute h-full w-0.5 bg-white/30 z-10 top-0 bottom-0"
                     style={{ left: `${avg}%` }}
                     title={`Average: ${avg}%`}
                 ></div>
             </div>
             
-            <p className="text-[10px] text-zinc-500 font-medium leading-relaxed flex justify-between">
-                <span>{description}</span>
-                <span className="text-[9px] text-zinc-300 font-bold uppercase tracking-widest">Avg {avg}</span>
-            </p>
+            <div className="flex justify-between items-center">
+                <p className="text-[10px] text-zinc-400 font-medium leading-relaxed">{description}</p>
+                <span className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest">AVG {avg}</span>
+            </div>
         </div>
     )
 };
@@ -251,17 +249,17 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
   ];
 
   return (
-    <div className="relative h-[100dvh] w-full bg-black font-sans selection:bg-teal-100 selection:text-teal-900 overflow-hidden">
+    <div className="relative h-[100dvh] w-full bg-black font-sans selection:bg-teal-500 selection:text-white overflow-hidden">
       
       {/* BACKGROUND */}
-      <div className="fixed inset-0 z-0 h-full w-full bg-zinc-900 pointer-events-none">
+      <div className="fixed inset-0 z-0 h-full w-full bg-black pointer-events-none">
           {userProfile.faceImage ? (
-              <img src={userProfile.faceImage} alt="Face Scan" className="w-full h-full object-cover opacity-90" />
+              <img src={userProfile.faceImage} alt="Face Scan" className="w-full h-full object-cover opacity-100" />
           ) : (
-              <div className="w-full h-full bg-gradient-to-br from-zinc-800 to-black"></div>
+              <div className="w-full h-full bg-gradient-to-br from-zinc-900 to-black"></div>
           )}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/40 via-transparent to-black/60"></div>
-          <div className={`absolute inset-0 bg-black/80 transition-opacity duration-700 ease-out ${focusedGroup ? 'opacity-100' : 'opacity-0'}`}></div>
+          {/* Lighter scrim to ensure text readability but keep photo bright */}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-black/20 to-black/80"></div>
       </div>
 
       <div 
@@ -274,13 +272,13 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
           <section className="h-[100dvh] w-full relative flex flex-col pt-safe-top snap-start snap-always shrink-0" onClick={() => setFocusedGroup(null)}>
               
               <div className="px-6 pt-8 flex justify-between items-center z-50">
-                  <div className="px-3 py-1.5 rounded-full bg-black/20 backdrop-blur-md border border-white/10 text-white/90 shadow-sm flex items-center gap-2">
+                  <div className="px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/10 text-white/90 shadow-sm flex items-center gap-2">
                       <ScanFace size={12} />
                       <span className="text-[10px] font-bold uppercase tracking-widest">
                           {new Date(metrics.timestamp).toLocaleDateString()}
                       </span>
                   </div>
-                  <button onClick={(e) => { e.stopPropagation(); onRescan(); }} className="w-9 h-9 rounded-full bg-black/20 backdrop-blur-md flex items-center justify-center text-white border border-white/10 hover:bg-black/30 transition-all active:scale-95">
+                  <button onClick={(e) => { e.stopPropagation(); onRescan(); }} className="w-9 h-9 rounded-full bg-white/10 backdrop-blur-md flex items-center justify-center text-white border border-white/10 hover:bg-white/20 transition-all active:scale-95">
                       <ScanFace size={16} />
                   </button>
               </div>
@@ -289,12 +287,10 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
               {focusedGroup && (
                   <div className="absolute top-24 left-0 right-0 z-30 px-8 flex flex-col items-center justify-center text-center pointer-events-none w-full">
                       <div className="animate-in fade-in slide-in-from-top-4 duration-500 ease-out w-full flex flex-col items-center">
-                          {/* We find the 'worst' or most relevant metric in the group to display as the headline */}
                           {(() => {
                               const group = BIOMARKER_GROUPS.find(g => g.id === focusedGroup);
                               if (!group) return null;
                               
-                              // Find lowest score metric
                               const sortedMetrics = [...group.metrics].sort((a, b) => {
                                   const valA = metrics[a.key as keyof typeof metrics] as number;
                                   const valB = metrics[b.key as keyof typeof metrics] as number;
@@ -348,7 +344,6 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
                       
                       {/* Group Orbs */}
                       {BIOMARKER_GROUPS.map(group => {
-                          // Calculate average score for the group icon
                           const avg = Math.round(group.metrics.reduce((acc, m) => acc + (metrics[m.key as keyof typeof metrics] as number), 0) / group.metrics.length);
                           const isActive = focusedGroup === group.id;
 
@@ -380,42 +375,42 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
               </div>
           </section>
 
-          {/* --- SECTION 2: CLINICAL REPORT (Snap 2) --- */}
+          {/* --- SECTION 2: CLINICAL REPORT (Light Glass Theme) --- */}
           <section className="h-[100dvh] w-full px-2 snap-start snap-always shrink-0 flex flex-col justify-end pb-4 pt-4 relative">
-              <div className="bg-zinc-100/90 backdrop-blur-3xl border border-white/40 rounded-[2.5rem] px-6 pt-12 pb-8 shadow-2xl relative overflow-y-auto scrollbar-hide h-[92vh] w-full">
-                  <div className="sticky top-0 left-1/2 -translate-x-1/2 w-10 h-1 bg-zinc-300/50 rounded-full mb-6 mx-auto"></div>
+              <div className="bg-white/15 backdrop-blur-[50px] border border-white/20 rounded-[2.5rem] px-6 pt-12 pb-8 shadow-[0_0_100px_rgba(255,255,255,0.05)] relative overflow-y-auto scrollbar-hide h-[92vh] w-full">
+                  <div className="sticky top-0 left-1/2 -translate-x-1/2 w-10 h-1 bg-white/20 rounded-full mb-6 mx-auto"></div>
 
                   <div className="mb-8 flex justify-between items-end">
                       <div>
-                          <h2 className="text-4xl font-thin text-zinc-900 tracking-tighter leading-none mb-1.5">Skin Report</h2>
-                          <p className="text-xs text-teal-600 font-bold">Holistic Logic Analysis.</p>
+                          <h2 className="text-4xl font-thin text-white tracking-tighter leading-none mb-1.5">Skin Report</h2>
+                          <p className="text-xs text-teal-400 font-bold uppercase tracking-widest">SkinOS Analysis.</p>
                       </div>
                       {userProfile.scanHistory && userProfile.scanHistory.length > 1 && (
-                          <button onClick={onViewProgress} className="w-10 h-10 bg-white border border-zinc-200 rounded-full flex items-center justify-center text-zinc-500 hover:text-teal-600">
+                          <button onClick={onViewProgress} className="w-10 h-10 bg-white/10 border border-white/20 rounded-full flex items-center justify-center text-white hover:bg-white/20 transition-colors">
                               <TrendingUp size={16} />
                           </button>
                       )}
                   </div>
 
-                  {/* AI Diagnosis */}
-                  <div className="bg-white/60 rounded-[2rem] p-6 mb-8 border border-white shadow-xl shadow-zinc-200/20 relative overflow-hidden">
-                      <div className="absolute top-0 right-0 w-32 h-32 bg-teal-50 rounded-full -mr-10 -mt-10 blur-2xl opacity-60"></div>
+                  {/* AI Diagnosis Card */}
+                  <div className="bg-black/20 rounded-[2rem] p-6 mb-8 border border-white/10 shadow-lg relative overflow-hidden backdrop-blur-md">
                       <div className="relative z-10">
-                          <div className="flex items-center gap-2 mb-3 text-teal-600">
-                              <Sparkles size={14} className="opacity-40" />
+                          <div className="flex items-center gap-2 mb-4 text-teal-400">
+                              <Sparkles size={14} className="text-teal-400" />
                               <span className="text-[10px] font-bold uppercase tracking-widest">AI Dermatologist</span>
                           </div>
                           {metrics.analysisSummary && (
-                              <div className="space-y-3">
+                              <div className="space-y-4">
                                   {typeof metrics.analysisSummary === 'string' ? (
-                                      <p className="text-sm text-zinc-600 font-medium leading-relaxed">{metrics.analysisSummary}</p>
+                                      <p className="text-sm text-white/90 font-medium leading-relaxed">{metrics.analysisSummary}</p>
                                   ) : (
                                       <>
-                                          <p className="text-sm font-bold leading-relaxed text-zinc-800">{metrics.analysisSummary.generalCondition}</p>
-                                          <div className="space-y-2 mt-2">
+                                          <p className="text-sm font-bold leading-relaxed text-white">{metrics.analysisSummary.generalCondition}</p>
+                                          <div className="space-y-3 mt-3">
                                               {metrics.analysisSummary.points?.map((p: any, i: number) => (
-                                                  <div key={i} className="flex gap-3 items-start pl-3 border-l-2 border-teal-200">
-                                                      <p className="text-xs text-zinc-500 leading-snug"><span className="text-teal-700 font-bold">{p.subtitle}: </span>{p.content}</p>
+                                                  <div key={i} className="pl-3 border-l-2 border-teal-500/50">
+                                                      <h4 className="text-[11px] font-bold text-teal-200 uppercase tracking-wide mb-1">{p.subtitle}</h4>
+                                                      <p className="text-xs text-zinc-300 font-medium leading-snug">{p.content}</p>
                                                   </div>
                                               ))}
                                           </div>
@@ -427,13 +422,13 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
                   </div>
 
                   {/* BIOMARKER DETAILS */}
-                  <div className="space-y-6">
+                  <div className="space-y-8">
                       {BIOMARKER_GROUPS.map(group => (
                           <div key={group.id}>
-                              <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3 px-2 flex items-center gap-2">
-                                  <group.icon size={12} /> {group.title}
+                              <h3 className="text-[10px] font-bold text-white uppercase tracking-widest mb-4 px-2 flex items-center gap-2">
+                                  <group.icon size={12} className="text-white" /> {group.title}
                               </h3>
-                              <div className="bg-white/40 backdrop-blur-md rounded-[2rem] border border-white/40 p-4 shadow-sm space-y-1">
+                              <div className="bg-black/40 backdrop-blur-md rounded-[2.5rem] border border-white/5 p-5 shadow-inner">
                                   {group.metrics.map(m => (
                                       <DetailRow 
                                           key={m.key}
@@ -449,7 +444,7 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
                   </div>
 
                   <div className="flex justify-center pt-8 pb-4">
-                      <button onClick={() => scrollToSection(2)} className="flex flex-col items-center gap-1 text-zinc-400 hover:text-teal-600 transition-colors animate-bounce">
+                      <button onClick={() => scrollToSection(2)} className="flex flex-col items-center gap-1 text-white/40 hover:text-white transition-colors animate-bounce">
                           <span className="text-[9px] font-bold uppercase tracking-widest">Protocol</span>
                           <ChevronDown size={20} />
                       </button>
@@ -459,9 +454,9 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
 
           {/* --- SECTION 3: TOOLS (Snap 3) --- */}
           <section className="h-[100dvh] w-full px-2 snap-start snap-always shrink-0 flex flex-col justify-end pb-4 pt-4">
-              <div className="rounded-[2.5rem] backdrop-blur-3xl bg-zinc-900/60 border border-white/10 shadow-2xl relative overflow-hidden h-[92vh] flex flex-col">
+              <div className="rounded-[2.5rem] backdrop-blur-3xl bg-zinc-900/80 border border-white/10 shadow-2xl relative overflow-hidden h-[92vh] flex flex-col">
                   <div className="absolute top-6 right-6 z-20">
-                      <button onClick={() => scrollToSection(1)} className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md border border-white/10 flex items-center justify-center text-white">
+                      <button onClick={() => scrollToSection(1)} className="w-10 h-10 rounded-full bg-white/10 backdrop-blur-md border border-white/10 flex items-center justify-center text-white hover:bg-white/20">
                           <ChevronUp size={20} />
                       </button>
                   </div>
