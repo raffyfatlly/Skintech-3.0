@@ -39,6 +39,7 @@ import BackgroundTaskBar from './components/BackgroundTaskBar';
 import SplashScreen from './components/SplashScreen';
 import SkinSimulator from './components/SkinSimulator';
 import BottomNavigation from './components/BottomNavigation';
+import SwipeInstructionOverlay from './components/SwipeInstructionOverlay';
 
 const LIMIT_SCANS = 3; // Face & Product
 const LIMIT_TOOLS = 1; // Routine & Simulator
@@ -61,6 +62,9 @@ const App: React.FC = () => {
   const [backgroundTask, setBackgroundTask] = useState<{ label: string } | null>(null);
   const [installPrompt, setInstallPrompt] = useState<any>(null);
   
+  // New: Swipe Instruction State
+  const [showSwipeInstruction, setShowSwipeInstruction] = useState(false);
+  
   // Location Context State
   const [userLocation, setUserLocation] = useState<string>("Global");
 
@@ -71,6 +75,10 @@ const App: React.FC = () => {
   
   // Persisted Routine Results State
   const [routineResults, setRoutineResults] = useState<RecommendedProduct[]>([]);
+
+  // --- GESTURE NAVIGATION STATE ---
+  const touchStartX = useRef<number | null>(null);
+  const touchStartY = useRef<number | null>(null);
 
   useEffect(() => { viewRef.current = currentView; }, [currentView]);
 
@@ -83,6 +91,27 @@ const App: React.FC = () => {
     window.addEventListener('beforeinstallprompt', handler);
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
+
+  // --- LOGIC: SHOW SWIPE INSTRUCTION ---
+  useEffect(() => {
+      // Show instruction only if:
+      // 1. User is logged in/onboarded (has profile)
+      // 2. Has scanned face (is on main dashboard flow)
+      // 3. Has NOT seen it before
+      if (userProfile && userProfile.hasScannedFace && currentView === AppView.DASHBOARD) {
+          const hasSeen = localStorage.getItem('skinos_swipe_guide_seen');
+          if (!hasSeen) {
+              // Slight delay to allow dashboard to load first
+              const timer = setTimeout(() => setShowSwipeInstruction(true), 1500);
+              return () => clearTimeout(timer);
+          }
+      }
+  }, [userProfile, currentView]);
+
+  const dismissSwipeInstruction = () => {
+      localStorage.setItem('skinos_swipe_guide_seen', 'true');
+      setShowSwipeInstruction(false);
+  };
 
   // --- LOCATION DETECTION ---
   useEffect(() => {
@@ -505,6 +534,43 @@ const App: React.FC = () => {
       setNotification({ type: 'GENERIC', title: 'Account Synced', description: 'Your data is now saved to the cloud.', actionLabel: 'OK', onAction: () => {} });
   };
 
+  // --- GESTURE NAVIGATION ---
+  const handleTouchStart = (e: React.TouchEvent) => {
+      touchStartX.current = e.targetTouches[0].clientX;
+      touchStartY.current = e.targetTouches[0].clientY;
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+      if (!touchStartX.current || !touchStartY.current) return;
+      
+      const touchEndX = e.changedTouches[0].clientX;
+      const touchEndY = e.changedTouches[0].clientY;
+      
+      const diffX = touchStartX.current - touchEndX;
+      const diffY = touchStartY.current - touchEndY;
+
+      // Reset
+      touchStartX.current = null;
+      touchStartY.current = null;
+
+      // Thresholds: Min distance 50px, and horizontal dominance (to differentiate from scroll)
+      if (Math.abs(diffX) > 50 && Math.abs(diffX) > Math.abs(diffY) * 1.5) {
+          const direction = diffX > 0 ? 'next' : 'prev'; // Left swipe (diffX > 0) -> Next
+          
+          // Navigation Order (Skipping SCAN_ACTION as it's an action/modal)
+          const tabs = [AppView.DASHBOARD, AppView.SMART_SHELF, AppView.AI_ASSISTANT, AppView.PROFILE_SETUP];
+          const currentIndex = tabs.indexOf(currentView);
+          
+          if (currentIndex === -1) return; // Not on a main navigation tab
+
+          if (direction === 'next' && currentIndex < tabs.length - 1) {
+              setCurrentView(tabs[currentIndex + 1]);
+          } else if (direction === 'prev' && currentIndex > 0) {
+              setCurrentView(tabs[currentIndex - 1]);
+          }
+      }
+  };
+
   if (isAdminMode) return <AdminDashboard onExit={() => { setIsAdminMode(false); window.history.replaceState({}, document.title, window.location.pathname); }} />;
 
   // Determine if BottomNav should be visible
@@ -670,7 +736,11 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="bg-zinc-50 min-h-screen font-sans">
+    <div 
+        className="bg-zinc-50 min-h-screen font-sans"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+    >
       {isGlobalLoading && (
           <SplashScreen message={loadingMessage || "Syncing Profile..."} />
       )}
@@ -690,6 +760,8 @@ const App: React.FC = () => {
               }}
           />
       )}
+
+      {showSwipeInstruction && <SwipeInstructionOverlay onDismiss={dismissSwipeInstruction} />}
 
       {backgroundTask && <BackgroundTaskBar label={backgroundTask.label} />}
       {showSaveModal && <SaveProfileModal onSave={() => {}} onClose={() => setShowSaveModal(false)} onMockLogin={handleMockLogin} mode={saveModalTrigger === 'GENERIC' ? 'LOGIN' : 'SAVE'} trigger={saveModalTrigger} />}
