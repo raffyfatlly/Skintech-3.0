@@ -1,3 +1,4 @@
+
 import { UserProfile, UserPreferences } from '../../types';
 import { runWithRetry, runWithTimeout, parseJSONFromText, getAi, MODEL_FAST } from './core';
 
@@ -35,7 +36,12 @@ export const generateTargetedRecommendations = async (
         USER GOALS: ${goals.join(', ')}.
         BUDGET: ${maxPrice} (Approximate in local currency).
         SKIN TYPE: ${user.skinType}
-        SAFETY: Acne Score: ${m.acneActive}, Sensitivity: ${m.redness}.
+        
+        CURRENT SKIN HEALTH (Scale 0-100, 100 is Best/Healthy):
+        - Acne Score: ${m.acneActive} (Low score implies ACTIVE ACNE needs treatment)
+        - Sensitivity Score: ${m.redness} (Low score implies HIGH SENSITIVITY/REDNESS)
+        - Hydration Score: ${m.hydration} (Low score implies DEHYDRATION)
+        
         CRITICAL SAFETY CONSTRAINTS: ${safetyConstraints.join(', ') || 'None'}.
         Output strict JSON: [{ "name": "string", "brand": "string", "price": "string", "reason": "string", "rating": number }]
         `;

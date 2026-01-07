@@ -171,7 +171,8 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
       if (buffer.length === 0) return { 
           overallScore: 70, acneActive: 70, blackheads: 70, acneMarks: 70, 
           darkSpots: 70, redness: 70, darkCircles: 70, 
-          pores: 70, texture: 70, oiliness: 70, hydration: 70, 
+          pores: 70, oiliness: 70, hydration: 70, 
+          scars: 70, skinTags: 70,
           wrinkles: 70, firmness: 70, timestamp: Date.now() 
       };
 
@@ -184,9 +185,10 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
           redness: acc.redness + curr.redness,
           darkCircles: acc.darkCircles + curr.darkCircles,
           pores: acc.pores + curr.pores,
-          texture: acc.texture + curr.texture,
           oiliness: acc.oiliness + curr.oiliness,
           hydration: acc.hydration + curr.hydration,
+          scars: (acc.scars || 0) + (curr.scars || 70),
+          skinTags: (acc.skinTags || 0) + (curr.skinTags || 70),
           wrinkles: acc.wrinkles + curr.wrinkles,
           firmness: acc.firmness + curr.firmness,
           skinAge: (acc.skinAge || 0) + (curr.skinAge || 25),
@@ -194,7 +196,8 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
       }), { 
           overallScore: 0, acneActive: 0, blackheads: 0, acneMarks: 0,
           darkSpots: 0, redness: 0, darkCircles: 0,
-          pores: 0, texture: 0, oiliness: 0, hydration: 0,
+          pores: 0, oiliness: 0, hydration: 0,
+          scars: 0, skinTags: 0,
           wrinkles: 0, firmness: 0, skinAge: 0, timestamp: 0 
       });
 
@@ -208,9 +211,10 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
           redness: Math.round(sum.redness / len),
           darkCircles: Math.round(sum.darkCircles / len),
           pores: Math.round(sum.pores / len),
-          texture: Math.round(sum.texture / len),
           oiliness: Math.round(sum.oiliness / len),
           hydration: Math.round(sum.hydration / len),
+          scars: Math.round(sum.scars / len),
+          skinTags: Math.round(sum.skinTags / len),
           wrinkles: Math.round(sum.wrinkles / len),
           firmness: Math.round(sum.firmness / len),
           skinAge: Math.round(sum.skinAge! / len),

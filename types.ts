@@ -13,11 +13,12 @@ export interface SkinMetrics {
   redness: number;    // Higher = Calm
   darkCircles: number;// Higher = Bright
   
-  // Group 3: Surface
+  // Group 3: Texture (Group Name)
   pores: number;      // Higher = Refined/Invisible
-  texture: number;    // Higher = Smooth
   oiliness: number;   // Higher = Balanced (Not greasy)
   hydration: number;  // Higher = Plump/Hydrated
+  scars: number;      // Higher = Smooth/No Scars (Pitted)
+  skinTags: number;   // Higher = Clear/No Tags
   
   // Group 4: Aging
   wrinkles: number;   // Higher = Smooth/No Lines

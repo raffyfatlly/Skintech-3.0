@@ -69,7 +69,7 @@ export const simulateSkinResult = (
     sourceCtx: CanvasRenderingContext2D,
     width: number,
     height: number,
-    type: 'acneActive' | 'darkCircles' | 'texture' | 'redness' | 'darkSpots',
+    type: 'acneActive' | 'darkCircles' | 'redness' | 'darkSpots',
     intensity: number 
 ): string => {
     if (intensity <= 0) return sourceCtx.canvas.toDataURL();
@@ -107,7 +107,7 @@ export const simulateSkinResult = (
             }
         }
 
-        if (type === 'texture' || type === 'darkSpots') {
+        if (type === 'darkSpots') {
             const variance = Math.abs(r - blurred[i]) + Math.abs(g - blurred[i+1]) + Math.abs(b - blurred[i+2]);
             let mask = 1 - Math.min(1, variance / 30);
             if (type === 'darkSpots') {
@@ -204,9 +204,11 @@ export const analyzeSkinFrame = (
         
         // Surface
         pores: Math.min(95, Math.max(30, baseScore - 5 + (seed % 10))),
-        texture: baseScore,
+        // texture: removed,
         oiliness: 50 + (seed % 40), // 50-90 (Oily to Dry/Normal)
         hydration: Math.min(90, Math.max(20, baseScore - 15 + (seed % 10))), // Often low
+        scars: Math.min(99, Math.max(50, baseScore + 5)),
+        skinTags: Math.min(99, Math.max(60, baseScore + 10)),
         
         // Aging (Usually better for younger users, base on score)
         wrinkles: Math.min(98, Math.max(50, baseScore + 5)),

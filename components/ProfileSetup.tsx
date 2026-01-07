@@ -443,7 +443,6 @@ const ScanDetailModal: React.FC<{ scan: SkinMetrics; onClose: () => void }> = ({
         { label: 'Acne', val: scan.acneActive },
         { label: 'Hydration', val: scan.hydration },
         { label: 'Redness', val: scan.redness },
-        { label: 'Texture', val: scan.texture },
         { label: 'Wrinkles', val: scan.wrinkles },
     ].sort((a,b) => a.val - b.val);
     
@@ -496,11 +495,11 @@ const ScanDetailModal: React.FC<{ scan: SkinMetrics; onClose: () => void }> = ({
                              <span className="text-xs font-bold text-zinc-900">{scan.redness}%</span>
                          </div>
                          <div className="p-4 bg-white border border-zinc-100 rounded-2xl shadow-sm">
-                             <span className="text-[10px] font-bold text-zinc-400 uppercase block mb-1">Texture</span>
+                             <span className="text-[10px] font-bold text-zinc-400 uppercase block mb-1">Wrinkles</span>
                              <div className="h-2 bg-zinc-100 rounded-full overflow-hidden mb-1">
-                                 <div className="h-full bg-teal-400" style={{ width: `${scan.texture}%` }} />
+                                 <div className="h-full bg-teal-400" style={{ width: `${scan.wrinkles}%` }} />
                              </div>
-                             <span className="text-xs font-bold text-zinc-900">{scan.texture}%</span>
+                             <span className="text-xs font-bold text-zinc-900">{scan.wrinkles}%</span>
                          </div>
                     </div>
                 </div>
@@ -545,8 +544,8 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
               label = "Acne & Clarity";
               break;
           case "Smooth & Hydrated Skin":
-              metricKeys = ['hydration', 'texture', 'oiliness'];
-              label = "Hydration & Texture";
+              metricKeys = ['hydration', 'oiliness'];
+              label = "Hydration & Balance";
               break;
           case "Look Younger & Firm":
               metricKeys = ['wrinkles', 'firmness'];
@@ -622,7 +621,8 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
                   newProfileUpdate.biometrics = { 
                       overallScore: 0, acneActive: 0, blackheads: 0, acneMarks: 0,
                       darkSpots: 0, redness: 0, darkCircles: 0,
-                      pores: 0, texture: 0, oiliness: 0, hydration: 0,
+                      pores: 0, oiliness: 0, hydration: 0,
+                      scars: 0, skinTags: 0,
                       wrinkles: 0, firmness: 0, timestamp: Date.now()
                   };
                   newProfileUpdate.faceImage = null;
@@ -683,7 +683,7 @@ const ProfileSetup: React.FC<ProfileSetupProps> = ({ user, shelf = [], onComplet
     
     const scoreDiff = latest.overallScore - previous.overallScore;
     
-    const metricsToCheck: (keyof SkinMetrics)[] = ['redness', 'hydration', 'acneActive', 'texture', 'wrinkles', 'darkSpots'];
+    const metricsToCheck: (keyof SkinMetrics)[] = ['redness', 'hydration', 'acneActive', 'wrinkles', 'darkSpots'];
     let biggestMover = { key: '', val: 0 };
     
     metricsToCheck.forEach(key => {

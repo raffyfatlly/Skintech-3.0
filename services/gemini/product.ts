@@ -1,3 +1,4 @@
+
 import { Product, SkinMetrics } from '../../types';
 import { runWithTimeout, runWithRetry, parseJSONFromText, extractSources, MODEL_FAST, SAFETY_SETTINGS_NONE } from './core';
 
@@ -14,12 +15,19 @@ export const analyzeProductFromSearch = async (
         ACT AS AN EXPERT COSMETIC CHEMIST.
         PRODUCT: "${productName}" ${knownBrand ? `by ${knownBrand}` : ''}
         USER LOCATION: ${location}.
-        USER PROFILE (0=Bad, 100=Good): ${JSON.stringify(userMetrics)}.
+        
+        USER BIO-METRICS (Scale 0-100):
+        NOTE: 100 = Perfect/Healthy, 0 = Severe Issue.
+        - Acne Score: ${userMetrics.acneActive} (Lower score = More/Severe Acne)
+        - Redness Score: ${userMetrics.redness} (Lower score = More Sensitive/Red)
+        - Hydration Score: ${userMetrics.hydration} (Lower score = Dehydrated/Dry)
+        - Full Profile: ${JSON.stringify(userMetrics)}
+        
         ROUTINE ACTIVES ALREADY USED: [${routineActives.join(', ')}].
 
         TASK: 
         1. Find ingredients and price.
-        2. Analyze against user profile.
+        2. Analyze against user profile (Warning: If user has low scores, be careful with harsh actives).
         3. Output strict JSON.
 
         OUTPUT JSON SCHEMA:

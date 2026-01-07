@@ -16,7 +16,7 @@ interface SkinAnalysisReportProps {
   onScanProduct: () => void;
 }
 
-// --- DATA: NEW 12 BIOMARKERS ---
+// --- DATA: NEW 11 BIOMARKERS (Texture metric removed) ---
 const BIOMARKER_GROUPS = [
     {
         id: 'breakout',
@@ -40,13 +40,14 @@ const BIOMARKER_GROUPS = [
     },
     {
         id: 'surface',
-        title: 'Surface',
+        title: 'Texture',
         icon: Activity,
         metrics: [
             { key: 'pores', label: 'Pores', desc: 'Visible size' },
-            { key: 'texture', label: 'Texture', desc: 'Roughness' },
             { key: 'oiliness', label: 'Oiliness', desc: 'Sebum levels' },
             { key: 'hydration', label: 'Dehydration', desc: 'Water retention' },
+            { key: 'scars', label: 'Pitted Scars', desc: 'Indentations/Ice pick' },
+            { key: 'skinTags', label: 'Skin Tags', desc: 'Small growths' },
         ]
     },
     {
@@ -85,6 +86,8 @@ const getInsightText = (metricKey: string, score: number): string => {
             case 'redness': return "Calm Tone. No irritation detected.";
             case 'pores': return "Refined Pores. Excellent texture.";
             case 'wrinkles': return "Smooth Skin. No static lines.";
+            case 'scars': return "Smooth Surface. No visible scarring.";
+            case 'skinTags': return "Clear. No growths detected.";
             default: return "Excellent Condition. Keep it up.";
         }
     } else if (score >= 60) {
@@ -92,7 +95,8 @@ const getInsightText = (metricKey: string, score: number): string => {
             case 'hydration': return "Mildly Dehydrated. Drink more water.";
             case 'oiliness': return "Slightly Oily. Manage T-zone.";
             case 'redness': return "Mild Sensitivity. Use gentle products.";
-            case 'texture': return "Minor Roughness. Gentle exfoliation helps.";
+            case 'scars': return "Minor Texture. Shallow indentations.";
+            case 'skinTags': return "Minor irregularities detected.";
             default: return "Good Health. Minor improvements possible.";
         }
     } else {
@@ -100,9 +104,10 @@ const getInsightText = (metricKey: string, score: number): string => {
             case 'hydration': return "Dehydrated. Barrier function may be compromised.";
             case 'acneActive': return "Active Breakouts. Inflammation detected.";
             case 'wrinkles': return "Visible Lines. Collagen support needed.";
-            case 'texture': return "Rough Texture. Exfoliation recommended.";
             case 'redness': return "High Sensitivity. Barrier repair needed.";
             case 'darkSpots': return "Pigmentation detected. Use SPF daily.";
+            case 'scars': return "Visible Scarring. Resurfacing recommended.";
+            case 'skinTags': return "Multiple Tags. Consult dermatologist.";
             default: return "Needs Attention. Critical levels detected.";
         }
     }
@@ -316,7 +321,7 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
                               if (!group) return null;
                               
                               // Calculate Group Average (for Display)
-                              const groupAverage = Math.round(group.metrics.reduce((acc, m) => acc + (metrics[m.key as keyof typeof metrics] as number), 0) / group.metrics.length);
+                              const groupAverage = Math.round(group.metrics.reduce((acc, m) => acc + ((metrics[m.key as keyof typeof metrics] as number) || 0), 0) / group.metrics.length);
                               
                               // Calculate Global Group Average (for Comparison)
                               const globalGroupTotal = group.metrics.reduce((acc, m) => acc + getAgeAdjustedAverage(userProfile.age, m.key), 0);
@@ -324,12 +329,12 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
 
                               // Identify Primary Concern (Lowest Score) for Insight Text
                               const sortedMetrics = [...group.metrics].sort((a, b) => {
-                                  const valA = metrics[a.key as keyof typeof metrics] as number;
-                                  const valB = metrics[b.key as keyof typeof metrics] as number;
+                                  const valA = (metrics[a.key as keyof typeof metrics] as number) || 0;
+                                  const valB = (metrics[b.key as keyof typeof metrics] as number) || 0;
                                   return valA - valB;
                               });
                               const primaryMetric = sortedMetrics[0];
-                              const primaryScore = metrics[primaryMetric.key as keyof typeof metrics] as number;
+                              const primaryScore = (metrics[primaryMetric.key as keyof typeof metrics] as number) || 0;
                               
                               return (
                                   <>
@@ -376,7 +381,7 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
                       
                       {/* Group Orbs */}
                       {BIOMARKER_GROUPS.map(group => {
-                          const avg = Math.round(group.metrics.reduce((acc, m) => acc + (metrics[m.key as keyof typeof metrics] as number), 0) / group.metrics.length);
+                          const avg = Math.round(group.metrics.reduce((acc, m) => acc + ((metrics[m.key as keyof typeof metrics] as number) || 0), 0) / group.metrics.length);
                           const isActive = focusedGroup === group.id;
 
                           return (
@@ -465,7 +470,7 @@ export const SkinAnalysisReport: React.FC<SkinAnalysisReportProps> = ({
                                       <DetailRow 
                                           key={m.key}
                                           label={m.label} 
-                                          value={metrics[m.key as keyof typeof metrics] as number} 
+                                          value={(metrics[m.key as keyof typeof metrics] as number) || 0} 
                                           description={m.desc} 
                                           avg={getAgeAdjustedAverage(userProfile.age, m.key)}
                                       />

@@ -1,3 +1,4 @@
+
 import { UserProfile } from '../../types';
 import { getAi, runWithTimeout, parseJSONFromText, urlToBase64, MODEL_IMAGE, MODEL_FAST, SAFETY_SETTINGS_IMAGE, SAFETY_SETTINGS_NONE } from './core';
 
@@ -96,7 +97,17 @@ export const generateImprovementPlan = async (
         INPUT:
         Image 1: Current Patient Skin (Baseline)
         Image 2: Simulated Goal Result (Clear/Healthy)
-        Patient: Age ${user.age}, Skin Type ${user.skinType}.
+        
+        PATIENT DATA:
+        - Age: ${user.age}
+        - Skin Type: ${user.skinType}
+        - Current Metrics (0-100 Scale, 100=Perfect/Healthy): 
+          Acne: ${user.biometrics.acneActive}, 
+          Redness: ${user.biometrics.redness}, 
+          Hydration: ${user.biometrics.hydration},
+          Scars: ${user.biometrics.scars || 70},
+          Skin Tags: ${user.biometrics.skinTags || 70}.
+          (Note: If scores are low, focus the plan on treating those severe issues).
 
         TASK 1: EXPLAIN THE TRANSFORMATION (Simple Language)
         Compare Image 1 vs Image 2.

@@ -6,7 +6,7 @@ export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, 
     return runWithTimeout<SkinMetrics>(async (ai) => {
         const prompt = `
         ACT AS A DERMATOLOGICAL GRADING AI. 
-        Analyze the face image using the 12 BIOMARKERS defined below.
+        Analyze the face image using the 11 BIOMARKERS defined below.
         
         INPUT CV METRICS (Reference): ${JSON.stringify(localMetrics)}. 
         
@@ -24,11 +24,12 @@ export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, 
         - redness: Sensitivity, broken capillaries, general inflammation.
         - darkCircles: Pigment or shadows under eyes.
 
-        3. THE "SURFACE" GROUP
+        3. THE "TEXTURE" GROUP
         - pores: Visible size/openness.
-        - texture: Bumpiness, roughness, closed comedones.
         - oiliness: Shine intensity (T-zone).
         - hydration: Water content (Score 100 = Plump, Score 0 = Dehydrated/Flaking).
+        - scars: Atrophic/pitted scars (ice pick, boxcar, rolling). NOT pigmentation marks.
+        - skinTags: Acrochordons or small fleshy growths.
 
         4. THE "AGING" GROUP
         - wrinkles: Static lines (forehead, crows feet, nasolabial).
@@ -62,9 +63,10 @@ export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, 
           "redness": number,
           "darkCircles": number,
           "pores": number,
-          "texture": number,
           "oiliness": number,
           "hydration": number,
+          "scars": number,
+          "skinTags": number,
           "wrinkles": number,
           "firmness": number,
           "skinAge": number,

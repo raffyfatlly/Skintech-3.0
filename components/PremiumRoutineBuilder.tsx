@@ -37,18 +37,17 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
         if (b.acneMarks < 65) scarLabel = 'Repair Pitted Scars'; 
         
         const acneLabel = b.acneActive < 60 ? 'Treat Active Acne' : 'Prevent Breakouts';
-        const textureLabel = b.texture < 70 ? 'Smooth Roughness' : 'Refine Texture';
 
         const candidates = [
             { label: acneLabel, score: b.acneActive, icon: Zap },
             { label: 'Soothe Redness', score: b.redness, icon: ShieldCheck },
             { label: 'Hydration Boost', score: b.hydration, icon: Droplet },
             { label: 'Oil Control', score: b.oiliness, icon: Sliders },
-            { label: textureLabel, score: b.texture, icon: Activity }, 
             { label: 'Minimize Pores', score: b.pores, icon: Scan },
             { label: 'Clear Blackheads', score: b.blackheads, icon: Target },
             { label: 'Brighten Spots', score: b.darkSpots, icon: Sun },
             { label: 'Anti-Aging', score: (b.wrinkles + b.firmness) / 2, icon: Star },
+            { label: 'Smooth Scars', score: b.scars || 70, icon: Eraser },
             { label: scarLabel, score: b.acneMarks, icon: Eraser },
         ];
 
