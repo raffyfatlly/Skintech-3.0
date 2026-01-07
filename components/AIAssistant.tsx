@@ -5,7 +5,7 @@ import { createDermatologistSession as initSession, isQuotaError } from '../serv
 import { playMessageSound } from '../services/soundService';
 import { 
     Send, Mic, X, ChevronLeft, Trash2, Keyboard, Sparkles, 
-    AudioWaveform, MessageSquare
+    AudioWaveform, MessageSquare, Loader
 } from 'lucide-react';
 import type { Chat, GenerateContentResponse, Part } from "@google/genai";
 
@@ -69,6 +69,9 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
   const transcriptRef = useRef<string>('');
+
+  // Determine if the session has started (for UI animation)
+  const hasStarted = messages.length > 0 || isListening || isTyping;
 
   // Initialize Chat
   useEffect(() => {
@@ -329,8 +332,8 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
 
             {/* --- UNIFIED VISUAL AREA --- */}
             
-            {/* 1. THE ORB (FIXED HEADER ANCHOR) */}
-            <div className="w-full h-[45%] shrink-0 flex items-center justify-center pt-28 relative z-10">
+            {/* 1. THE ORB (MOVES FROM CENTER TO TOP) */}
+            <div className={`w-full shrink-0 flex flex-col items-center justify-center relative z-10 transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${hasStarted ? 'h-[45%] pt-28' : 'h-full pb-32'}`}>
                 <div className="relative flex items-center justify-center w-48 h-48">
                     {/* Outer Pulse Rings */}
                     <div className="absolute inset-0 rounded-full border-2 border-teal-500/10 animate-[spin_8s_linear_infinite]"></div>
@@ -353,18 +356,22 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
                         <div className="absolute inset-0 rounded-full border-2 border-teal-400 animate-[ping_1.5s_cubic-bezier(0,0,0.2,1)_infinite]"></div>
                     )}
                 </div>
+
+                {/* GREETING TEXT (FADES OUT WHEN STARTED) */}
+                <div className={`text-center mt-10 transition-all duration-700 absolute top-[55%] left-0 right-0 ${hasStarted ? 'opacity-0 translate-y-10 pointer-events-none' : 'opacity-100 translate-y-0 delay-200'}`}>
+                    <h2 className="text-3xl font-thin text-zinc-900 tracking-tighter">Hi, {user.name.split(' ')[0]}</h2>
+                    <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest mt-2">AI Dermatologist</p>
+                </div>
             </div>
 
             {/* 2. TEXT CONTENT AREA (UNIFIED SCROLLABLE LIST) */}
             <div className="flex-1 relative overflow-hidden w-full z-20">
                 <div className="absolute inset-0 overflow-y-auto no-scrollbar px-6 pb-32 pt-4 animate-in fade-in duration-500 font-sans">
                     <div className="w-full max-w-md mx-auto flex flex-col justify-start space-y-8 min-h-min">
-                        {messages.length === 0 && !isListening && (
+                        {messages.length === 0 && !isListening && hasStarted && (
                             <div className="flex-1 flex flex-col items-center justify-center text-center text-zinc-400 opacity-50 py-10">
-                                <MessageSquare size={32} className="mx-auto mb-2 opacity-20" />
-                                <p className="text-xs font-medium uppercase tracking-widest">
-                                    {inputMode === 'VOICE' ? "Hold mic to speak" : "Type a message"}
-                                </p>
+                                <Loader size={24} className="animate-spin mb-2" />
+                                <p className="text-xs font-medium uppercase tracking-widest">Thinking...</p>
                             </div>
                         )}
                         
