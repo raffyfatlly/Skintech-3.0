@@ -76,15 +76,45 @@ export const analyzeShelfHealth = (products: Product[], user: UserProfile) => {
     if (!types.has('SPF')) missing.push('SPF');
     if (!types.has('MOISTURIZER')) missing.push('Moisturizer');
     
+    // Calculate Safety & Risks
+    const riskyProducts: any[] = [];
+    
+    products.forEach(p => {
+        const audit = auditProduct(p, user);
+        if (audit.warnings.length > 0) {
+            // Aggregate all warnings
+            audit.warnings.forEach(w => {
+                // De-duplicate if needed, simple push for now
+                riskyProducts.push({
+                    name: p.name,
+                    reason: w.reason,
+                    severity: w.severity
+                });
+            });
+        }
+    });
+
     let grade = 'B';
     const avg = products.reduce((a,b) => a + b.suitabilityScore, 0) / (products.length || 1);
-    if (avg > 80 && missing.length === 0) grade = 'S';
-    else if (avg > 70) grade = 'A';
-    else if (avg < 50) grade = 'C';
+    
+    if (riskyProducts.some(r => r.severity === 'CRITICAL')) {
+        grade = 'D'; // Downgrade if safety risks exist
+    } else if (avg > 80 && missing.length === 0) {
+        grade = 'S';
+    } else if (avg > 70) {
+        grade = 'A';
+    } else if (avg < 50) {
+        grade = 'C';
+    }
 
     return {
         analysis: {
-            grade, conflicts: [], riskyProducts: [], missing, redundancies: [], upgrades: [],
+            grade, 
+            conflicts: [], 
+            riskyProducts: riskyProducts.slice(0, 3), // Top 3 risks
+            missing, 
+            redundancies: [], 
+            upgrades: [],
             balance: { exfoliation: 50, hydration: 50, protection: 50, treatment: 50 }
         }
     };

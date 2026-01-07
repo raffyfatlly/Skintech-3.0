@@ -1,5 +1,5 @@
 
-import { UserProfile } from '../../types';
+import { UserProfile, UserPreferences } from '../../types';
 import { getAi, runWithTimeout, parseJSONFromText, urlToBase64, MODEL_IMAGE, MODEL_FAST, SAFETY_SETTINGS_IMAGE, SAFETY_SETTINGS_NONE } from './core';
 
 // --- GEN AI IMAGE MANIPULATION (Must use MODEL_IMAGE) ---
@@ -91,6 +91,18 @@ export const generateImprovementPlan = async (
         const origData = originalImage.includes(',') ? originalImage.split(',')[1] : originalImage;
         targetData = targetData.includes(',') ? targetData.split(',')[1] : targetData;
 
+        // Build Safety Context
+        const prefs = user.preferences || {} as Partial<UserPreferences>;
+        const safetyFlags = [];
+        if (prefs.isPregnant) safetyFlags.push("PREGNANCY: Avoid Retinoids, Salicylic Acid (>2%), Hydroquinone.");
+        if (prefs.hasEczema) safetyFlags.push("ECZEMA: Avoid Fragrance, High % Glycolic Acid, Harsh Scrubs.");
+        if (prefs.onMedication) safetyFlags.push("ON MEDICATION: Skin is extra sensitive. Focus on barrier repair.");
+        if (prefs.sensitivity === 'VERY_SENSITIVE') safetyFlags.push("VERY SENSITIVE: Hypoallergenic focus.");
+
+        const safetyContext = safetyFlags.length > 0 
+            ? `CRITICAL SAFETY CONSTRAINTS (MUST FOLLOW): ${safetyFlags.join(" ")}` 
+            : "Standard safety protocols apply.";
+
         const prompt = `
         ACT AS A TOP DERMATOLOGIST EXPLAINING A TREATMENT PLAN TO A PATIENT.
 
@@ -101,6 +113,7 @@ export const generateImprovementPlan = async (
         PATIENT DATA:
         - Age: ${user.age}
         - Skin Type: ${user.skinType}
+        - Safety Profile: ${safetyContext}
         - Current Metrics (0-100 Scale, 100=Perfect/Healthy): 
           Acne: ${user.biometrics.acneActive}, 
           Redness: ${user.biometrics.redness}, 
@@ -114,7 +127,7 @@ export const generateImprovementPlan = async (
         2. Identify the top 2-3 biomarkers being targeted (e.g. Inflammation, Hyper-pigmentation, Texture).
         3. Suggest professional clinical treatments (e.g. Microneedling, LED, Peels) if relevant for faster results.
         4. Suggest simple lifestyle habits (e.g. Diet, Sleep, Hygiene).
-        5. Design a phased routine.
+        5. Design a phased routine respecting the SAFETY CONSTRAINTS above.
 
         OUTPUT JSON (Strict):
         {

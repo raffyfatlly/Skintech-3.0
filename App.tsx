@@ -250,7 +250,7 @@ const App: React.FC = () => {
           if (type === 'SEARCH') {
               product = await analyzeProductFromSearch(
                   payload, 
-                  userProfile.biometrics,
+                  userProfile, // Pass full user profile for safety checks
                   undefined, 
                   productBrand,
                   shelfIngredients,
@@ -259,7 +259,7 @@ const App: React.FC = () => {
           } else {
               product = await analyzeProductImage(
                   payload, 
-                  userProfile.biometrics, 
+                  userProfile, // Pass full user profile for safety checks
                   shelfIngredients,
                   userLocation
               );

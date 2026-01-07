@@ -1,16 +1,26 @@
 
-import { Product, SkinMetrics } from '../../types';
+import { Product, SkinMetrics, UserProfile, UserPreferences } from '../../types';
 import { runWithTimeout, runWithRetry, parseJSONFromText, extractSources, MODEL_FAST, SAFETY_SETTINGS_NONE } from './core';
 
 export const analyzeProductFromSearch = async (
     productName: string, 
-    userMetrics: SkinMetrics, 
+    userProfile: UserProfile, 
     _unused?: any, 
     knownBrand?: string, 
     routineActives: string[] = [],
     location: string = "Global"
 ): Promise<Product> => {
     return runWithTimeout<Product>(async (ai) => {
+        const userMetrics = userProfile.biometrics;
+        const prefs = userProfile.preferences || {} as Partial<UserPreferences>;
+        
+        // Build Safety String
+        const safetyFlags = [];
+        if (prefs.isPregnant) safetyFlags.push("USER IS PREGNANT (Flag Retinoids/BHA/Hydroquinone as CRITICAL RISK)");
+        if (prefs.hasEczema) safetyFlags.push("USER HAS ECZEMA (Flag Fragrance/Alcohol/Harsh Acids)");
+        if (prefs.onMedication) safetyFlags.push("USER ON MEDICATION (Skin is extra sensitive)");
+        if (prefs.sensitivity === 'VERY_SENSITIVE') safetyFlags.push("VERY SENSITIVE SKIN");
+
         const prompt = `
         ACT AS AN EXPERT COSMETIC CHEMIST.
         PRODUCT: "${productName}" ${knownBrand ? `by ${knownBrand}` : ''}
@@ -21,13 +31,14 @@ export const analyzeProductFromSearch = async (
         - Acne Score: ${userMetrics.acneActive} (Lower score = More/Severe Acne)
         - Redness Score: ${userMetrics.redness} (Lower score = More Sensitive/Red)
         - Hydration Score: ${userMetrics.hydration} (Lower score = Dehydrated/Dry)
-        - Full Profile: ${JSON.stringify(userMetrics)}
+        
+        SAFETY ALERTS: ${safetyFlags.join(', ') || 'None specific'}.
         
         ROUTINE ACTIVES ALREADY USED: [${routineActives.join(', ')}].
 
         TASK: 
         1. Find ingredients and price.
-        2. Analyze against user profile (Warning: If user has low scores, be careful with harsh actives).
+        2. Analyze against user profile (Warning: If user has low scores or safety alerts, be strict).
         3. Output strict JSON.
 
         OUTPUT JSON SCHEMA:
@@ -61,7 +72,7 @@ export const analyzeProductFromSearch = async (
             console.warn("Product Search Tool failed, falling back to internal knowledge", e);
             response = await ai.models.generateContent({
                 model: MODEL_FAST,
-                contents: prompt + "\n\nUse your internal database to estimate ingredients and details.",
+                contents: prompt + "\n\nUse your internal knowledge to estimate ingredients and details.",
                 config: { responseMimeType: 'application/json' }
             });
         }
@@ -104,7 +115,7 @@ export const analyzeProductFromSearch = async (
 
 export const analyzeProductImage = async (
     base64: string, 
-    userMetrics: SkinMetrics, 
+    userProfile: UserProfile, 
     routineActives: string[] = [],
     location: string = "Global"
 ): Promise<Product> => {
@@ -147,7 +158,7 @@ export const analyzeProductImage = async (
         }
 
         // Pass details to search function to get ingredients
-        return analyzeProductFromSearch(detectedName, userMetrics, null, detectedBrand, routineActives, location);
+        return analyzeProductFromSearch(detectedName, userProfile, null, detectedBrand, routineActives, location);
     }, 60000);
 };
 
