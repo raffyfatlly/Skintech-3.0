@@ -109,22 +109,19 @@ export const generateImprovementPlan = async (
           Skin Tags: ${user.biometrics.skinTags || 70}.
           (Note: If scores are low, focus the plan on treating those severe issues).
 
-        TASK 1: EXPLAIN THE TRANSFORMATION (Simple Language)
-        Compare Image 1 vs Image 2.
-        Explain to the patient in SIMPLE, EASY-TO-UNDERSTAND language:
-        1. What specific issues are visible in their current skin (Image 1).
-        2. How the simulated result (Image 2) looks better.
-        3. SUMMARY OF THE PLAN: Briefly explain the timeline and steps to get there (e.g., "We will spend the first 4 weeks repairing your barrier, then focus on clearing the spots...").
-        
-        DO NOT use complex medical jargon (e.g. say "pimples" not "inflammatory papules", say "redness" not "erythema").
-        Keep it encouraging and clear.
-
-        TASK 2: CLINICAL PROTOCOL
-        Design a regimen to achieve the result in Image 2.
+        TASK:
+        1. Compare Image 1 vs Image 2 and explain the improvement.
+        2. Identify the top 2-3 biomarkers being targeted (e.g. Inflammation, Hyper-pigmentation, Texture).
+        3. Suggest professional clinical treatments (e.g. Microneedling, LED, Peels) if relevant for faster results.
+        4. Suggest simple lifestyle habits (e.g. Diet, Sleep, Hygiene).
+        5. Design a phased routine.
 
         OUTPUT JSON (Strict):
         {
-          "analysis": "Simple explanation for the patient. E.g., 'Your current skin shows [Issues]. The goal is [Result]. To achieve this, our plan covers 8 weeks: First we calm the redness, then we treat the texture.'",
+          "analysis": "Simple explanation for the patient. E.g., 'Your current skin shows [Issues]. The goal is [Result]. To achieve this, our plan covers 8 weeks...'",
+          "targetedBiomarkers": ["Acne", "Redness", "Texture"],
+          "clinicalTreatments": ["LED Light Therapy (Blue)", "Salicylic Acid Peel"],
+          "lifestyleTips": ["Change pillowcase every 2 days", "Reduce sugar intake"],
           "weeks": [
             {
               "title": "Weeks 1-4",
@@ -133,7 +130,7 @@ export const generateImprovementPlan = async (
               "morning": "Morning routine details.",
               "evening": "Evening routine details.",
               "ingredients": ["Ceramides", "Niacinamide"],
-              "treatment": "LED Light Therapy (Blue)"
+              "treatment": "Optional home device usage"
             }
           ]
         }

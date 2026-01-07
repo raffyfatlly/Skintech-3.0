@@ -3,7 +3,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { UserProfile } from '../types';
 import { generateImprovementPlan } from '../services/geminiService';
 import { upscaleImage } from '../services/falService'; 
-import { ArrowLeft, Sparkles, Loader, Activity, Microscope, Sun, Moon, Beaker, MoveHorizontal, Download, AlertCircle, ScanFace, ChevronDown, ChevronUp, CheckCircle2, Lock } from 'lucide-react';
+import { ArrowLeft, Sparkles, Loader, Activity, Microscope, Sun, Moon, Beaker, MoveHorizontal, Download, AlertCircle, ScanFace, ChevronDown, ChevronUp, CheckCircle2, Lock, Stethoscope, Coffee } from 'lucide-react';
 
 interface SkinSimulatorProps {
     user: UserProfile;
@@ -424,6 +424,17 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
                                                 <span className="text-[10px] font-bold uppercase tracking-widest">AI Dermatologist Analysis</span>
                                             </div>
                                             <p className="text-sm text-white/90 font-medium leading-relaxed">{plan.analysis}</p>
+                                            
+                                            {/* Targeted Biomarkers */}
+                                            {plan.targetedBiomarkers && (
+                                                <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-white/10">
+                                                    {plan.targetedBiomarkers.map((t: string, i: number) => (
+                                                        <span key={i} className="text-[10px] font-bold text-teal-200 bg-teal-900/30 border border-teal-500/30 px-3 py-1 rounded-full uppercase tracking-wider">
+                                                            {t}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 </div>
@@ -495,6 +506,48 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
                                         );
                                     })}
                                 </div>
+
+                                {/* NEW: Holistic Care Section (Snap) */}
+                                {(plan.clinicalTreatments?.length > 0 || plan.lifestyleTips?.length > 0) && (
+                                    <div className="snap-start snap-always min-h-[40vh] flex flex-col justify-center">
+                                        <div className="bg-black/20 backdrop-blur-md rounded-[2rem] p-6 border border-white/10 shadow-lg">
+                                            <h3 className="text-xl font-thin text-white mb-6">Holistic Care</h3>
+                                            
+                                            <div className="space-y-6">
+                                                {plan.clinicalTreatments?.length > 0 && (
+                                                    <div>
+                                                        <h4 className="text-[10px] font-bold text-teal-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                                            <Stethoscope size={14} /> Professional Treatments
+                                                        </h4>
+                                                        <div className="flex flex-wrap gap-2">
+                                                            {plan.clinicalTreatments.map((t: string, i: number) => (
+                                                                <span key={i} className="text-xs text-white bg-white/10 px-3 py-2 rounded-xl border border-white/5">
+                                                                    {t}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {plan.lifestyleTips?.length > 0 && (
+                                                    <div>
+                                                        <h4 className="text-[10px] font-bold text-amber-400 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                                            <Coffee size={14} /> Lifestyle Habits
+                                                        </h4>
+                                                        <ul className="space-y-2">
+                                                            {plan.lifestyleTips.map((t: string, i: number) => (
+                                                                <li key={i} className="text-xs text-zinc-300 flex items-start gap-2">
+                                                                    <span className="mt-1.5 w-1 h-1 rounded-full bg-amber-400 shrink-0" />
+                                                                    {t}
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
                         
