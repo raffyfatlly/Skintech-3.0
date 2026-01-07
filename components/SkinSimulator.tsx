@@ -376,16 +376,16 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
                     </div>
                 </div>
 
-                {/* 2. Maximized View (Full Sheet) - Slides up */}
+                {/* 2. Maximized View (Full Sheet) - Slides up - Updated Light Glass Style */}
                 <div 
-                    className={`absolute left-0 right-0 bottom-0 bg-zinc-50/90 backdrop-blur-3xl rounded-t-[3rem] shadow-[0_-20px_60px_-15px_rgba(0,0,0,0.8)] z-30 transition-all duration-700 cubic-bezier(0.19, 1, 0.22, 1) flex flex-col overflow-hidden border-t border-white/40 ${isPlanOpen ? 'top-[10%]' : 'top-[100vh]'}`}
+                    className={`absolute left-0 right-0 bottom-0 bg-white/80 backdrop-blur-3xl rounded-t-[2.5rem] shadow-[0_-20px_60px_-15px_rgba(0,0,0,0.2)] z-30 transition-all duration-700 cubic-bezier(0.19, 1, 0.22, 1) flex flex-col overflow-hidden border-t border-white/60 ${isPlanOpen ? 'top-[10%]' : 'top-[100vh]'}`}
                 >
                     {/* Sheet Header */}
-                    <div className="px-8 pt-6 pb-4 shrink-0 border-b border-zinc-200/50 z-10 relative cursor-pointer" onClick={() => setIsPlanOpen(false)}>
-                        <div className="w-12 h-1.5 bg-zinc-300 rounded-full mx-auto mb-6"></div>
+                    <div className="px-8 pt-6 pb-4 shrink-0 border-b border-black/5 z-10 relative cursor-pointer" onClick={() => setIsPlanOpen(false)}>
+                        <div className="w-12 h-1.5 bg-zinc-200/80 rounded-full mx-auto mb-6"></div>
                         <div className="flex justify-between items-end mb-2">
                             <div>
-                                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-teal-500/30 bg-teal-500/10 mb-3">
+                                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-teal-500/20 bg-teal-50 mb-3">
                                     <div className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse"></div>
                                     <span className="text-[10px] font-bold text-teal-700 uppercase tracking-widest">Generated Plan</span>
                                 </div>
@@ -414,8 +414,8 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
                             <div className="p-6 space-y-8">
                                 {/* AI Analysis Summary - First Snap Item */}
                                 <div className="snap-start snap-always scroll-mt-6 mb-8">
-                                    <div className="bg-white/60 backdrop-blur-md p-8 rounded-[2.5rem] border border-white shadow-sm relative overflow-hidden">
-                                        <div className="absolute top-0 right-0 p-6 opacity-10">
+                                    <div className="bg-white/70 backdrop-blur-xl p-8 rounded-[2rem] border border-white/60 shadow-lg shadow-zinc-200/50 relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 p-6 opacity-5">
                                             <Sparkles size={64} className="text-teal-600" />
                                         </div>
                                         <div className="relative z-10">
@@ -431,7 +431,7 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
                                 {/* Roadmap Line */}
                                 <div className="relative pl-4 space-y-2">
                                     {/* Vertical Line */}
-                                    <div className="absolute top-8 bottom-8 left-[19px] w-0.5 border-l-2 border-dashed border-zinc-300"></div>
+                                    <div className="absolute top-8 bottom-8 left-[19px] w-0.5 border-l-2 border-dashed border-zinc-200"></div>
 
                                     {plan.weeks?.map((week: any, i: number) => {
                                         const isActive = activeStep === i;
@@ -446,16 +446,16 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
                                             >
                                                 {/* Number Bubble */}
                                                 <div 
-                                                    className={`absolute left-0 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full border-4 border-zinc-100 flex items-center justify-center font-black text-sm transition-all duration-500 shadow-lg z-10 ${isActive ? 'bg-teal-500 text-white scale-110 shadow-teal-500/20 border-white' : 'bg-white text-zinc-400 border-zinc-200'}`}
+                                                    className={`absolute left-0 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full border-4 border-white flex items-center justify-center font-black text-sm transition-all duration-500 shadow-md z-10 ${isActive ? 'bg-teal-500 text-white scale-110 shadow-teal-500/20' : 'bg-zinc-100 text-zinc-400'}`}
                                                 >
                                                     {i + 1}
                                                 </div>
 
-                                                <div className={`bg-white/80 backdrop-blur-md rounded-[2rem] p-6 border transition-all duration-500 ${isActive ? 'border-teal-100 shadow-xl ring-1 ring-teal-50' : 'border-white/60'}`}>
+                                                <div className={`bg-white/80 backdrop-blur-xl rounded-[2rem] p-6 border transition-all duration-500 ${isActive ? 'border-teal-100 shadow-xl shadow-teal-900/5 ring-1 ring-teal-50' : 'border-white/50 shadow-sm'}`}>
                                                     <div className="flex justify-between items-start mb-6">
                                                         <div>
                                                             <div className="flex items-center gap-2 mb-2">
-                                                                <span className={`text-[9px] font-bold px-2 py-1 rounded uppercase tracking-wide border inline-block ${isActive ? 'bg-teal-50 text-teal-700 border-teal-100' : 'bg-zinc-100 text-zinc-500 border-zinc-200'}`}>
+                                                                <span className={`text-[9px] font-bold px-2 py-1 rounded uppercase tracking-wide border inline-block ${isActive ? 'bg-teal-50 text-teal-700 border-teal-100' : 'bg-zinc-50 text-zinc-500 border-zinc-100'}`}>
                                                                     {week.title}
                                                                 </span>
                                                             </div>
@@ -482,9 +482,9 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
                                                     </div>
 
                                                     {week.ingredients && (
-                                                        <div className="flex flex-wrap gap-2 pt-5 border-t border-zinc-100">
+                                                        <div className="flex flex-wrap gap-2 pt-5 border-t border-zinc-100/50">
                                                             {week.ingredients.map((ing: string, idx: number) => (
-                                                                <span key={idx} className="bg-zinc-50 text-zinc-600 px-3 py-1.5 rounded-lg text-[10px] font-bold border border-zinc-100 flex items-center gap-1.5 hover:bg-white transition-colors cursor-default">
+                                                                <span key={idx} className="bg-white text-zinc-600 px-3 py-1.5 rounded-lg text-[10px] font-bold border border-zinc-100 flex items-center gap-1.5 hover:border-teal-200 transition-colors cursor-default shadow-sm">
                                                                     <Beaker size={10} className="text-teal-500" /> {ing}
                                                                 </span>
                                                             ))}
