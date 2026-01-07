@@ -1,6 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Sparkles, ArrowRight, X, AlertTriangle, Save, ShoppingBag, Loader, CheckCircle2 } from 'lucide-react';
+import { playNotificationSound } from '../services/soundService';
 
 export type NotificationType = 'SHELF_EMPTY' | 'SAVE_PROFILE' | 'GENERIC' | 'TASK_START' | 'TASK_COMPLETE';
 
@@ -17,6 +18,11 @@ const SmartNotification: React.FC<SmartNotificationProps> = ({ type, title, desc
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
+    // Play sound for important events (completion or generic alerts), skip for loading states
+    if (type !== 'TASK_START') {
+        playNotificationSound();
+    }
+
     // Small delay for entrance animation
     const timer = setTimeout(() => setIsVisible(true), 100);
     

@@ -1,6 +1,8 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, Product } from '../types';
 import { createDermatologistSession as initSession, isQuotaError } from '../services/geminiService'; 
+import { playMessageSound } from '../services/soundService';
 import { 
     Send, Mic, X, ChevronLeft, Trash2, Keyboard, Sparkles, 
     AudioWaveform, MessageSquare
@@ -211,11 +213,19 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
           }
 
           let fullResponse = "";
+          let hasPlayedSound = false; // Flag to ensure sound only plays once per message
+          
           setMessages(prev => [...prev, { role: 'model', text: "", isStreaming: true }]);
 
           for await (const chunk of result) {
               const text = (chunk as GenerateContentResponse).text;
               if (text) {
+                  // Play "pop" sound on first chunk reception
+                  if (!hasPlayedSound) {
+                      playMessageSound();
+                      hasPlayedSound = true;
+                  }
+
                   fullResponse += text;
                   setMessages(prev => {
                       const newArr = [...prev];
