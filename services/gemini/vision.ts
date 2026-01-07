@@ -113,33 +113,42 @@ export const generateImprovementPlan = async (
         PATIENT DATA:
         - Age: ${user.age}
         - Skin Type: ${user.skinType}
-        - Safety Profile: ${safetyContext}
-        - Current Metrics (0-100 Scale, 100=Perfect/Healthy): 
-          Acne: ${user.biometrics.acneActive}, 
-          Redness: ${user.biometrics.redness}, 
-          Hydration: ${user.biometrics.hydration},
-          Scars: ${user.biometrics.scars || 70},
-          Skin Tags: ${user.biometrics.skinTags || 70}.
-          (Note: If scores are low, focus the plan on treating those severe issues).
+        - Safety Constraints: ${safetyContext}
+        
+        - Current Biometrics (0-100 Scale, 100=Perfect/Healthy): 
+          Acne: ${user.biometrics.acneActive} (Low = Active Breakouts)
+          Redness: ${user.biometrics.redness} (Low = Inflamed/Sensitive)
+          Hydration: ${user.biometrics.hydration} (Low = Dehydrated)
+          Scars: ${user.biometrics.scars || 70} (Low = Pitted Texture)
+          Dark Spots: ${user.biometrics.darkSpots} (Low = Pigmentation)
+          Wrinkles: ${user.biometrics.wrinkles} (Low = Aging Signs)
+          Firmness: ${user.biometrics.firmness} (Low = Sagging)
+
+        CRITICAL PRIORITIZATION LOGIC:
+        1. Identify the LOWEST scores from the biometrics above. These are the active problems to fix.
+        2. The "Sensitivity" tag in Safety Constraints is a CONSTRAINT, not a GOAL. 
+           - If Redness score is > 80, do NOT focus on soothing redness or barrier repair, even if the user is tagged "Sensitive".
+           - Instead, treat the actual low-scoring issues (e.g. Acne or Wrinkles) using GENTLE ingredients suitable for sensitive skin.
+        3. The Analysis text MUST reference the specific low-scoring metrics found above as the primary reason for the plan.
 
         TASK:
-        1. Compare Image 1 vs Image 2 and explain the improvement.
-        2. Identify the top 2-3 biomarkers being targeted (e.g. Inflammation, Hyper-pigmentation, Texture).
-        3. Suggest professional clinical treatments (e.g. Microneedling, LED, Peels) if relevant for faster results.
+        1. Compare Image 1 vs Image 2 and explain the improvement based on the LOWEST biometric scores.
+        2. Identify the top 2-3 biomarkers being targeted (The ones with lowest scores).
+        3. Suggest professional clinical treatments (e.g. Microneedling, LED, Peels) relevant to the low scores.
         4. Suggest simple lifestyle habits (e.g. Diet, Sleep, Hygiene).
-        5. Design a phased routine respecting the SAFETY CONSTRAINTS above.
+        5. Design a phased routine. Ensure ingredients target the LOW SCORES but respect the SAFETY CONSTRAINTS (e.g. use Bakuchiol instead of Retinol if pregnant/sensitive, but only if Aging/Acne is the issue).
 
         OUTPUT JSON (Strict):
         {
-          "analysis": "Simple explanation for the patient. E.g., 'Your current skin shows [Issues]. The goal is [Result]. To achieve this, our plan covers 8 weeks...'",
-          "targetedBiomarkers": ["Acne", "Redness", "Texture"],
+          "analysis": "Direct diagnosis referencing the lowest scores. E.g., 'Your skin analysis detects primarily [Issue 1] and [Issue 2], so we are focusing on...'",
+          "targetedBiomarkers": ["Acne", "Redness", "Texture"], // Only list the ones with low scores
           "clinicalTreatments": ["LED Light Therapy (Blue)", "Salicylic Acid Peel"],
           "lifestyleTips": ["Change pillowcase every 2 days", "Reduce sugar intake"],
           "weeks": [
             {
               "title": "Weeks 1-4",
               "phaseName": "Stabilize & Repair",
-              "focus": "Barrier Support",
+              "focus": "Main Goal",
               "morning": "Morning routine details.",
               "evening": "Evening routine details.",
               "ingredients": ["Ceramides", "Niacinamide"],
