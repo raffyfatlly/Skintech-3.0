@@ -123,25 +123,29 @@ export const generateImprovementPlan = async (
           Dark Spots: ${user.biometrics.darkSpots} (Low = Pigmentation)
           Wrinkles: ${user.biometrics.wrinkles} (Low = Aging Signs)
           Firmness: ${user.biometrics.firmness} (Low = Sagging)
+          Dark Circles: ${user.biometrics.darkCircles} (Low = Eye Shadows)
 
         CRITICAL PRIORITIZATION LOGIC:
         1. Identify the LOWEST scores from the biometrics above. These are the active problems to fix.
-        2. The "Sensitivity" tag in Safety Constraints is a CONSTRAINT, not a GOAL. 
+        2. EXCEPTION: Do NOT prioritize 'Dark Circles' as the primary main concern, even if it is the lowest score. 
+           - Dark circles are often genetic/structural.
+           - Instead, select the *next* lowest actionable metric (e.g., Acne, Redness, Texture, Dark Spots) as the primary focus.
+        3. The "Sensitivity" tag in Safety Constraints is a CONSTRAINT, not a GOAL. 
            - If Redness score is > 80, do NOT focus on soothing redness or barrier repair, even if the user is tagged "Sensitive".
            - Instead, treat the actual low-scoring issues (e.g. Acne or Wrinkles) using GENTLE ingredients suitable for sensitive skin.
-        3. The Analysis text MUST reference the specific low-scoring metrics found above as the primary reason for the plan.
+        4. The Analysis text MUST reference the specific low-scoring metrics found above as the primary reason for the plan.
 
         TASK:
-        1. Compare Image 1 vs Image 2 and explain the improvement based on the LOWEST biometric scores.
-        2. Identify the top 2-3 biomarkers being targeted (The ones with lowest scores).
+        1. Compare Image 1 vs Image 2 and explain the improvement based on the prioritized biometric scores.
+        2. Identify the top 2-3 biomarkers being targeted (excluding Dark Circles from top spot).
         3. Suggest professional clinical treatments (e.g. Microneedling, LED, Peels) relevant to the low scores.
         4. Suggest simple lifestyle habits (e.g. Diet, Sleep, Hygiene).
         5. Design a phased routine. Ensure ingredients target the LOW SCORES but respect the SAFETY CONSTRAINTS (e.g. use Bakuchiol instead of Retinol if pregnant/sensitive, but only if Aging/Acne is the issue).
 
         OUTPUT JSON (Strict):
         {
-          "analysis": "Direct diagnosis referencing the lowest scores. E.g., 'Your skin analysis detects primarily [Issue 1] and [Issue 2], so we are focusing on...'",
-          "targetedBiomarkers": ["Acne", "Redness", "Texture"], // Only list the ones with low scores
+          "analysis": "Direct diagnosis referencing the lowest actionable scores. E.g., 'Your skin analysis detects primarily [Issue 1] and [Issue 2], so we are focusing on...'",
+          "targetedBiomarkers": ["Acne", "Texture"], // Only list the ones with low scores, exclude Dark Circles unless relevant as secondary
           "clinicalTreatments": ["LED Light Therapy (Blue)", "Salicylic Acid Peel"],
           "lifestyleTips": ["Change pillowcase every 2 days", "Reduce sugar intake"],
           "weeks": [

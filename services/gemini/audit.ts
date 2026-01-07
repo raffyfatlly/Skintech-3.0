@@ -12,15 +12,58 @@ export const auditProduct = (product: Product, user: UserProfile) => {
         };
     }
 
-    const warnings = product.risks.map(r => ({ 
+    const bio = user.biometrics;
+    const prefs = user.preferences || {} as Partial<UserPreferences>;
+    const ingStr = product.ingredients.join(' ').toLowerCase();
+
+    // --- STEP 1: SMART FILTERING OF GENERIC RISKS ---
+    // Filter out risks that aren't relevant to the user's specific high-performing metrics.
+    const relevantRisks = (product.risks || []).filter(risk => {
+        const txt = (risk.reason + ' ' + risk.ingredient).toLowerCase();
+        
+        // ALWAYS KEEP: Critical safety risks (Pregnancy, Hormone disruptors, High risk items)
+        if (risk.riskLevel === 'HIGH') return true;
+
+        // FILTER: Dryness concerns
+        // If user has excellent hydration (>70), mild drying warnings are noise.
+        if (txt.match(/dry|dehydrat|strip|alcohol/)) {
+            if (bio.hydration > 70) return false;
+        }
+
+        // FILTER: Sensitivity concerns
+        // If user has a strong barrier (Redness > 70), generic irritation warnings are preventative cautions, not active risks.
+        // We filter these out to avoid lowering the score artificially, unless user has Eczema (chronic).
+        if (txt.match(/irritat|sensitiv|redness|tingl|burn/)) {
+            if (bio.redness > 70 && !prefs.hasEczema) return false;
+        }
+
+        // FILTER: Oily Skin concerns
+        // If user has balanced oil (Oiliness Score > 70) and Clear Skin (Acne > 70)
+        // Note: High Oiliness Score = Balanced/Matte. Low Score = Oily.
+        if (txt.match(/oily|greas|shine/)) {
+            if (bio.oiliness > 70) return false;
+        }
+
+        // FILTER: Clogging concerns (Comedogenic)
+        // If user has perfect texture/pores/acne, they are likely resilient to mild cloggers
+        if (txt.match(/clog|pore|comedogen|acne/)) {
+            if (bio.acneActive > 75 && bio.pores > 70) return false;
+        }
+
+        return true;
+    });
+
+    // Start with base score
+    let adjustedScore = product.suitabilityScore;
+
+    // Initialize warnings with the filtered relevant risks
+    const warnings = relevantRisks.map(r => ({ 
         severity: r.riskLevel === 'HIGH' ? 'CRITICAL' : 'CAUTION', 
         reason: r.reason 
     }));
-    let adjustedScore = product.suitabilityScore;
-    const ingStr = product.ingredients.join(' ').toLowerCase();
-    const bio = user.biometrics;
 
-    const prefs = user.preferences || {} as Partial<UserPreferences>;
+    // --- STEP 2: HARD RULES (OVERRIDES) ---
+    // These specific checks ensure we catch critical mismatches even if the generic list missed them.
 
     // 1. HYDRATION / DEHYDRATION CHECK
     if (bio.hydration < 50 || prefs.onMedication) {
@@ -33,16 +76,25 @@ export const auditProduct = (product: Product, user: UserProfile) => {
     }
 
     // 2. REDNESS / SENSITIVITY CHECK
-    if (bio.redness < 50 || prefs.sensitivity === 'VERY_SENSITIVE' || prefs.hasEczema || prefs.onMedication) {
-        const irritants = ['fragrance', 'parfum', 'alcohol denat', 'essential oil', 'menthol', 'peppermint'];
-        const found = irritants.find(a => ingStr.includes(a));
-        if (found) {
+    // Logic: Only punish score heavily if skin is ACTIVELY inflamed (Redness < 60) or Eczema present.
+    // If user is just "Sensitive" but skin is calm (Redness > 60), apply mild penalty only.
+    const irritants = ['fragrance', 'parfum', 'alcohol denat', 'essential oil', 'menthol', 'peppermint', 'eucalyptus'];
+    const foundIrritant = irritants.find(a => ingStr.includes(a));
+
+    if (foundIrritant) {
+        if (bio.redness < 60 || prefs.hasEczema || prefs.onMedication) {
+            // Critical: Active inflammation or condition
             adjustedScore = Math.min(adjustedScore, 40);
-            warnings.unshift({ severity: 'CRITICAL', reason: `Contains ${found}, a trigger for redness/sensitivity.` });
+            warnings.unshift({ severity: 'CRITICAL', reason: `Contains ${foundIrritant}, a trigger for redness/sensitivity.` });
+        } else if (prefs.sensitivity === 'VERY_SENSITIVE') {
+            // Caution: Preventative
+            adjustedScore -= 15; 
+            warnings.push({ severity: 'CAUTION', reason: `Contains ${foundIrritant}, use with caution on sensitive skin.` });
         }
     }
 
     // 3. ACNE / OIL / PORE CHECK
+    // Only apply strict penalties if the user actually has a problem (Score < 55)
     if (bio.acneActive < 55 || bio.oiliness < 50 || bio.pores < 50) {
         const cloggers = ['coconut oil', 'cocoa butter', 'isopropyl myristate', 'algae extract', 'palm oil', 'wheat germ'];
         const found = cloggers.find(a => ingStr.includes(a));
@@ -62,10 +114,17 @@ export const auditProduct = (product: Product, user: UserProfile) => {
         }
     }
 
+    // Deduplicate warnings
+    const uniqueWarnings = warnings.filter((w, index, self) => 
+        index === self.findIndex((t) => (
+            t.reason === w.reason
+        ))
+    );
+
     return {
         adjustedScore: Math.max(0, Math.min(99, adjustedScore)),
-        warnings,
-        analysisReason: warnings.length > 0 ? warnings[0].reason : "Good match based on your profile."
+        warnings: uniqueWarnings,
+        analysisReason: uniqueWarnings.length > 0 ? uniqueWarnings[0].reason : "Good match based on your profile."
     };
 };
 
@@ -78,13 +137,15 @@ export const analyzeShelfHealth = (products: Product[], user: UserProfile) => {
     
     // Calculate Safety & Risks
     const riskyProducts: any[] = [];
+    let totalScore = 0;
     
     products.forEach(p => {
         const audit = auditProduct(p, user);
+        totalScore += audit.adjustedScore;
+        
         if (audit.warnings.length > 0) {
             // Aggregate all warnings
             audit.warnings.forEach(w => {
-                // De-duplicate if needed, simple push for now
                 riskyProducts.push({
                     name: p.name,
                     reason: w.reason,
@@ -95,13 +156,14 @@ export const analyzeShelfHealth = (products: Product[], user: UserProfile) => {
     });
 
     let grade = 'B';
-    const avg = products.reduce((a,b) => a + b.suitabilityScore, 0) / (products.length || 1);
+    const avg = products.length > 0 ? totalScore / products.length : 0;
     
+    // Grading Logic
     if (riskyProducts.some(r => r.severity === 'CRITICAL')) {
         grade = 'D'; // Downgrade if safety risks exist
-    } else if (avg > 80 && missing.length === 0) {
+    } else if (avg > 85 && missing.length === 0) {
         grade = 'S';
-    } else if (avg > 70) {
+    } else if (avg > 75) {
         grade = 'A';
     } else if (avg < 50) {
         grade = 'C';
