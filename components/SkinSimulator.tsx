@@ -376,22 +376,22 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
                     </div>
                 </div>
 
-                {/* 2. Maximized View (Full Sheet) - Slides up - Updated Light Glass Style */}
+                {/* 2. Maximized View (Full Sheet) - MATCHING SKIN ANALYSIS REPORT AESTHETIC */}
                 <div 
-                    className={`absolute left-0 right-0 bottom-0 bg-white/80 backdrop-blur-3xl rounded-t-[2.5rem] shadow-[0_-20px_60px_-15px_rgba(0,0,0,0.2)] z-30 transition-all duration-700 cubic-bezier(0.19, 1, 0.22, 1) flex flex-col overflow-hidden border-t border-white/60 ${isPlanOpen ? 'top-[10%]' : 'top-[100vh]'}`}
+                    className={`absolute left-0 right-0 bottom-0 bg-zinc-900/80 backdrop-blur-[50px] border-t border-white/10 rounded-t-[2.5rem] shadow-[0_-20px_60px_-15px_rgba(0,0,0,0.5)] z-30 transition-all duration-700 cubic-bezier(0.19, 1, 0.22, 1) flex flex-col overflow-hidden ${isPlanOpen ? 'top-[10%]' : 'top-[100vh]'}`}
                 >
                     {/* Sheet Header */}
-                    <div className="px-8 pt-6 pb-4 shrink-0 border-b border-black/5 z-10 relative cursor-pointer" onClick={() => setIsPlanOpen(false)}>
-                        <div className="w-12 h-1.5 bg-zinc-200/80 rounded-full mx-auto mb-6"></div>
+                    <div className="px-8 pt-6 pb-4 shrink-0 border-b border-white/5 z-10 relative cursor-pointer" onClick={() => setIsPlanOpen(false)}>
+                        <div className="w-12 h-1.5 bg-white/20 rounded-full mx-auto mb-6"></div>
                         <div className="flex justify-between items-end mb-2">
                             <div>
-                                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-teal-500/20 bg-teal-50 mb-3">
-                                    <div className="w-1.5 h-1.5 rounded-full bg-teal-500 animate-pulse"></div>
-                                    <span className="text-[10px] font-bold text-teal-700 uppercase tracking-widest">Generated Plan</span>
+                                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-teal-500/20 bg-teal-500/10 mb-3 backdrop-blur-md">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse"></div>
+                                    <span className="text-[10px] font-bold text-teal-400 uppercase tracking-widest">Generated Plan</span>
                                 </div>
-                                <h2 className="text-3xl font-thin text-zinc-900 tracking-tighter">Clinical Protocol</h2>
+                                <h2 className="text-3xl font-thin text-white tracking-tighter">Clinical Protocol</h2>
                             </div>
-                            <button onClick={(e) => { e.stopPropagation(); setIsPlanOpen(false); }} className="w-10 h-10 rounded-full bg-black/5 flex items-center justify-center text-zinc-500 hover:bg-black/10 transition-colors active:scale-95">
+                            <button onClick={(e) => { e.stopPropagation(); setIsPlanOpen(false); }} className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/70 hover:bg-white/10 transition-colors active:scale-95 border border-white/5">
                                 <ChevronDown size={20} />
                             </button>
                         </div>
@@ -403,10 +403,10 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
                         {isGeneratingPlan && (
                             <div className="h-full flex flex-col items-center justify-center p-8 text-center">
                                 <div className="relative mb-6">
-                                    <div className="w-16 h-16 rounded-full border-t-2 border-teal-500 animate-spin"></div>
-                                    <Microscope className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-teal-600" size={24} />
+                                    <div className="w-16 h-16 rounded-full border-t-2 border-teal-400 animate-spin"></div>
+                                    <Microscope className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-teal-400" size={24} />
                                 </div>
-                                <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest animate-pulse">Analyzing Transformation...</p>
+                                <p className="text-xs font-bold text-white/50 uppercase tracking-widest animate-pulse">Analyzing Transformation...</p>
                             </div>
                         )}
 
@@ -414,16 +414,16 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
                             <div className="p-6 space-y-8">
                                 {/* AI Analysis Summary - First Snap Item */}
                                 <div className="snap-start snap-always scroll-mt-6 mb-8">
-                                    <div className="bg-white/70 backdrop-blur-xl p-8 rounded-[2rem] border border-white/60 shadow-lg shadow-zinc-200/50 relative overflow-hidden">
+                                    <div className="bg-black/20 backdrop-blur-md p-8 rounded-[2rem] border border-white/10 shadow-lg relative overflow-hidden">
                                         <div className="absolute top-0 right-0 p-6 opacity-5">
-                                            <Sparkles size={64} className="text-teal-600" />
+                                            <Sparkles size={64} className="text-teal-400" />
                                         </div>
                                         <div className="relative z-10">
-                                            <div className="flex items-center gap-2 mb-4 text-teal-600">
+                                            <div className="flex items-center gap-2 mb-4 text-teal-400">
                                                 <Microscope size={18} />
                                                 <span className="text-[10px] font-bold uppercase tracking-widest">AI Dermatologist Analysis</span>
                                             </div>
-                                            <p className="text-sm text-zinc-600 font-medium leading-relaxed">{plan.analysis}</p>
+                                            <p className="text-sm text-white/90 font-medium leading-relaxed">{plan.analysis}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -431,7 +431,7 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
                                 {/* Roadmap Line */}
                                 <div className="relative pl-4 space-y-2">
                                     {/* Vertical Line */}
-                                    <div className="absolute top-8 bottom-8 left-[19px] w-0.5 border-l-2 border-dashed border-zinc-200"></div>
+                                    <div className="absolute top-8 bottom-8 left-[19px] w-0.5 border-l-2 border-dashed border-white/10"></div>
 
                                     {plan.weeks?.map((week: any, i: number) => {
                                         const isActive = activeStep === i;
@@ -446,45 +446,45 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
                                             >
                                                 {/* Number Bubble */}
                                                 <div 
-                                                    className={`absolute left-0 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full border-4 border-white flex items-center justify-center font-black text-sm transition-all duration-500 shadow-md z-10 ${isActive ? 'bg-teal-500 text-white scale-110 shadow-teal-500/20' : 'bg-zinc-100 text-zinc-400'}`}
+                                                    className={`absolute left-0 top-1/2 -translate-y-1/2 w-10 h-10 rounded-full border-4 border-zinc-900 flex items-center justify-center font-black text-sm transition-all duration-500 shadow-md z-10 ${isActive ? 'bg-teal-500 text-white scale-110 shadow-teal-500/20' : 'bg-white/10 text-white/30'}`}
                                                 >
                                                     {i + 1}
                                                 </div>
 
-                                                <div className={`bg-white/80 backdrop-blur-xl rounded-[2rem] p-6 border transition-all duration-500 ${isActive ? 'border-teal-100 shadow-xl shadow-teal-900/5 ring-1 ring-teal-50' : 'border-white/50 shadow-sm'}`}>
+                                                <div className={`bg-black/20 backdrop-blur-md rounded-[2rem] p-6 border transition-all duration-500 ${isActive ? 'border-teal-500/30 shadow-xl shadow-teal-900/10 ring-1 ring-teal-500/10' : 'border-white/5 shadow-sm'}`}>
                                                     <div className="flex justify-between items-start mb-6">
                                                         <div>
                                                             <div className="flex items-center gap-2 mb-2">
-                                                                <span className={`text-[9px] font-bold px-2 py-1 rounded uppercase tracking-wide border inline-block ${isActive ? 'bg-teal-50 text-teal-700 border-teal-100' : 'bg-zinc-50 text-zinc-500 border-zinc-100'}`}>
+                                                                <span className={`text-[9px] font-bold px-2 py-1 rounded uppercase tracking-wide border inline-block ${isActive ? 'bg-teal-500/10 text-teal-400 border-teal-500/20' : 'bg-white/5 text-zinc-500 border-white/5'}`}>
                                                                     {week.title}
                                                                 </span>
                                                             </div>
-                                                            <h3 className="text-xl font-thin text-zinc-900 tracking-tight">{week.phaseName}</h3>
+                                                            <h3 className="text-xl font-thin text-white tracking-tight">{week.phaseName}</h3>
                                                         </div>
-                                                        {isActive && <CheckCircle2 size={20} className="text-teal-500" />}
+                                                        {isActive && <CheckCircle2 size={20} className="text-teal-400" />}
                                                     </div>
 
                                                     <div className="space-y-6 mb-6">
                                                         <div className="flex gap-4 group">
-                                                            <div className="w-10 h-10 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-500 shrink-0 border border-amber-100 group-hover:scale-110 transition-transform"><Sun size={18} /></div>
+                                                            <div className="w-10 h-10 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-400 shrink-0 border border-amber-500/20 group-hover:scale-110 transition-transform"><Sun size={18} /></div>
                                                             <div className="pt-1">
-                                                                <span className="text-[10px] font-bold text-amber-600/80 uppercase tracking-widest block mb-1">Morning Routine</span>
-                                                                <p className="text-xs text-zinc-600 font-medium leading-relaxed">{week.morning}</p>
+                                                                <span className="text-[10px] font-bold text-amber-300/70 uppercase tracking-widest block mb-1">Morning Routine</span>
+                                                                <p className="text-xs text-white/80 font-medium leading-relaxed">{week.morning}</p>
                                                             </div>
                                                         </div>
                                                         <div className="flex gap-4 group">
-                                                            <div className="w-10 h-10 rounded-2xl bg-indigo-50 flex items-center justify-center text-indigo-500 shrink-0 border border-indigo-100 group-hover:scale-110 transition-transform"><Moon size={18} /></div>
+                                                            <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 shrink-0 border border-indigo-500/20 group-hover:scale-110 transition-transform"><Moon size={18} /></div>
                                                             <div className="pt-1">
-                                                                <span className="text-[10px] font-bold text-indigo-600/80 uppercase tracking-widest block mb-1">Evening Routine</span>
-                                                                <p className="text-xs text-zinc-600 font-medium leading-relaxed">{week.evening}</p>
+                                                                <span className="text-[10px] font-bold text-indigo-300/70 uppercase tracking-widest block mb-1">Evening Routine</span>
+                                                                <p className="text-xs text-white/80 font-medium leading-relaxed">{week.evening}</p>
                                                             </div>
                                                         </div>
                                                     </div>
 
                                                     {week.ingredients && (
-                                                        <div className="flex flex-wrap gap-2 pt-5 border-t border-zinc-100/50">
+                                                        <div className="flex flex-wrap gap-2 pt-5 border-t border-white/5">
                                                             {week.ingredients.map((ing: string, idx: number) => (
-                                                                <span key={idx} className="bg-white text-zinc-600 px-3 py-1.5 rounded-lg text-[10px] font-bold border border-zinc-100 flex items-center gap-1.5 hover:border-teal-200 transition-colors cursor-default shadow-sm">
+                                                                <span key={idx} className="bg-white/5 text-zinc-300 px-3 py-1.5 rounded-lg text-[10px] font-bold border border-white/5 flex items-center gap-1.5 hover:border-teal-500/30 transition-colors cursor-default shadow-sm">
                                                                     <Beaker size={10} className="text-teal-500" /> {ing}
                                                                 </span>
                                                             ))}
@@ -500,7 +500,7 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
                         
                         {/* Footer Spacer */}
                         <div className="h-32 flex items-center justify-center opacity-30 pb-10">
-                            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-[0.3em]">End of Protocol</span>
+                            <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-[0.3em]">End of Protocol</span>
                         </div>
                     </div>
                 </div>
