@@ -1,5 +1,5 @@
 
-import { UserProfile, Product } from '../../types';
+import { UserProfile, Product, UserPreferences } from '../../types';
 import { getAi, MODEL_FAST } from './core';
 import type { Chat } from "@google/genai";
 
@@ -27,6 +27,18 @@ export const createDermatologistSession = (
 
     const shelfContext = shelf.map(p => `${p.brand || ''} ${p.name} (${p.type})`).join(', ');
 
+    // Build Safety Context
+    const prefs = user.preferences || {} as Partial<UserPreferences>;
+    const safetyFlags = [];
+    if (prefs.isPregnant) safetyFlags.push("PREGNANCY: Avoid Retinoids, Salicylic Acid (>2%), Hydroquinone.");
+    if (prefs.hasEczema) safetyFlags.push("ECZEMA: Avoid Fragrance, High % Glycolic Acid, Harsh Scrubs.");
+    if (prefs.onMedication) safetyFlags.push("ON MEDICATION: Skin is extra sensitive. Focus on barrier repair.");
+    if (prefs.sensitivity === 'VERY_SENSITIVE') safetyFlags.push("VERY SENSITIVE: Hypoallergenic focus.");
+
+    const safetyContext = safetyFlags.length > 0 
+        ? `CRITICAL SAFETY CONSTRAINTS (MUST FOLLOW): ${safetyFlags.join(" ")}` 
+        : "Standard safety protocols apply.";
+
     return getAi().chats.create({
         model: MODEL_FAST,
         config: { 
@@ -37,12 +49,14 @@ export const createDermatologistSession = (
             Biometrics: ${bioSummary}
             Routine: ${shelfContext}
             Location: ${location}
+            Safety Profile: ${safetyContext}
             
             PROTOCOL:
             1. TONE: Warm, simple, and direct. Like a friend who is a skin expert.
             2. GREETING: If the user says "Hi", just reply "Hi, how can I help you today?".
             3. LENGTH: Keep answers short (1-2 sentences). No big paragraphs.
             4. FORMATTING: Use **bold** for key terms only.
+            5. SAFETY: If the user asks for product recommendations or advice, YOU MUST CROSS-REFERENCE THE "Safety Profile" above. If they are pregnant, do not recommend Retinol/BHA. If sensitive, avoid fragrance.
             
             IMPORTANT: When analyzing the user's skin, remember that a LOW score indicates a PROBLEM. A HIGH score indicates HEALTH. 
             Example: If Acne Score is 30, say "I see you're dealing with some breakouts." If Acne Score is 90, say "Your skin is quite clear."
