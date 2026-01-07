@@ -376,9 +376,9 @@ const SkinSimulator: React.FC<SkinSimulatorProps> = ({ user, onBack, onUpdateUse
                     </div>
                 </div>
 
-                {/* 2. Maximized View (Full Sheet) - MATCHING SKIN ANALYSIS REPORT AESTHETIC */}
+                {/* 2. Maximized View (Full Sheet) - MATCHING SKIN ANALYSIS REPORT AESTHETIC (Light Glass) */}
                 <div 
-                    className={`absolute left-0 right-0 bottom-0 bg-zinc-900/80 backdrop-blur-[50px] border-t border-white/10 rounded-t-[2.5rem] shadow-[0_-20px_60px_-15px_rgba(0,0,0,0.5)] z-30 transition-all duration-700 cubic-bezier(0.19, 1, 0.22, 1) flex flex-col overflow-hidden ${isPlanOpen ? 'top-[10%]' : 'top-[100vh]'}`}
+                    className={`absolute left-0 right-0 bottom-0 bg-white/15 backdrop-blur-[50px] border-t border-white/20 rounded-t-[2.5rem] shadow-[0_0_100px_rgba(255,255,255,0.05)] z-30 transition-all duration-700 cubic-bezier(0.19, 1, 0.22, 1) flex flex-col overflow-hidden ${isPlanOpen ? 'top-[10%]' : 'top-[100vh]'}`}
                 >
                     {/* Sheet Header */}
                     <div className="px-8 pt-6 pb-4 shrink-0 border-b border-white/5 z-10 relative cursor-pointer" onClick={() => setIsPlanOpen(false)}>
