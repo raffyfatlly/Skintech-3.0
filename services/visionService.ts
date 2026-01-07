@@ -177,40 +177,85 @@ export const analyzeSkinFrame = (
   width: number,
   height: number
 ): SkinMetrics => {
+    // 1. Global Analysis (Redness, Overall Score)
     const data = ctx.getImageData(0,0,width,height).data;
     let rSum=0, gSum=0, count=0;
-    for(let i=0; i<data.length; i+=16) {
+    
+    // Sampling step for performance
+    const step = 16;
+    
+    for(let i=0; i<data.length; i+=step) {
         if(isSkinPixel(data[i], data[i+1], data[i+2])) {
-            rSum += data[i]; gSum += data[i+1]; count++;
+            rSum += data[i]; 
+            gSum += data[i+1]; 
+            count++;
         }
     }
-    const redness = count ? (rSum/count) / (gSum/count) : 1.2;
-    const seed = count;
     
-    // More realistic range: 55 - 88 (Lower averages to allow for improvement)
+    const rednessRatio = count ? (rSum/count) / (gSum/count) : 1.2;
+    const seed = count; // Deterministic random seed based on frame content
+    
+    // Base Score: 55 - 88 (Lower averages to allow for improvement)
     const baseScore = 55 + (seed % 34); 
+
+    // 2. Local Analysis for Hydration (Center/Cheeks focus)
+    // We assume the face is roughly centered. We grab the central 30% block.
+    // This approximates cheeks and nose bridge where hydration/glow is most visible.
+    const cx = Math.floor(width * 0.35);
+    const cy = Math.floor(height * 0.35);
+    const cw = Math.floor(width * 0.3);
+    const ch = Math.floor(height * 0.3);
+    
+    const centerData = ctx.getImageData(cx, cy, cw, ch).data;
+    let lumaSum = 0;
+    let centerCount = 0;
+    
+    for(let i=0; i<centerData.length; i+=step) {
+         const r = centerData[i];
+         const g = centerData[i+1];
+         const b = centerData[i+2];
+         if (isSkinPixel(r, g, b)) {
+             // Relative Luminance to estimate skin glow/reflection
+             lumaSum += (0.2126*r + 0.7152*g + 0.0722*b);
+             centerCount++;
+         }
+    }
+    
+    const avgLuma = centerCount > 0 ? lumaSum / centerCount : 100;
+    
+    // Hydration Logic: Brighter/Glowier center usually implies better hydration (vs dullness).
+    // Normalize avgLuma (typical indoor skin 80-180) to a score (0-100).
+    // Luma < 80 -> Dull (Score 40-60)
+    // Luma > 140 -> Glowing (Score 80-95)
+    let hydrationScore = Math.min(98, Math.max(30, (avgLuma / 200) * 100));
+    
+    // Add some noise based on seed so it's not static, but independent of dark circles
+    hydrationScore = (hydrationScore * 0.8) + ((seed % 20) * 0.2) + 10; 
+
+    // Dark Circles Logic: Decoupled from hydration.
+    // Often genetic/fatigue related. For simulation, we use baseScore + independent variance.
+    const darkCircleScore = Math.min(95, Math.max(20, baseScore - 5 + ((seed * 7) % 15)));
 
     return {
         overallScore: baseScore,
-        // Breakout (Highly variable)
-        acneActive: Math.min(99, Math.max(20, 100 - (redness - 1.05) * 120)),
+        // Breakout (Highly variable based on redness)
+        acneActive: Math.min(99, Math.max(20, 100 - (rednessRatio - 1.05) * 120)),
         blackheads: Math.min(95, Math.max(40, baseScore + 5 - (seed % 10))),
         acneMarks: Math.min(95, Math.max(40, baseScore - 5 + (seed % 10))),
         
         // Tone
         darkSpots: Math.min(95, Math.max(30, baseScore - 10 + (seed % 15))),
-        redness: Math.min(99, Math.max(20, 100 - (redness - 1.05) * 100)),
-        darkCircles: Math.min(90, Math.max(30, baseScore - (seed % 20))),
+        redness: Math.min(99, Math.max(20, 100 - (rednessRatio - 1.05) * 100)),
+        darkCircles: Math.round(darkCircleScore), // Decoupled
         
         // Surface
         pores: Math.min(95, Math.max(30, baseScore - 5 + (seed % 10))),
-        // texture: removed,
-        oiliness: 50 + (seed % 40), // 50-90 (Oily to Dry/Normal)
-        hydration: Math.min(90, Math.max(20, baseScore - 15 + (seed % 10))), // Often low
+        oiliness: 50 + (seed % 40), 
+        hydration: Math.round(hydrationScore), // Cheek-focused analysis
         scars: Math.min(99, Math.max(50, baseScore + 5)),
         skinTags: Math.min(99, Math.max(60, baseScore + 10)),
         
-        // Aging (Usually better for younger users, base on score)
+        // Aging
         wrinkles: Math.min(98, Math.max(50, baseScore + 5)),
         firmness: Math.min(98, Math.max(50, baseScore + 2)),
         
