@@ -4,8 +4,8 @@ import { UserProfile, Product } from '../types';
 import { createDermatologistSession as initSession, isQuotaError } from '../services/geminiService'; 
 import { playMessageSound } from '../services/soundService';
 import { 
-    Send, Mic, X, ChevronLeft, Trash2, Keyboard, Sparkles, 
-    AudioWaveform, MessageSquare, Loader
+    Send, Mic, X, ChevronLeft, FileText, Keyboard, Sparkles, 
+    AudioWaveform, MessageSquare, Loader, Bookmark, Check, Trash2
 } from 'lucide-react';
 import type { Chat, GenerateContentResponse, Part } from "@google/genai";
 
@@ -25,30 +25,89 @@ interface Message {
     isStreaming?: boolean;
 }
 
+interface SavedFile {
+    id: string;
+    question: string;
+    answer: string;
+    timestamp: number;
+}
+
 // Robust text polisher for final speech output
 const polishText = (text: string) => {
     if (!text) return "";
-    
-    // 1. Normalize spaces first
     let clean = text.replace(/\s+/g, ' ').trim();
-    
-    // 2. Remove repeated words (case insensitive): "Why Why" -> "Why"
     clean = clean.replace(/(\b\w+\b)(?:\s+\1\b)+/gi, '$1');
-    
-    // 3. Remove repeated phrases
     clean = clean.replace(/(\b\w+\s+\w+\b)(?:\s+\1\b)+/gi, '$1');
-    
-    // 4. Remove fillers
     clean = clean.replace(/\b(um|uh|ah|like)\b/gi, '');
-    
-    // 5. Fix punctuation spacing
     clean = clean.replace(/\s+([.,!?:;])/g, '$1').replace(/([.,!?:;])([^\s])/g, '$1 $2');
-    
-    // Final cleanup
     clean = clean.replace(/\s+/g, ' ').trim();
-    
     if (!clean) return "";
     return clean.charAt(0).toUpperCase() + clean.slice(1);
+};
+
+const renderText = (text: string) => {
+    const parts = text.split(/(\*\*.*?\*\*)/g);
+    return parts.map((part, i) => {
+        if (part.startsWith('**') && part.endsWith('**')) {
+            return <strong key={i} className="text-teal-700 font-bold">{part.slice(2, -2)}</strong>;
+        }
+        return part;
+    });
+};
+
+const MessageItem: React.FC<{ 
+    msg: Message, 
+    index: number, 
+    onSave: (idx: number) => void, 
+    isSaved: boolean 
+}> = ({ msg, index, onSave, isSaved }) => {
+    const [showSave, setShowSave] = useState(false);
+
+    useEffect(() => {
+        if (!msg.isStreaming && msg.role === 'model') {
+            setShowSave(true);
+            const timer = setTimeout(() => setShowSave(false), 4000);
+            return () => clearTimeout(timer);
+        }
+    }, [msg.isStreaming, msg.role]);
+
+    return (
+        <div className="w-full flex flex-col items-center text-center animate-in fade-in slide-in-from-bottom-4 duration-500 relative group">
+            {msg.image && (
+                <img src={msg.image} className="w-32 h-32 rounded-2xl object-cover mb-4 border-2 border-white shadow-lg" />
+            )}
+
+            {msg.role === 'user' ? (
+                <div className="mb-2 animate-in fade-in zoom-in-95 duration-500">
+                    <p className="text-sm font-medium text-zinc-400 max-w-xs mx-auto leading-tight opacity-70 italic">
+                        "{msg.text}"
+                    </p>
+                </div>
+            ) : (
+                <div className="w-full relative pb-8"> {/* Added padding bottom for button space */}
+                    <p className="text-xl md:text-2xl font-semibold text-zinc-900 leading-relaxed drop-shadow-sm">
+                        {renderText(msg.text)}
+                        {msg.isStreaming && <span className="inline-block w-2 h-5 ml-1 bg-teal-500 align-middle animate-pulse rounded-full"/>}
+                    </p>
+                    
+                    {!msg.isStreaming && (
+                        <div 
+                            className={`absolute bottom-0 right-0 transform transition-all duration-500 z-10 ${showSave ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100'}`}
+                        >
+                            <button 
+                                onClick={() => onSave(index)}
+                                disabled={isSaved}
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border shadow-sm backdrop-blur-md transition-colors ${isSaved ? 'bg-emerald-100/80 text-emerald-700 border-emerald-200' : 'bg-white/80 text-zinc-400 border-zinc-200 hover:bg-white hover:text-teal-600 hover:border-teal-200'}`}
+                            >
+                                {isSaved ? <Check size={12} strokeWidth={2.5} /> : <Bookmark size={12} />}
+                                {isSaved ? 'Saved' : 'Save'}
+                            </button>
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
 };
 
 const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, onUnlockPremium, location = "Global", onClose }) => {
@@ -65,6 +124,15 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isListening, setIsListening] = useState(false);
   
+  // Saved Files State
+  const [viewMode, setViewMode] = useState<'CHAT' | 'FILES'>('CHAT');
+  const [savedFiles, setSavedFiles] = useState<SavedFile[]>(() => {
+      try {
+          const saved = localStorage.getItem('skinos_saved_files');
+          return saved ? JSON.parse(saved) : [];
+      } catch { return []; }
+  });
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
@@ -72,6 +140,11 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
 
   // Determine if the session has started (for UI animation)
   const hasStarted = messages.length > 0 || isListening || isTyping;
+
+  // Persist Saved Files
+  useEffect(() => {
+      localStorage.setItem('skinos_saved_files', JSON.stringify(savedFiles));
+  }, [savedFiles]);
 
   // Initialize Chat
   useEffect(() => {
@@ -94,10 +167,12 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
 
   // Auto-scroll logic
   useEffect(() => {
-      setTimeout(() => {
-          messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }, 100);
-  }, [messages, isTyping, selectedImage, inputMode, isListening]);
+      if (viewMode === 'CHAT') {
+          setTimeout(() => {
+              messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+          }, 100);
+      }
+  }, [messages, isTyping, selectedImage, inputMode, isListening, viewMode]);
 
   // Sync Orb State
   useEffect(() => {
@@ -121,7 +196,6 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
           };
 
           recognitionRef.current.onresult = (event: any) => {
-              // Capture text silently
               const current = Array.from(event.results)
                 .map((result: any) => result[0])
                 .map((result) => result.transcript)
@@ -141,7 +215,6 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
           recognitionRef.current.onend = () => {
               setIsListening(false);
               
-              // Only process and show text when the user releases (stops)
               if (transcriptRef.current.trim()) {
                   const refinedText = polishText(transcriptRef.current);
                   if (refinedText.length > 1) { 
@@ -198,7 +271,6 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
       setInputText('');
       if (!textOverride) setSelectedImage(null);
 
-      // Add user message immediately
       setMessages(prev => [...prev, { role: 'user', text: textToSend, image: imageToSend || undefined }]);
       setIsTyping(true);
 
@@ -216,14 +288,13 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
           }
 
           let fullResponse = "";
-          let hasPlayedSound = false; // Flag to ensure sound only plays once per message
+          let hasPlayedSound = false;
           
           setMessages(prev => [...prev, { role: 'model', text: "", isStreaming: true }]);
 
           for await (const chunk of result) {
               const text = (chunk as GenerateContentResponse).text;
               if (text) {
-                  // Play "pop" sound on first chunk reception
                   if (!hasPlayedSound) {
                       playMessageSound();
                       hasPlayedSound = true;
@@ -268,22 +339,39 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
       }
   };
 
-  const handleClose = () => {
-      if (onClose) onClose();
-      else {
-          const event = new CustomEvent('navigate-home');
-          window.dispatchEvent(event);
+  const handleSaveResponse = (index: number) => {
+      const msg = messages[index];
+      if (!msg || msg.role !== 'model') return;
+      
+      const prevMsg = messages[index - 1];
+      const question = prevMsg?.role === 'user' ? prevMsg.text : "AI Insight";
+      
+      const newFile: SavedFile = {
+          id: Date.now().toString(),
+          question,
+          answer: msg.text,
+          timestamp: Date.now()
+      };
+      
+      if (!savedFiles.some(f => f.answer === newFile.answer)) {
+          setSavedFiles(prev => [newFile, ...prev]);
       }
   };
 
-  const renderText = (text: string) => {
-      const parts = text.split(/(\*\*.*?\*\*)/g);
-      return parts.map((part, i) => {
-          if (part.startsWith('**') && part.endsWith('**')) {
-              return <strong key={i} className="text-teal-700 font-bold">{part.slice(2, -2)}</strong>;
+  const handleDeleteFile = (id: string) => {
+      setSavedFiles(prev => prev.filter(f => f.id !== id));
+  };
+
+  const handleClose = () => {
+      if (viewMode === 'FILES') {
+          setViewMode('CHAT');
+      } else {
+          if (onClose) onClose();
+          else {
+              const event = new CustomEvent('navigate-home');
+              window.dispatchEvent(event);
           }
-          return part;
-      });
+      }
   };
 
   return (
@@ -314,158 +402,186 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
                     <ChevronLeft size={24} strokeWidth={1.5} />
                 </button>
                 
-                {/* Mini Status Pill */}
                 <div className="bg-white/40 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/50 shadow-sm flex items-center gap-2">
                     <div className={`w-1.5 h-1.5 rounded-full ${orbState === 'THINKING' ? 'bg-teal-500 animate-pulse' : 'bg-zinc-400'}`}></div>
                     <span className="text-[10px] font-bold text-zinc-600 uppercase tracking-widest font-sans">
-                        {inputMode === 'VOICE' ? 'Live Session' : 'Chat Mode'}
+                        {viewMode === 'FILES' ? 'Saved Answers' : inputMode === 'VOICE' ? 'Live Session' : 'Chat Mode'}
                     </span>
                 </div>
 
                 <button 
-                    onClick={() => setMessages([])}
-                    className="w-10 h-10 rounded-full flex items-center justify-center text-zinc-400 hover:text-rose-500 transition-colors active:scale-95 bg-white/40 backdrop-blur-md border border-white/50 shadow-sm"
+                    onClick={() => setViewMode(prev => prev === 'CHAT' ? 'FILES' : 'CHAT')}
+                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors active:scale-95 bg-white/40 backdrop-blur-md border border-white/50 shadow-sm ${viewMode === 'FILES' ? 'text-teal-600 bg-teal-50 border-teal-200' : 'text-zinc-400 hover:text-zinc-700'}`}
                 >
-                    <Trash2 size={18} strokeWidth={1.5} />
+                    {viewMode === 'FILES' ? <MessageSquare size={18} strokeWidth={1.5} /> : <FileText size={18} strokeWidth={1.5} />}
                 </button>
             </div>
 
             {/* --- UNIFIED VISUAL AREA --- */}
             
-            {/* 1. THE ORB (MOVES FROM CENTER TO TOP) */}
-            <div className={`w-full shrink-0 flex flex-col items-center justify-center relative z-10 transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${hasStarted ? 'h-[45%] pt-28' : 'h-full pb-32'}`}>
-                <div className="relative flex items-center justify-center w-48 h-48">
-                    {/* Outer Pulse Rings */}
-                    <div className="absolute inset-0 rounded-full border-2 border-teal-500/10 animate-[spin_8s_linear_infinite]"></div>
-                    <div className="absolute inset-4 rounded-full border border-teal-500/20 animate-[spin_6s_linear_infinite_reverse]"></div>
-                    
-                    {/* Core Orb */}
-                    <div 
-                        className={`rounded-full bg-gradient-to-tr from-teal-400 to-teal-200 flex items-center justify-center shadow-2xl relative z-10 transition-all duration-500 w-full h-full ${orbState === 'LISTENING' ? 'scale-110 shadow-teal-500/50' : 'animate-[bounce_3s_ease-in-out_infinite]'}`}
-                    >
-                        {orbState === 'LISTENING' ? (
-                            <AudioWaveform className="text-white animate-pulse w-20 h-20" />
-                        ) : orbState === 'THINKING' ? (
-                            <Sparkles className="text-white animate-spin w-20 h-20" />
-                        ) : (
-                            <AudioWaveform className="text-white drop-shadow-md w-20 h-20" strokeWidth={1.5} />
-                        )}
-                    </div>
-
-                    {orbState === 'LISTENING' && (
-                        <div className="absolute inset-0 rounded-full border-2 border-teal-400 animate-[ping_1.5s_cubic-bezier(0,0,0.2,1)_infinite]"></div>
-                    )}
-                </div>
-
-                {/* GREETING TEXT (FADES OUT WHEN STARTED) */}
-                <div className={`text-center mt-10 transition-all duration-700 absolute top-[55%] left-0 right-0 ${hasStarted ? 'opacity-0 translate-y-10 pointer-events-none' : 'opacity-100 translate-y-0 delay-200'}`}>
-                    <h2 className="text-3xl font-thin text-zinc-900 tracking-tighter">Hi, {user.name.split(' ')[0]}</h2>
-                    <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest mt-2">AI Dermatologist</p>
-                </div>
-            </div>
-
-            {/* 2. TEXT CONTENT AREA (UNIFIED SCROLLABLE LIST) */}
-            <div className="flex-1 relative overflow-hidden w-full z-20">
-                <div className="absolute inset-0 overflow-y-auto no-scrollbar px-6 pb-32 pt-4 animate-in fade-in duration-500 font-sans">
-                    <div className="w-full max-w-md mx-auto flex flex-col justify-start space-y-8 min-h-min">
-                        {messages.length === 0 && !isListening && hasStarted && (
-                            <div className="flex-1 flex flex-col items-center justify-center text-center text-zinc-400 opacity-50 py-10">
-                                <Loader size={24} className="animate-spin mb-2" />
-                                <p className="text-xs font-medium uppercase tracking-widest">Thinking...</p>
-                            </div>
-                        )}
-                        
-                        {messages.map((msg, idx) => (
-                            <div key={idx} className="w-full flex flex-col items-center text-center animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                
-                                {msg.image && (
-                                    <img src={msg.image} className="w-32 h-32 rounded-2xl object-cover mb-4 border-2 border-white shadow-lg" />
-                                )}
-
-                                {msg.role === 'user' ? (
-                                    <div className="mb-2 animate-in fade-in zoom-in-95 duration-500">
-                                        <p className="text-sm font-medium text-zinc-400 max-w-xs mx-auto leading-tight opacity-70 italic">
-                                            "{msg.text}"
-                                        </p>
-                                    </div>
-                                ) : (
-                                    <div className="w-full relative">
-                                        <p className="text-xl md:text-2xl font-semibold text-zinc-900 leading-relaxed drop-shadow-sm">
-                                            {renderText(msg.text)}
-                                            {msg.isStreaming && <span className="inline-block w-2 h-5 ml-1 bg-teal-500 align-middle animate-pulse rounded-full"/>}
-                                        </p>
-                                    </div>
-                                )}
-                            </div>
-                        ))}
-
-                        <div ref={messagesEndRef} className="h-1" />
-                    </div>
-                </div>
-            </div>
-
-            {/* --- BOTTOM CONTROLS --- */}
-            <div className="absolute bottom-0 left-0 right-0 p-6 pb-8 z-40 bg-gradient-to-t from-white/90 via-white/80 to-transparent">
-                <div className="flex items-center justify-between max-w-sm mx-auto w-full">
-                    
-                    {/* Mode Toggle */}
-                    <button 
-                        onClick={() => setInputMode(inputMode === 'VOICE' ? 'TEXT' : 'VOICE')}
-                        className="w-12 h-12 rounded-full bg-white border border-zinc-100 flex items-center justify-center text-zinc-500 hover:text-zinc-900 transition-all active:scale-95 shadow-sm"
-                    >
-                        {inputMode === 'VOICE' ? <Keyboard size={20} /> : <AudioWaveform size={20} />}
-                    </button>
-
-                    {/* Main Input */}
-                    <div className="relative select-none">
-                        {inputMode === 'VOICE' ? (
-                            <button 
-                                onMouseDown={startListening}
-                                onMouseUp={stopListening}
-                                onMouseLeave={stopListening}
-                                onTouchStart={startListening}
-                                onTouchEnd={stopListening}
-                                className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-200 shadow-xl border-4 ${isListening ? 'bg-teal-50 border-teal-200 shadow-teal-200 scale-110' : 'bg-white border-white/50 shadow-lg hover:shadow-2xl active:scale-95'}`}
+            {viewMode === 'CHAT' && (
+                <>
+                    {/* 1. THE ORB (MOVES FROM CENTER TO TOP) */}
+                    <div className={`w-full shrink-0 flex flex-col items-center justify-center relative z-10 transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${hasStarted ? 'h-[45%] pt-28' : 'h-full pb-32'}`}>
+                        <div className="relative flex items-center justify-center w-48 h-48">
+                            <div className="absolute inset-0 rounded-full border-2 border-teal-500/10 animate-[spin_8s_linear_infinite]"></div>
+                            <div className="absolute inset-4 rounded-full border border-teal-500/20 animate-[spin_6s_linear_infinite_reverse]"></div>
+                            
+                            <div 
+                                className={`rounded-full bg-gradient-to-tr from-teal-400 to-teal-200 flex items-center justify-center shadow-2xl relative z-10 transition-all duration-500 w-full h-full ${orbState === 'LISTENING' ? 'scale-110 shadow-teal-500/50' : 'animate-[bounce_3s_ease-in-out_infinite]'}`}
                             >
-                                <div className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors ${isListening ? 'bg-teal-500 text-white' : 'bg-zinc-50 text-zinc-400'}`}>
-                                    <Mic size={28} strokeWidth={isListening ? 2 : 1.5} />
-                                </div>
-                                {isListening && (
-                                    <span className="absolute -top-8 text-[10px] font-bold text-teal-600 bg-white/80 px-2 py-1 rounded-full shadow-sm animate-bounce">
-                                        Release to Send
-                                    </span>
+                                {orbState === 'LISTENING' ? (
+                                    <AudioWaveform className="text-white animate-pulse w-20 h-20" />
+                                ) : orbState === 'THINKING' ? (
+                                    <Sparkles className="text-white animate-spin w-20 h-20" />
+                                ) : (
+                                    <AudioWaveform className="text-white drop-shadow-md w-20 h-20" strokeWidth={1.5} />
                                 )}
-                            </button>
-                        ) : (
-                            <div className="w-full max-w-[200px] bg-white rounded-full p-1.5 flex items-center shadow-lg border border-zinc-100">
-                                <input 
-                                    value={inputText}
-                                    onChange={(e) => setInputText(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-                                    placeholder="Type a message..."
-                                    className="bg-transparent border-none outline-none text-sm font-medium px-3 w-full text-zinc-800 placeholder:text-zinc-400 font-sans"
-                                    autoFocus
-                                />
-                                <button 
-                                    onClick={() => handleSend()}
-                                    disabled={!inputText.trim()}
-                                    className="w-9 h-9 rounded-full bg-teal-600 text-white flex items-center justify-center disabled:opacity-50 transition-all active:scale-90"
-                                >
-                                    <Send size={16} />
-                                </button>
                             </div>
-                        )}
+
+                            {orbState === 'LISTENING' && (
+                                <div className="absolute inset-0 rounded-full border-2 border-teal-400 animate-[ping_1.5s_cubic-bezier(0,0,0.2,1)_infinite]"></div>
+                            )}
+                        </div>
+
+                        <div className={`text-center mt-10 transition-all duration-700 absolute top-[55%] left-0 right-0 ${hasStarted ? 'opacity-0 translate-y-10 pointer-events-none' : 'opacity-100 translate-y-0 delay-200'}`}>
+                            <h2 className="text-3xl font-thin text-zinc-900 tracking-tighter">Hi, {user.name.split(' ')[0]}</h2>
+                            <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest mt-2">AI Dermatologist</p>
+                        </div>
                     </div>
 
-                    {/* Close (Repeated) */}
-                    <button 
-                        onClick={handleClose}
-                        className="w-12 h-12 rounded-full bg-white border border-zinc-100 flex items-center justify-center text-zinc-500 hover:text-rose-500 transition-all active:scale-95 shadow-sm"
-                    >
-                        <X size={20} />
-                    </button>
+                    {/* 2. TEXT CONTENT AREA */}
+                    <div className="flex-1 relative overflow-hidden w-full z-20">
+                        <div className="absolute inset-0 overflow-y-auto no-scrollbar px-6 pb-32 pt-4 animate-in fade-in duration-500 font-sans">
+                            <div className="w-full max-w-md mx-auto flex flex-col justify-start space-y-8 min-h-min">
+                                {messages.length === 0 && !isListening && hasStarted && (
+                                    <div className="flex-1 flex flex-col items-center justify-center text-center text-zinc-400 opacity-50 py-10">
+                                        <Loader size={24} className="animate-spin mb-2" />
+                                        <p className="text-xs font-medium uppercase tracking-widest">Thinking...</p>
+                                    </div>
+                                )}
+                                
+                                {messages.map((msg, idx) => {
+                                    const isSaved = savedFiles.some(f => f.answer === msg.text);
+                                    return (
+                                        <MessageItem 
+                                            key={idx} 
+                                            msg={msg} 
+                                            index={idx} 
+                                            onSave={handleSaveResponse} 
+                                            isSaved={isSaved} 
+                                        />
+                                    );
+                                })}
+
+                                <div ref={messagesEndRef} className="h-1" />
+                            </div>
+                        </div>
+                    </div>
+                </>
+            )}
+
+            {viewMode === 'FILES' && (
+                <div className="absolute inset-0 pt-24 pb-32 px-6 overflow-y-auto z-20 animate-in fade-in slide-in-from-right-8 duration-300">
+                    <div className="max-w-md mx-auto space-y-4">
+                        {savedFiles.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center text-center h-[50vh] text-zinc-400">
+                                <div className="w-16 h-16 rounded-full bg-white/40 flex items-center justify-center mb-4">
+                                    <FileText size={24} className="opacity-50" />
+                                </div>
+                                <p className="text-sm font-medium">No saved answers yet.</p>
+                                <p className="text-[10px] uppercase tracking-widest mt-1 opacity-70">Tap 'Save' on any response</p>
+                            </div>
+                        ) : (
+                            savedFiles.map((file) => (
+                                <div key={file.id} className="bg-white/80 backdrop-blur-md rounded-2xl p-5 border border-white/50 shadow-sm relative group animate-in slide-in-from-bottom-2">
+                                    <div className="mb-2 pr-8">
+                                        <p className="text-xs font-bold text-zinc-400 uppercase tracking-wide truncate">
+                                            Q: {file.question}
+                                        </p>
+                                    </div>
+                                    <div className="text-sm font-medium text-zinc-800 leading-relaxed line-clamp-4">
+                                        {renderText(file.answer)}
+                                    </div>
+                                    <div className="flex justify-between items-center mt-4 pt-4 border-t border-zinc-100/50">
+                                        <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">
+                                            {new Date(file.timestamp).toLocaleDateString()}
+                                        </span>
+                                        <button 
+                                            onClick={() => handleDeleteFile(file.id)}
+                                            className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-300 hover:text-rose-500 hover:bg-rose-50 transition-all"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
                 </div>
-            </div>
+            )}
+
+            {/* --- BOTTOM CONTROLS (Only in Chat Mode) --- */}
+            {viewMode === 'CHAT' && (
+                <div className="absolute bottom-0 left-0 right-0 p-6 pb-8 z-40 bg-gradient-to-t from-white/90 via-white/80 to-transparent">
+                    <div className="flex items-center justify-between max-w-sm mx-auto w-full">
+                        
+                        <button 
+                            onClick={() => setInputMode(inputMode === 'VOICE' ? 'TEXT' : 'VOICE')}
+                            className="w-12 h-12 rounded-full bg-white border border-zinc-100 flex items-center justify-center text-zinc-500 hover:text-zinc-900 transition-all active:scale-95 shadow-sm"
+                        >
+                            {inputMode === 'VOICE' ? <Keyboard size={20} /> : <AudioWaveform size={20} />}
+                        </button>
+
+                        <div className="relative select-none">
+                            {inputMode === 'VOICE' ? (
+                                <button 
+                                    onMouseDown={startListening}
+                                    onMouseUp={stopListening}
+                                    onMouseLeave={stopListening}
+                                    onTouchStart={startListening}
+                                    onTouchEnd={stopListening}
+                                    className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-200 shadow-xl border-4 ${isListening ? 'bg-teal-50 border-teal-200 shadow-teal-200 scale-110' : 'bg-white border-white/50 shadow-lg hover:shadow-2xl active:scale-95'}`}
+                                >
+                                    <div className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors ${isListening ? 'bg-teal-500 text-white' : 'bg-zinc-50 text-zinc-400'}`}>
+                                        <Mic size={28} strokeWidth={isListening ? 2 : 1.5} />
+                                    </div>
+                                    {isListening && (
+                                        <span className="absolute -top-8 text-[10px] font-bold text-teal-600 bg-white/80 px-2 py-1 rounded-full shadow-sm animate-bounce">
+                                            Release to Send
+                                        </span>
+                                    )}
+                                </button>
+                            ) : (
+                                <div className="w-full max-w-[200px] bg-white rounded-full p-1.5 flex items-center shadow-lg border border-zinc-100">
+                                    <input 
+                                        value={inputText}
+                                        onChange={(e) => setInputText(e.target.value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                                        placeholder="Type a message..."
+                                        className="bg-transparent border-none outline-none text-sm font-medium px-3 w-full text-zinc-800 placeholder:text-zinc-400 font-sans"
+                                        autoFocus
+                                    />
+                                    <button 
+                                        onClick={() => handleSend()}
+                                        disabled={!inputText.trim()}
+                                        className="w-9 h-9 rounded-full bg-teal-600 text-white flex items-center justify-center disabled:opacity-50 transition-all active:scale-90"
+                                    >
+                                        <Send size={16} />
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        <button 
+                            onClick={handleClose}
+                            className="w-12 h-12 rounded-full bg-white border border-zinc-100 flex items-center justify-center text-zinc-500 hover:text-rose-500 transition-all active:scale-95 shadow-sm"
+                        >
+                            <X size={20} />
+                        </button>
+                    </div>
+                </div>
+            )}
 
             <input
                 type="file"
