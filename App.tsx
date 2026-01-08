@@ -516,39 +516,47 @@ const App: React.FC = () => {
       setCurrentView(AppView.DASHBOARD);
       setTimeout(() => setActiveGuide('SCAN'), 5000);
 
-      // --- TRIGGER SHELF AUDIT (UPDATED) ---
+      // --- TRIGGER SHELF AUDIT (UPDATED with ASYNC AI) ---
       // We run a background check to see if current shelf products conflict with new metrics
       if (shelf.length > 0) {
           // Notify user of ongoing audit
           setBackgroundTask({ label: 'Processing Shelf Audit...' });
 
-          setTimeout(() => {
-              // Now we pass the updatedUser which contains the FULL history, so the audit function can compare old vs new.
-              const report = runPostScanAudit(updatedUser, shelf);
-              
-              // Clear task indicator
-              setBackgroundTask(null);
+          // Run async audit without blocking UI transition
+          (async () => {
+              try {
+                  // Artificial delay for UX pacing (optional, but feels more "processed")
+                  await new Promise(r => setTimeout(r, 2000));
+                  
+                  const report = await runPostScanAudit(updatedUser, shelf);
+                  
+                  // Clear task indicator
+                  setBackgroundTask(null);
 
-              if (report && report.flags.length > 0) {
-                  setAuditReport(report);
-                  setNotification({
-                      type: 'GENERIC',
-                      title: 'Routine Update',
-                      description: `${report.flags.length} product${report.flags.length > 1 ? 's' : ''} flagged based on new results.`,
-                      actionLabel: 'Review Shelf',
-                      onAction: () => setCurrentView(AppView.SMART_SHELF)
-                  });
-              } else {
-                  // Notify success/verification
-                  setNotification({
-                      type: 'TASK_COMPLETE',
-                      title: 'Routine Verified',
-                      description: 'No conflicts found with your latest skin metrics.',
-                      actionLabel: 'View Shelf',
-                      onAction: () => setCurrentView(AppView.SMART_SHELF)
-                  });
+                  if (report && report.flags.length > 0) {
+                      setAuditReport(report);
+                      setNotification({
+                          type: 'GENERIC',
+                          title: 'Routine Update',
+                          description: `${report.flags.length} product${report.flags.length > 1 ? 's' : ''} flagged based on new results.`,
+                          actionLabel: 'Review Shelf',
+                          onAction: () => setCurrentView(AppView.SMART_SHELF)
+                      });
+                  } else {
+                      // Notify success/verification
+                      setNotification({
+                          type: 'TASK_COMPLETE',
+                          title: 'Routine Verified',
+                          description: 'No conflicts found with your latest skin metrics.',
+                          actionLabel: 'View Shelf',
+                          onAction: () => setCurrentView(AppView.SMART_SHELF)
+                      });
+                  }
+              } catch (e) {
+                  console.error("Audit failed", e);
+                  setBackgroundTask(null);
               }
-          }, 2500);
+          })();
       }
   };
 

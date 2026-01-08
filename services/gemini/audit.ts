@@ -1,7 +1,9 @@
 
 import { Product, UserProfile, UserPreferences, ShelfAuditReport, SkinMetrics } from '../../types';
+import { runWithTimeout, parseJSONFromText, getAi, MODEL_FAST, SAFETY_SETTINGS_NONE } from './core';
 
 // --- SYNCHRONOUS HELPERS (NO AI CALLS) ---
+// Used for instant UI feedback on the Smart Shelf cards
 
 export const auditProduct = (product: Product, user: UserProfile) => {
     if (!product.ingredients || product.ingredients.length === 0) {
@@ -17,56 +19,40 @@ export const auditProduct = (product: Product, user: UserProfile) => {
     const ingStr = product.ingredients.join(' ').toLowerCase();
 
     // --- STEP 1: SMART FILTERING OF GENERIC RISKS ---
-    // Filter out risks that aren't relevant to the user's specific high-performing metrics.
     const relevantRisks = (product.risks || []).filter(risk => {
         const txt = (risk.reason + ' ' + risk.ingredient).toLowerCase();
         
-        // ALWAYS KEEP: Critical safety risks (Pregnancy, Hormone disruptors, High risk items)
         if (risk.riskLevel === 'HIGH') return true;
 
-        // FILTER: Dryness concerns
-        // If user has excellent hydration (>70), mild drying warnings are noise.
+        // Filter out dryness warnings if hydration is good
         if (txt.match(/dry|dehydrat|strip|alcohol/)) {
             if (bio.hydration > 70) return false;
         }
 
-        // FILTER: Sensitivity concerns
-        // If user has a strong barrier (Redness > 70), generic irritation warnings are preventative cautions, not active risks.
-        // We filter these out to avoid lowering the score artificially, unless user has Eczema (chronic).
+        // Filter out sensitivity warnings if redness is low (good)
         if (txt.match(/irritat|sensitiv|redness|tingl|burn/)) {
             if (bio.redness > 70 && !prefs.hasEczema) return false;
         }
 
-        // FILTER: Oily Skin concerns
-        // If user has balanced oil (Oiliness Score > 70) and Clear Skin (Acne > 70)
-        // Note: High Oiliness Score = Balanced/Matte. Low Score = Oily.
+        // Filter out oily skin warnings if balanced
         if (txt.match(/oily|greas|shine/)) {
             if (bio.oiliness > 70) return false;
-        }
-
-        // FILTER: Clogging concerns (Comedogenic)
-        // If user has perfect texture/pores/acne, they are likely resilient to mild cloggers
-        if (txt.match(/clog|pore|comedogen|acne/)) {
-            if (bio.acneActive > 75 && bio.pores > 70) return false;
         }
 
         return true;
     });
 
-    // Start with base score
     let adjustedScore = product.suitabilityScore;
 
-    // Initialize warnings with the filtered relevant risks
     const warnings = relevantRisks.map(r => ({ 
         severity: r.riskLevel === 'HIGH' ? 'CRITICAL' : 'CAUTION', 
         reason: r.reason 
     }));
 
     // --- STEP 2: HARD RULES (OVERRIDES) ---
-    // These specific checks ensure we catch critical mismatches even if the generic list missed them.
-
     // 1. HYDRATION / DEHYDRATION CHECK
     if (bio.hydration < 50 || prefs.onMedication) {
+        // Specifically look for drying alcohols, NOT fatty alcohols
         const dryingAgents = ['alcohol denat', 'sd alcohol', 'isopropyl alcohol', 'sodium lauryl sulfate', 'sls'];
         const found = dryingAgents.find(a => ingStr.includes(a));
         if (found) {
@@ -89,17 +75,7 @@ export const auditProduct = (product: Product, user: UserProfile) => {
         }
     }
 
-    // 3. ACNE / OIL / PORE CHECK
-    if (bio.acneActive < 55 || bio.oiliness < 50 || bio.pores < 50) {
-        const cloggers = ['coconut oil', 'cocoa butter', 'isopropyl myristate', 'algae extract', 'palm oil', 'wheat germ'];
-        const found = cloggers.find(a => ingStr.includes(a));
-        if (found) {
-            adjustedScore = Math.min(adjustedScore, 40);
-            warnings.unshift({ severity: 'CAUTION', reason: `Contains ${found}, which can be heavy for your pores.` });
-        }
-    }
-
-    // 4. PREGNANCY SAFETY
+    // 3. PREGNANCY SAFETY
     if (prefs.isPregnant) {
         const unsafe = ['retinol', 'retinyl', 'tretinoin', 'hydroquinone', 'arbutin', 'salicylic acid', 'adapalene', 'tazarotene', 'isotretinoin']; 
         const found = unsafe.find(a => ingStr.includes(a));
@@ -109,7 +85,6 @@ export const auditProduct = (product: Product, user: UserProfile) => {
         }
     }
 
-    // Deduplicate warnings
     const uniqueWarnings = warnings.filter((w, index, self) => 
         index === self.findIndex((t) => (
             t.reason === w.reason
@@ -130,7 +105,6 @@ export const analyzeShelfHealth = (products: Product[], user: UserProfile) => {
     if (!types.has('SPF')) missing.push('SPF');
     if (!types.has('MOISTURIZER')) missing.push('Moisturizer');
     
-    // Calculate Safety & Risks
     const notes: any[] = [];
     let totalScore = 0;
     let count = 0;
@@ -140,17 +114,12 @@ export const analyzeShelfHealth = (products: Product[], user: UserProfile) => {
         totalScore += audit.adjustedScore;
         count++;
         
-        // Soften the language. Only show top priority warnings.
         if (audit.warnings.length > 0) {
-            // Prioritize CRITICAL, then take first CAUTION
             const mainWarning = audit.warnings.find(w => w.severity === 'CRITICAL') || audit.warnings[0];
-            
-            // Rephrase specifically for the "Coach" persona
             let tip = mainWarning.reason;
             if (mainWarning.severity === 'CRITICAL' && (user.preferences?.isPregnant)) {
-                // Keep pregnancy warnings strict
+                // Keep strict
             } else {
-                // Soften others
                 if (tip.includes("Contains")) tip = `Use ${p.name} mindfully. ${tip.toLowerCase()}`;
                 else tip = `${p.name}: ${tip}`;
             }
@@ -163,7 +132,6 @@ export const analyzeShelfHealth = (products: Product[], user: UserProfile) => {
         }
     });
 
-    // Check for Retinol/Acid conflicts (Timing advice)
     const activeIngredients = products.flatMap(p => p.ingredients.join(' ').toLowerCase());
     const hasRetinol = activeIngredients.some(i => i.includes('retinol') || i.includes('tretinoin'));
     const hasAcids = activeIngredients.some(i => i.includes('glycolic') || i.includes('salicylic') || i.includes('lactic'));
@@ -175,9 +143,7 @@ export const analyzeShelfHealth = (products: Product[], user: UserProfile) => {
         notes.push({ product: "Routine", note: "Use Vitamin C in the morning and Retinol at night for best results.", type: "TIMING" });
     }
 
-    // Pure Mathematical Average for Grade
     const avg = count > 0 ? totalScore / count : 0;
-    
     let grade = 'C';
     if (products.length === 0) grade = '-';
     else if (avg >= 90) grade = 'S';
@@ -186,7 +152,6 @@ export const analyzeShelfHealth = (products: Product[], user: UserProfile) => {
     else if (avg >= 60) grade = 'C';
     else grade = 'D';
 
-    // Generate "Shelf Mind" Headline
     let headline = "Shelf Analysis";
     if (grade === 'S') headline = "Perfectly balanced.";
     else if (grade === 'A') headline = "Great setup. Keep it up.";
@@ -204,126 +169,112 @@ export const analyzeShelfHealth = (products: Product[], user: UserProfile) => {
             grade, 
             headline,
             averageScore: Math.round(avg),
-            notes: notes.slice(0, 3), // Top 3 notes only
+            notes: notes.slice(0, 3), 
             missing,
         }
     };
 };
 
-export const runPostScanAudit = (user: UserProfile, shelf: Product[]): ShelfAuditReport | null => {
-    const history = user.scanHistory || [];
-    // Use latest scan (current) or biometrics if history is single
-    const current = history.length > 0 ? history[history.length - 1] : user.biometrics;
-    
-    if (!current) return null;
+// --- ASYNC AI AUDIT (Triggered on Scan Complete) ---
+export const runPostScanAudit = async (user: UserProfile, shelf: Product[]): Promise<ShelfAuditReport | null> => {
+    return runWithTimeout<ShelfAuditReport | null>(async (ai) => {
+        const history = user.scanHistory || [];
+        const current = history.length > 0 ? history[history.length - 1] : user.biometrics;
+        if (!current) return null;
 
-    const prev = history.length > 1 ? history[history.length - 2] : null;
-    const flags: any[] = [];
+        const prev = history.length > 1 ? history[history.length - 2] : null;
 
-    // Thresholds
-    const DROP_THRESHOLD = -5;
-    const CRITICAL_THRESHOLD = 45;
+        // 1. Detect Negative Shifts
+        const changes = [];
+        if (prev) {
+            if (current.redness < prev.redness - 10) changes.push(`Redness worsened significantly (Score dropped from ${prev.redness} to ${current.redness})`);
+            if (current.hydration < prev.hydration - 10) changes.push(`Hydration dropped (Score from ${prev.hydration} to ${current.hydration})`);
+            if (current.acneActive < prev.acneActive - 10) changes.push(`Breakouts increased (Score from ${prev.acneActive} to ${current.acneActive})`);
+        } else {
+            // No history, check for critical current states
+            if (current.redness < 45) changes.push(`Severe Redness/Sensitivity detected (Score ${current.redness})`);
+            if (current.hydration < 40) changes.push(`Severe Dehydration detected (Score ${current.hydration})`);
+            if (current.acneActive < 45) changes.push(`Active Breakouts detected (Score ${current.acneActive})`);
+        }
 
-    // Helper: Determine if a metric is problematic (either dropped significantly OR is absolutely bad)
-    const getMetricStatus = (metric: keyof SkinMetrics) => {
-        const currVal = current[metric] as number;
-        const prevVal = prev ? prev[metric] as number : 100; // Default to 100 if no prev so we don't trigger "drop" on first scan
+        // If skin is stable/good, no need to audit
+        if (changes.length === 0) return null;
+
+        // 2. Prepare Context for AI
+        const shelfContext = shelf.map(p => ({
+            id: p.id,
+            name: p.name,
+            brand: p.brand || "Unknown",
+            type: p.type,
+            // Send first 20 ingredients to save tokens but give enough context
+            ingredients: p.ingredients.slice(0, 30).join(', ')
+        }));
+
+        const prompt = `
+        ACT AS AN ELITE DERMATOLOGIST.
         
-        const dropped = prev ? (currVal - prevVal) < DROP_THRESHOLD : false;
-        const isBad = currVal < CRITICAL_THRESHOLD;
+        TASK: Audit the user's skincare routine based on their LATEST SKIN CHANGES.
         
-        return { 
-            isIssue: dropped || isBad,
-            reason: dropped ? 'dropped' : 'bad'
-        };
-    };
-
-    const rednessState = getMetricStatus('redness');
-    const hydrationState = getMetricStatus('hydration');
-    const acneState = getMetricStatus('acneActive');
-
-    // If no issues, return null
-    if (!rednessState.isIssue && !hydrationState.isIssue && !acneState.isIssue) return null;
-
-    // 2. Audit Products against Issues
-    shelf.forEach(p => {
-        const ingStr = p.ingredients.join(' ').toLowerCase();
-        let flag = null;
-
-        // A. REDNESS ISSUE (Sensitive)
-        if (rednessState.isIssue) {
-            const irritants = ['retinol', 'tretinoin', 'glycolic', 'salicylic', 'lactic', 'fragrance', 'alcohol', 'menthol', 'peppermint', 'eucalyptus'];
-            const found = irritants.find(i => ingStr.includes(i));
-            
-            if (found) {
-                const isEssential = p.type === 'CLEANSER' || p.type === 'MOISTURIZER';
-                const hasAcneBenefit = p.benefits.some(b => b.target === 'acneActive') && (current.acneActive > 60);
-
-                if (isEssential) {
-                     flag = {
-                        advice: 'BUFFER',
-                        severity: 'CAUTION',
-                        issue: `Redness ${rednessState.reason === 'dropped' ? 'spiked' : 'is critical'}. ${p.name} contains ${found}.`,
-                        smartUsage: `Your skin is sensitive right now. Apply this over a thin layer of moisturizer to reduce irritation.`
-                    };
-                } else if (hasAcneBenefit) {
-                    flag = {
-                        advice: 'LESS_FREQ',
-                        severity: 'CAUTION',
-                        issue: `Redness ${rednessState.reason === 'dropped' ? 'spiked' : 'is high'}, but ${p.name} helps acne.`,
-                        smartUsage: `Don't stop completely. Reduce use to every other day to manage redness while keeping acne in check.`
-                    };
-                } else {
-                    flag = {
-                        advice: 'PAUSE',
-                        severity: 'CRITICAL',
-                        issue: `Redness detected. ${found} in ${p.name} is a likely trigger.`,
-                        smartUsage: `Pause use for 3-5 days until your Redness score improves.`
-                    };
+        CONTEXT:
+        The user just scanned their face. 
+        ISSUE DETECTED: ${changes.join(' AND ')}.
+        
+        ROUTINE (Shelf):
+        ${JSON.stringify(shelfContext)}
+        
+        INSTRUCTIONS:
+        1. Identify products that might be exacerbating the specific ISSUE DETECTED.
+        2. BE SMART about ingredients. 
+           - Do NOT flag "Cetearyl Alcohol" or "Stearyl Alcohol" as drying (these are good fatty alcohols).
+           - Do NOT flag "Hydrating Cleansers" unless they contain hidden acids/scrubs that irritate redness.
+           - Do NOT flag simple Moisturizers unless they contain heavy fragrance/essential oils that trigger the redness.
+           - FOCUS on: Alcohol Denat (drying), High % Acids (irritating), heavy oils (clogging if acne issue).
+        3. If the product is actually GOOD for the issue (e.g. Cerave Cream for Dryness), DO NOT FLAG IT.
+        4. If a product is irrelevant (e.g. Eye cream when issue is chin acne), IGNORE IT.
+        5. Provide "smartUsage" advice that makes sense. Do NOT say "apply after moisturizer" if the product IS a moisturizer.
+        
+        OUTPUT JSON:
+        {
+            "flags": [
+                {
+                    "productId": "id_from_input",
+                    "productName": "string",
+                    "productType": "string",
+                    "issue": "Specific reason why THIS product is bad for the DETECTED ISSUE.",
+                    "severity": "CRITICAL" | "CAUTION",
+                    "advice": "PAUSE" | "LIMIT" | "MONITOR" | "BUFFER" | "LESS_FREQ",
+                    "smartUsage": "Specific actionable tip (e.g. 'Skip this morning', 'Use only on T-zone', 'Pause until redness subsides')"
                 }
-            }
+            ]
         }
+        Return "flags": [] if no products are problematic.
+        `;
 
-        // B. HYDRATION ISSUE (Drying)
-        if (!flag && hydrationState.isIssue) {
-             const drying = ['alcohol denat', 'clay', 'charcoal', 'salicylic', 'benzoyl peroxide', 'sulfate'];
-             const found = drying.find(i => ingStr.includes(i));
-             
-             if (found) {
-                 if (p.type === 'CLEANSER') {
-                     flag = {
-                         advice: 'LESS_FREQ',
-                         severity: 'CAUTION',
-                         issue: `Hydration ${hydrationState.reason === 'dropped' ? 'dropped' : 'is low'}. ${p.name} might be stripping.`,
-                         smartUsage: `Try washing your face only in the evening, or switch to a milk cleanser temporarily.`
-                     };
-                 } else {
-                     flag = {
-                         advice: 'BUFFER',
-                         severity: 'CAUTION',
-                         issue: `Skin is dehydrated. ${found} can worsen this.`,
-                         smartUsage: `Apply this after your moisturizer (sandwich method) to lock in water.`
-                     };
-                 }
-             }
-        }
-
-        if (flag) {
-            flags.push({
-                productId: p.id,
-                productName: p.name,
-                productType: p.type,
-                ...flag
+        try {
+            const response = await ai.models.generateContent({
+                model: MODEL_FAST,
+                contents: prompt,
+                config: { 
+                    responseMimeType: 'application/json',
+                    safetySettings: SAFETY_SETTINGS_NONE 
+                }
             });
+
+            const result = parseJSONFromText(response.text || "{}");
+            
+            if (result.flags && Array.isArray(result.flags) && result.flags.length > 0) {
+                return {
+                    timestamp: Date.now(),
+                    flags: result.flags
+                };
+            }
+            return null;
+
+        } catch (e) {
+            console.error("AI Audit Failed", e);
+            return null;
         }
-    });
-
-    if (flags.length === 0) return null;
-
-    return {
-        timestamp: Date.now(),
-        flags
-    };
+    }, 45000);
 };
 
 export const analyzeProductContext = (product: Product, shelf: Product[]) => {
