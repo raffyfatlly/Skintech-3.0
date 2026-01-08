@@ -52,7 +52,7 @@ export const analyzeProductFromSearch = async (
           "suitabilityScore": number,
           "risks": [{ "ingredient": "string", "riskLevel": "LOW"|"MEDIUM"|"HIGH", "reason": "string" }],
           "benefits": [{ "ingredient": "string", "target": "acneActive"|"hydration" etc, "description": "string", "relevance": "HIGH"|"MAINTENANCE" }],
-          "usageTips": "string",
+          "usageTips": "string (A 'Smart Usage' guide: 1-2 sentences specifying Frequency (AM/PM), Layering Order (e.g. 'before moisturizer'), and Technique (e.g. 'damp skin'). If it conflicts with known routine actives, mention how to space them out.)",
           "expertReview": "string"
         }
         \`\`\`

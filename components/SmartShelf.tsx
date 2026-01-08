@@ -49,62 +49,25 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
       }
   }, [products, activeTab, userProfile.wishlist]);
 
-  // --- CONTEXTUAL USAGE LOGIC ---
-  const getContextualUsageGuide = (product: Product, shelf: Product[]) => {
-      const type = product.type;
-      // Filter out self
-      const others = shelf.filter(p => p.id !== product.id);
-      const otherTypes = new Set(others.map(p => p.type));
-      const ingredients = (product.ingredients || []).join(' ').toLowerCase();
-      
-      // 1. Conflict / Timing Checks
-      const hasRetinol = ingredients.includes('retinol') || ingredients.includes('tretinoin');
-      const hasAcids = ingredients.includes('acid') || ingredients.includes('salicylic') || ingredients.includes('glycolic');
-      const hasVitC = ingredients.includes('vitamin c') || ingredients.includes('ascorbic');
-
-      const shelfHasRetinol = others.some(p => (p.ingredients || []).join(' ').toLowerCase().includes('retinol'));
-      const shelfHasAcids = others.some(p => (p.ingredients || []).join(' ').toLowerCase().includes('acid'));
-
-      if (hasRetinol) {
-          if (shelfHasAcids) return "Use only at night. **Alternate nights** with your exfoliating acids to avoid irritation.";
-          return "Use only at night. Apply after cleansing and before moisturizer. Start 2-3 times a week.";
+  // --- SMART USAGE LOGIC (AI-FIRST) ---
+  const getSmartUsageGuide = (product: Product) => {
+      // 1. Trust the AI-generated usage tips if they exist and are detailed
+      if (product.usageTips && product.usageTips.length > 15 && !product.usageTips.toLowerCase().includes("unavailable")) {
+          return product.usageTips;
       }
 
-      if (hasAcids) {
-          if (shelfHasRetinol) return "Use mainly at night. **Do not use on the same night** as your Retinol.";
-          return "Use 2-3 times a week. Over-exfoliation damages the skin barrier.";
+      // 2. Safe Fallback based strictly on Product Type (No ingredient guessing)
+      // This prevents the "overexfoliation" warning bug on moisturizers
+      switch (product.type) {
+          case 'CLEANSER': return "Use AM and PM. Massage gently onto damp skin for 60 seconds, then rinse.";
+          case 'TONER': return "Apply to clean skin immediately after washing to rebalance pH.";
+          case 'SERUM': return "Apply 2-3 drops to damp skin. Use before heavier creams.";
+          case 'MOISTURIZER': return "Apply as the final step at night, or before SPF in the morning.";
+          case 'SPF': return "Apply generously as the absolute last step of your morning routine.";
+          case 'TREATMENT': return "Follow specific package instructions. Usually best applied at night.";
+          case 'FOUNDATION': return "Apply over your SPF or Primer for even coverage.";
+          default: return "Apply after lighter serums and before heavier creams.";
       }
-
-      if (hasVitC) {
-          if (shelfHasRetinol) return "Excellent for **Morning** use under SPF. Let your Retinol work at night.";
-          return "Apply in the morning on clean, dry skin to boost sun protection.";
-      }
-
-      // 2. Routine Order Checks
-      if (type === 'CLEANSER') {
-          if (otherTypes.has('CLEANSER')) return "Use as your daily wash. If you double cleanse, use this second.";
-          return "Use AM and PM as the essential first step to remove impurities.";
-      }
-
-      if (type === 'TONER') {
-          return "Apply immediately after cleansing while skin is damp to boost absorption of serums.";
-      }
-
-      if (type === 'SERUM') {
-          if (otherTypes.has('MOISTURIZER')) return "Apply this active layer **before** your moisturizer for deep penetration.";
-          return "Apply after cleansing. Follow with a moisturizer to seal it in.";
-      }
-
-      if (type === 'MOISTURIZER') {
-          if (otherTypes.has('SPF')) return "Use AM and PM. In the morning, **wait 2 mins** before applying SPF.";
-          return "Apply as your final step at night to lock in hydration.";
-      }
-
-      if (type === 'SPF') {
-          return "The most important step. Apply generously as the **very last step** every morning.";
-      }
-
-      return product.usageTips || "Apply after lighter serums and before heavier creams.";
   };
 
   // --- DYNAMIC INSIGHT LOGIC ---
@@ -174,7 +137,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
       // Neutral
       return {
           title: 'Product Info',
-          text: product.usageTips || 'Tap "View Details" to see full ingredient analysis.',
+          text: getSmartUsageGuide(product),
           color: 'text-zinc-500',
           bg: 'from-zinc-50/60',
           icon: <Lightbulb size={16} strokeWidth={2.5} />
@@ -512,7 +475,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
            </div>
        </div>
 
-       {/* ACTIVE INSIGHT (HUD) - With Fixes */}
+       {/* ACTIVE INSIGHT (HUD) */}
        <div 
            className={`w-full flex justify-center mb-4 z-20 relative px-6 transition-all duration-700 ease-out ${
                isScrolling ? 'opacity-0 translate-y-4 pointer-events-none scale-95' : 'opacity-100 translate-y-0 scale-100'
@@ -549,7 +512,6 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                        </div>
                    </div>
 
-                   {/* FIX: Z-Index for Text visibility */}
                    <div 
                         className={`transition-all duration-500 ease-in-out overflow-hidden relative z-10 ${isInsightExpanded ? 'max-h-40 opacity-100 mt-4' : 'max-h-0 opacity-0 mt-0'}`}
                    >
@@ -561,7 +523,6 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                         </div>
                    </div>
                    
-                   {/* FIX: Softer Gradient, Z-0 */}
                    <div className={`absolute inset-0 bg-gradient-to-br ${activeInsight.bg || 'from-zinc-50/40'} to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none z-0`}></div>
                </button>
            ) : (
@@ -615,7 +576,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
            <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-6 bg-black/60 backdrop-blur-xl animate-in fade-in duration-300">
                 <div className="w-full max-w-md bg-white/90 backdrop-blur-2xl border border-white/20 rounded-t-[2.5rem] sm:rounded-[2.5rem] h-[90vh] sm:h-auto sm:max-h-[90vh] relative shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-8 sm:slide-in-from-bottom-0 sm:zoom-in-95">
                     
-                    {/* Header with FIX: Larger Back Button */}
+                    {/* Header */}
                     <div className="bg-white/50 px-6 pt-8 pb-6 rounded-b-[2.5rem] shadow-sm z-10 shrink-0 relative overflow-hidden border-b border-white/30">
                         <button 
                             onClick={(e) => { 
@@ -666,13 +627,13 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
 
                     <div className="flex-1 overflow-y-auto p-6 space-y-4 pb-safe bg-white/40">
                         
-                        {/* CONTEXTUAL USAGE GUIDE (HOLISTIC) */}
+                        {/* SMART USAGE GUIDE (AI-FIRST) */}
                         <div className="bg-indigo-50/80 p-5 rounded-[1.5rem] border border-indigo-100">
                             <h3 className="text-xs font-bold text-indigo-900 uppercase tracking-widest mb-2 flex items-center gap-2">
-                                <Clock size={14} /> Usage Guide
+                                <Clock size={14} /> Smart Usage Guide
                             </h3>
                             <p className="text-xs text-indigo-800 font-medium leading-relaxed">
-                                {renderFormattedText(getContextualUsageGuide(selectedProduct, displayedProducts))}
+                                {renderFormattedText(getSmartUsageGuide(selectedProduct))}
                             </p>
                         </div>
 
