@@ -319,9 +319,17 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                                 return (
                                     <div 
                                         key={idx} 
-                                        className="w-full text-left bg-white p-5 rounded-[1.5rem] shadow-sm border border-zinc-100 relative overflow-hidden"
+                                        className="w-full text-left bg-white p-5 rounded-[1.5rem] shadow-sm border border-zinc-100 relative overflow-hidden group"
                                     >
-                                        <div className="flex justify-between items-start mb-2">
+                                        <button 
+                                            onClick={() => handleSave(prod)}
+                                            disabled={isSaved}
+                                            className="absolute top-4 right-4 p-2 rounded-full bg-white border border-zinc-100 shadow-sm text-zinc-300 hover:text-rose-500 hover:border-rose-100 active:scale-90 transition-all z-10"
+                                        >
+                                            <Heart size={18} className={isSaved ? "fill-rose-500 text-rose-500" : ""} />
+                                        </button>
+
+                                        <div className="flex justify-between items-start mb-2 pr-10">
                                             <div>
                                                 <h4 className="font-bold text-zinc-900 text-lg leading-tight mb-1">{prod.name}</h4>
                                                 <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{prod.brand}</p>
@@ -331,23 +339,10 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                                             {prod.reason}
                                         </p>
                                         
-                                        <div className="flex items-center justify-between mt-4 pt-3 border-t border-zinc-50">
-                                            <div className="flex items-center gap-3">
-                                                {renderStars(prod.rating)}
-                                                <div className="w-px h-3 bg-zinc-200"></div>
-                                                <span className="text-xs font-bold text-zinc-900">{prod.price}</span>
-                                            </div>
-                                            <button 
-                                                onClick={() => handleSave(prod)}
-                                                disabled={isSaved}
-                                                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wide transition-all active:scale-95 ${isSaved ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-zinc-900 text-white shadow-lg shadow-zinc-900/10 hover:bg-zinc-800'}`}
-                                            >
-                                                {isSaved ? (
-                                                    <>Saved <Check size={12} strokeWidth={3} /></>
-                                                ) : (
-                                                    <>Add to Wishlist <Bookmark size={12} strokeWidth={2.5} /></>
-                                                )}
-                                            </button>
+                                        <div className="flex items-center gap-3 pt-3 border-t border-zinc-50">
+                                            {renderStars(prod.rating)}
+                                            <div className="w-px h-3 bg-zinc-200"></div>
+                                            <span className="text-xs font-bold text-zinc-900">{prod.price}</span>
                                         </div>
                                     </div>
                                 );
