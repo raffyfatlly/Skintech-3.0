@@ -260,7 +260,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
   return (
     <div className="min-h-screen w-full relative flex flex-col font-sans overflow-hidden pb-32">
        
-       {/* BACKGROUND LAYER (Selfie + Light Frost Overlay) */}
+       {/* BACKGROUND LAYER (Selfie + Subtle Gradient) */}
        <div className="absolute inset-0 z-0 pointer-events-none">
            {userProfile.faceImage ? (
                <img 
@@ -271,9 +271,8 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
            ) : (
                <div className="w-full h-full bg-gradient-to-br from-teal-100 via-white to-rose-50"></div>
            )}
-           {/* The "Light Frost" Overlay - Matches Skin Report */}
-           <div className="absolute inset-0 bg-white/10 backdrop-blur-[50px]"></div>
-           <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/40"></div>
+           {/* Replaced heavy blur with gradient for better readability of text on image */}
+           <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80"></div>
        </div>
 
        {/* --- HEADER: CLEAN TYPOGRAPHY --- */}
