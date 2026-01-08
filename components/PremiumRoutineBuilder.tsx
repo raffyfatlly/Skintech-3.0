@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { UserProfile, SkinMetrics, RecommendedProduct, Product } from '../types';
-import { Sparkles, ArrowLeft, DollarSign, Star, Crown, Lock, Search, Droplet, Sun, Zap, ShieldCheck, Loader, Sliders, AlertCircle, Target, CheckCircle2, Check, ArrowRight, Minimize2, Dna, Heart, StarHalf, Activity, Layers, Scan, Eraser } from 'lucide-react';
+import { Sparkles, ArrowLeft, DollarSign, Star, Crown, Lock, Search, Droplet, Sun, Zap, ShieldCheck, Loader, Sliders, AlertCircle, Target, CheckCircle2, Check, ArrowRight, Minimize2, Dna, Heart, StarHalf, Activity, Layers, Scan, Eraser, Plus, Bookmark } from 'lucide-react';
 
 interface PremiumRoutineBuilderProps {
     user: UserProfile;
@@ -122,6 +122,18 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
         onGenerateBackground(selectedCategory, maxPrice, allergies, selectedGoals);
     };
 
+    const mapCategoryToType = (cat: string): any => {
+        const map: Record<string, string> = {
+            'Sunscreen': 'SPF',
+            'Mask': 'TREATMENT',
+            'Cleanser': 'CLEANSER',
+            'Toner': 'TONER',
+            'Serum': 'SERUM',
+            'Moisturizer': 'MOISTURIZER'
+        };
+        return map[cat] || 'UNKNOWN';
+    };
+
     const handleSave = (rec: RecommendedProduct) => {
         if (onAddToWishlist) {
             const rawPrice = rec.price.replace(/[^0-9.]/g, ''); 
@@ -131,7 +143,7 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                 id: Date.now().toString() + Math.random(),
                 name: rec.name,
                 brand: rec.brand,
-                type: selectedCategory.toUpperCase() as any,
+                type: mapCategoryToType(selectedCategory),
                 ingredients: [], 
                 estimatedPrice: price,
                 suitabilityScore: rec.rating,
@@ -153,13 +165,13 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
         return (
             <div className="flex items-center gap-0.5">
                 {[...Array(fullStars)].map((_, i) => (
-                    <Star key={`full-${i}`} size={12} className="fill-amber-400 text-amber-400" />
+                    <Star key={`full-${i}`} size={10} className="fill-amber-400 text-amber-400" />
                 ))}
-                {hasHalfStar && <StarHalf size={12} className="fill-amber-400 text-amber-400" />}
+                {hasHalfStar && <StarHalf size={10} className="fill-amber-400 text-amber-400" />}
                 {[...Array(emptyStars)].map((_, i) => (
-                    <Star key={`empty-${i}`} size={12} className="text-zinc-200" />
+                    <Star key={`empty-${i}`} size={10} className="text-zinc-200" />
                 ))}
-                <span className="ml-1.5 text-xs font-bold text-zinc-700">{score.toFixed(1)}</span>
+                <span className="ml-1.5 text-[10px] font-bold text-zinc-600">{score.toFixed(1)}</span>
             </div>
         );
     };
@@ -314,21 +326,28 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                                                 <h4 className="font-bold text-zinc-900 text-lg leading-tight mb-1">{prod.name}</h4>
                                                 <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">{prod.brand}</p>
                                             </div>
-                                            <button 
-                                                onClick={() => handleSave(prod)}
-                                                disabled={isSaved}
-                                                className={`w-8 h-8 rounded-full flex items-center justify-center border transition-all ${isSaved ? 'bg-rose-50 border-rose-100 text-rose-500' : 'bg-white border-zinc-200 text-zinc-400 hover:text-rose-500 hover:border-rose-200'}`}
-                                            >
-                                                <Heart size={16} fill={isSaved ? "currentColor" : "none"} />
-                                            </button>
                                         </div>
                                         <p className="text-xs text-zinc-600 font-medium leading-relaxed mb-4 border-l-2 border-teal-100 pl-3">
                                             {prod.reason}
                                         </p>
-                                        <div className="flex items-center gap-3">
-                                            {renderStars(prod.rating)}
-                                            <div className="w-px h-3 bg-zinc-200"></div>
-                                            <span className="text-xs font-bold text-zinc-900">{prod.price}</span>
+                                        
+                                        <div className="flex items-center justify-between mt-4 pt-3 border-t border-zinc-50">
+                                            <div className="flex items-center gap-3">
+                                                {renderStars(prod.rating)}
+                                                <div className="w-px h-3 bg-zinc-200"></div>
+                                                <span className="text-xs font-bold text-zinc-900">{prod.price}</span>
+                                            </div>
+                                            <button 
+                                                onClick={() => handleSave(prod)}
+                                                disabled={isSaved}
+                                                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wide transition-all active:scale-95 ${isSaved ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-zinc-900 text-white shadow-lg shadow-zinc-900/10 hover:bg-zinc-800'}`}
+                                            >
+                                                {isSaved ? (
+                                                    <>Saved <Check size={12} strokeWidth={3} /></>
+                                                ) : (
+                                                    <>Add to Wishlist <Bookmark size={12} strokeWidth={2.5} /></>
+                                                )}
+                                            </button>
                                         </div>
                                     </div>
                                 );

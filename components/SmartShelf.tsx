@@ -109,15 +109,25 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
 
   // --- DYNAMIC INSIGHT LOGIC ---
   const activeInsight = useMemo(() => {
-      // 1. If looking at the "Ghost Card" (Add New)
-      if (activeTab === 'ROUTINE' && activeIndex === displayedProducts.length) {
-          return {
-              title: 'Expand Routine',
-              text: 'Scan a new product to check for conflicts.',
-              color: 'text-zinc-600',
-              bg: 'from-zinc-100/50',
-              icon: <ScanBarcode size={16} strokeWidth={2.5} />
-          };
+      // 1. If looking at the "Ghost Card" (Add New / Routine Builder)
+      if (activeIndex === displayedProducts.length) {
+          if (activeTab === 'ROUTINE') {
+              return {
+                  title: 'Expand Routine',
+                  text: 'Scan a new product to check for conflicts.',
+                  color: 'text-zinc-600',
+                  bg: 'from-zinc-100/50',
+                  icon: <ScanBarcode size={16} strokeWidth={2.5} />
+              };
+          } else {
+              return {
+                  title: 'Find Matches',
+                  text: 'Use AI to find products that perfectly match your skin profile.',
+                  color: 'text-indigo-600',
+                  bg: 'from-indigo-50/50',
+                  icon: <Sparkles size={16} strokeWidth={2.5} />
+              };
+          }
       }
 
       // 2. If looking at a real product
@@ -199,7 +209,8 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
               const rawIndex = (centerPoint - startOffset) / itemFullWidth;
               const index = Math.round(rawIndex);
               
-              const maxIndex = activeTab === 'ROUTINE' ? displayedProducts.length : displayedProducts.length - 1;
+              // Allow index to go one past the length for the "Add" card
+              const maxIndex = displayedProducts.length; 
               const safeIndex = Math.max(0, Math.min(maxIndex, index));
               
               if (safeIndex !== activeIndex) {
@@ -364,14 +375,6 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
        {/* 3D CAROUSEL */}
        <div className="flex-1 flex flex-col justify-center relative perspective-800 overflow-hidden z-10 -mt-4">
            
-           {activeTab === 'WISHLIST' && displayedProducts.length === 0 && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest flex items-center gap-2">
-                        <ShoppingBag size={14} /> Wishlist Empty
-                    </p>
-                </div>
-           )}
-
            <div 
                 ref={scrollContainerRef}
                 onTouchStart={(e) => e.stopPropagation()}
@@ -461,7 +464,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                    );
                })}
 
-               {/* VISIBLE 'ADD NEW' CARD */}
+               {/* VISIBLE 'ADD NEW' CARD FOR ROUTINE */}
                {activeTab === 'ROUTINE' && (
                    <div 
                         className="shrink-0 snap-center relative"
@@ -479,6 +482,28 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                                <ScanBarcode size={48} strokeWidth={1} />
                            </div>
                            <span className="font-bold text-xs uppercase tracking-[0.2em] text-zinc-400 group-hover:text-teal-600 transition-colors">Scan Product</span>
+                       </button>
+                   </div>
+               )}
+
+               {/* VISIBLE 'FIND MATCHES' CARD FOR WISHLIST */}
+               {activeTab === 'WISHLIST' && (
+                   <div 
+                        className="shrink-0 snap-center relative"
+                        style={{ 
+                            width: CARD_WIDTH,
+                            marginRight: CARD_GAP,
+                            ...getCardStyle(displayedProducts.length)
+                        }}
+                   >
+                       <button 
+                            onClick={onOpenRoutineBuilder}
+                            className="w-full h-[440px] rounded-[2rem] border-2 border-dashed border-zinc-300 bg-white/40 backdrop-blur-md flex flex-col items-center justify-center gap-6 text-zinc-400 hover:bg-white/60 hover:border-indigo-300 transition-all duration-300 group shadow-sm hover:shadow-md"
+                       >
+                           <div className="w-24 h-24 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform text-zinc-300 bg-white shadow-sm border border-zinc-100 group-hover:text-indigo-500 group-hover:border-indigo-100">
+                               <Sparkles size={40} strokeWidth={1} />
+                           </div>
+                           <span className="font-bold text-xs uppercase tracking-[0.2em] text-zinc-400 group-hover:text-indigo-600 transition-colors">AI Recommendations</span>
                        </button>
                    </div>
                )}
