@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, UserProfile } from '../types';
-import { Plus, Droplet, Sun, Zap, Sparkles, Palette, DollarSign, Edit2, Save, Award, ShoppingBag, ArrowRight, Lightbulb, Clock, Trash2, RotateCcw, ScanBarcode, ChevronRight, LayoutGrid, Heart, ChevronDown } from 'lucide-react';
+import { Plus, Droplet, Sun, Zap, Sparkles, Palette, DollarSign, Edit2, Save, Award, ShoppingBag, ArrowRight, Lightbulb, Clock, Trash2, RotateCcw, ScanBarcode, ChevronDown } from 'lucide-react';
 import { auditProduct, analyzeShelfHealth } from '../services/geminiService';
 
 interface SmartShelfProps {
@@ -15,8 +15,8 @@ interface SmartShelfProps {
   onOpenRoutineBuilder?: () => void;
 }
 
-const CARD_WIDTH = 280; // Optimized width for phone screens
-const CARD_GAP = 20;    // Increased gap slightly for better separation
+const CARD_WIDTH = 280; 
+const CARD_GAP = 20;    
 
 const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onScanNew, onUpdateProduct, userProfile, onMoveToShelf, onRemoveFromWishlist, onOpenRoutineBuilder }) => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -26,7 +26,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
   
   // 3D Scroll State
   const [scrollX, setScrollX] = useState(0);
-  const [isScrolling, setIsScrolling] = useState(false); // New state for scroll detection
+  const [isScrolling, setIsScrolling] = useState(false);
   const [containerWidth, setContainerWidth] = useState(window.innerWidth);
   
   // Insight Interaction State
@@ -37,7 +37,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
   const [tempPrice, setTempPrice] = useState<string>('');
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null); // Ref for debounce timer
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const shelfIQ = useMemo(() => analyzeShelfHealth(products, userProfile), [products, userProfile]);
 
@@ -49,6 +49,64 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
       }
   }, [products, activeTab, userProfile.wishlist]);
 
+  // --- CONTEXTUAL USAGE LOGIC ---
+  const getContextualUsageGuide = (product: Product, shelf: Product[]) => {
+      const type = product.type;
+      // Filter out self
+      const others = shelf.filter(p => p.id !== product.id);
+      const otherTypes = new Set(others.map(p => p.type));
+      const ingredients = (product.ingredients || []).join(' ').toLowerCase();
+      
+      // 1. Conflict / Timing Checks
+      const hasRetinol = ingredients.includes('retinol') || ingredients.includes('tretinoin');
+      const hasAcids = ingredients.includes('acid') || ingredients.includes('salicylic') || ingredients.includes('glycolic');
+      const hasVitC = ingredients.includes('vitamin c') || ingredients.includes('ascorbic');
+
+      const shelfHasRetinol = others.some(p => (p.ingredients || []).join(' ').toLowerCase().includes('retinol'));
+      const shelfHasAcids = others.some(p => (p.ingredients || []).join(' ').toLowerCase().includes('acid'));
+
+      if (hasRetinol) {
+          if (shelfHasAcids) return "Use only at night. **Alternate nights** with your exfoliating acids to avoid irritation.";
+          return "Use only at night. Apply after cleansing and before moisturizer. Start 2-3 times a week.";
+      }
+
+      if (hasAcids) {
+          if (shelfHasRetinol) return "Use mainly at night. **Do not use on the same night** as your Retinol.";
+          return "Use 2-3 times a week. Over-exfoliation damages the skin barrier.";
+      }
+
+      if (hasVitC) {
+          if (shelfHasRetinol) return "Excellent for **Morning** use under SPF. Let your Retinol work at night.";
+          return "Apply in the morning on clean, dry skin to boost sun protection.";
+      }
+
+      // 2. Routine Order Checks
+      if (type === 'CLEANSER') {
+          if (otherTypes.has('CLEANSER')) return "Use as your daily wash. If you double cleanse, use this second.";
+          return "Use AM and PM as the essential first step to remove impurities.";
+      }
+
+      if (type === 'TONER') {
+          return "Apply immediately after cleansing while skin is damp to boost absorption of serums.";
+      }
+
+      if (type === 'SERUM') {
+          if (otherTypes.has('MOISTURIZER')) return "Apply this active layer **before** your moisturizer for deep penetration.";
+          return "Apply after cleansing. Follow with a moisturizer to seal it in.";
+      }
+
+      if (type === 'MOISTURIZER') {
+          if (otherTypes.has('SPF')) return "Use AM and PM. In the morning, **wait 2 mins** before applying SPF.";
+          return "Apply as your final step at night to lock in hydration.";
+      }
+
+      if (type === 'SPF') {
+          return "The most important step. Apply generously as the **very last step** every morning.";
+      }
+
+      return product.usageTips || "Apply after lighter serums and before heavier creams.";
+  };
+
   // --- DYNAMIC INSIGHT LOGIC ---
   const activeInsight = useMemo(() => {
       // 1. If looking at the "Ghost Card" (Add New)
@@ -57,6 +115,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
               title: 'Expand Routine',
               text: 'Scan a new product to check for conflicts.',
               color: 'text-zinc-600',
+              bg: 'from-zinc-100/50',
               icon: <ScanBarcode size={16} strokeWidth={2.5} />
           };
       }
@@ -74,6 +133,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
               title: 'Caution',
               text: critical.reason,
               color: 'text-rose-600',
+              bg: 'from-rose-50/60',
               icon: <Trash2 size={16} strokeWidth={2.5} />
           };
       }
@@ -85,6 +145,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
               title: 'Note',
               text: caution.reason,
               color: 'text-amber-600',
+              bg: 'from-amber-50/60',
               icon: <Lightbulb size={16} strokeWidth={2.5} />
           };
       }
@@ -95,6 +156,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
               title: 'Great Match',
               text: `This ${product.type.toLowerCase()} aligns well with your skin profile.`,
               color: 'text-emerald-600',
+              bg: 'from-emerald-50/60',
               icon: <Sparkles size={16} strokeWidth={2.5} />
           };
       }
@@ -104,6 +166,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
           title: 'Product Info',
           text: product.usageTips || 'Tap "View Details" to see full ingredient analysis.',
           color: 'text-zinc-500',
+          bg: 'from-zinc-50/60',
           icon: <Lightbulb size={16} strokeWidth={2.5} />
       };
 
@@ -121,18 +184,14 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
       if (!container) return;
 
       const handleScroll = () => {
-          // Detect scrolling start
           setIsScrolling(true);
-          
-          // Debounce to detect scroll stop
           if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
           scrollTimeoutRef.current = setTimeout(() => {
               setIsScrolling(false);
-          }, 200); // Increased timeout slightly for smoother stop detection
+          }, 200);
 
           requestAnimationFrame(() => {
               setScrollX(container.scrollLeft);
-              
               const itemFullWidth = CARD_WIDTH + CARD_GAP;
               const centerPoint = container.scrollLeft + (container.clientWidth / 2);
               const startOffset = (container.clientWidth / 2) + (CARD_WIDTH / 2);
@@ -145,49 +204,33 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
               
               if (safeIndex !== activeIndex) {
                   setActiveIndex(safeIndex);
-                  setIsInsightExpanded(false); // Reset expansion on scroll
+                  setIsInsightExpanded(false); 
               }
           });
       };
 
       container.addEventListener('scroll', handleScroll);
-      handleScroll(); // Init to set positions
-      
+      handleScroll(); 
       return () => {
           container.removeEventListener('scroll', handleScroll);
           if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
       };
   }, [displayedProducts, activeTab, activeIndex]);
 
-  // --- THE IMPROVED 3D ENGINE ---
   const getCardStyle = (index: number) => {
       const itemFullWidth = CARD_WIDTH + CARD_GAP;
-      
-      // Calculate centers
       const viewportCenter = scrollX + (containerWidth / 2);
       const visualItemCenter = (containerWidth / 2) + (index * itemFullWidth) + (CARD_WIDTH / 2);
-      
-      // Distance 
       const distance = (viewportCenter - visualItemCenter) / itemFullWidth;
       const absDistance = Math.abs(distance);
       
-      // --- PHYSICS TWEAKS ---
-      
-      // 1. ROTATION:
       let rotateY = 0;
-      // WIDER DEADZONE: If within 15% of center, force FLAT (0deg)
       if (absDistance > 0.15) { 
-          // Inverse rotation for "cylinder" effect
-          // If item is to the right (positive distance), rotate Y negative (face left)
           rotateY = distance * -20; 
           rotateY = Math.max(-45, Math.min(45, rotateY));
       }
 
-      // 2. SCALE
       const scale = Math.max(0.85, 1 - (absDistance * 0.15));
-
-      // 3. DEPTH & OPACITY
-      // Push back Z significantly to emphasize the front card
       const translateZ = Math.min(0, -absDistance * 150);
       const opacity = Math.max(0.4, 1 - (absDistance * 0.5));
       const blur = absDistance > 0.5 ? Math.min(8, (absDistance - 0.5) * 8) : 0;
@@ -253,28 +296,37 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
       }
   }
 
+  // Helper function to render formatted text with bolding
+  const renderFormattedText = (text: string) => {
+      if (!text) return null;
+      const parts = text.split(/(\*\*.*?\*\*)/g);
+      return parts.map((part, i) => {
+          if (part.startsWith('**') && part.endsWith('**')) {
+              return <strong key={i} className="font-bold text-indigo-900">{part.slice(2, -2)}</strong>;
+          }
+          return <span key={i}>{part}</span>;
+      });
+  };
+
   return (
     <div className="min-h-screen w-full relative flex flex-col font-sans overflow-hidden pb-32 bg-zinc-50">
        
-       {/* AMBIENT BACKGROUND ELEMENTS (Updated to White/Grey Shades) */}
        <div className="absolute top-[20%] left-[-20%] w-[500px] h-[500px] bg-zinc-300/30 rounded-full blur-[100px] pointer-events-none"></div>
        <div className="absolute top-[40%] right-[-20%] w-[600px] h-[600px] bg-slate-200/40 rounded-full blur-[120px] pointer-events-none"></div>
        <div className="absolute top-[10%] right-[10%] w-[300px] h-[300px] bg-white rounded-full blur-3xl opacity-80 pointer-events-none"></div>
 
-       {/* --- HEADER: CLEAN TYPOGRAPHY --- */}
+       {/* --- HEADER --- */}
        <div className="pt-safe-top px-6 z-20 relative">
           <div className="flex justify-between items-end mb-6 pt-4">
               <div>
                   <h2 className="text-4xl font-thin text-zinc-900 tracking-tighter leading-none mb-1">
                       Smart Shelf
                   </h2>
-                  {/* Cleaned up header: removed circle, changed color to teal */}
                   <p className="text-xs text-teal-500 font-bold uppercase tracking-widest opacity-90 pl-0.5">
                       Digital Vanity
                   </p>
               </div>
               
-              {/* GRADE BADGE */}
               {activeTab === 'ROUTINE' && (
                   <button 
                     onClick={() => setShowGradingInfo(true)}
@@ -286,7 +338,6 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
               )}
           </div>
 
-          {/* TABS & STATS */}
           <div className="flex items-center justify-between">
                <div className="inline-flex bg-white/60 backdrop-blur-md p-1 rounded-full border border-zinc-200/50 shadow-sm">
                    <button 
@@ -310,10 +361,9 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
           </div>
        </div>
 
-       {/* 3D IMMERSIVE CAROUSEL */}
+       {/* 3D CAROUSEL */}
        <div className="flex-1 flex flex-col justify-center relative perspective-800 overflow-hidden z-10 -mt-4">
            
-           {/* Wishlist Empty State (Minimal) */}
            {activeTab === 'WISHLIST' && displayedProducts.length === 0 && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
                     <p className="text-zinc-400 text-xs font-bold uppercase tracking-widest flex items-center gap-2">
@@ -334,7 +384,6 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                     transformStyle: 'preserve-3d'
                 }} 
            >
-               {/* Padding Spacer */}
                <div className="shrink-0" style={{ width: 0 }} />
 
                {displayedProducts.map((p, i) => {
@@ -370,20 +419,15 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                                         : 'bg-white/5 backdrop-blur-md border-white/10 opacity-50 hover:opacity-80 scale-95'}
                                 `}
                            >
-                                {/* High-End Matte Texture (Noise Overlay) */}
                                 <div className="absolute inset-0 opacity-20 pointer-events-none mix-blend-overlay bg-[url('https://www.transparenttextures.com/patterns/stardust.png')]"></div>
                                 
-                                {/* Vertical Type Label (Left Edge) */}
                                 <div className="absolute left-6 top-1/2 -translate-y-1/2 -ml-3 flex items-center justify-center h-full w-4 pointer-events-none opacity-40">
                                      <span className="text-[10px] font-black uppercase tracking-[0.3em] -rotate-90 whitespace-nowrap text-zinc-800">
                                          {p.type}
                                      </span>
                                 </div>
 
-                                {/* Content Container (Pushed right to accommodate vertical text) */}
                                 <div className="flex-1 flex flex-col w-full pl-6 relative z-10">
-                                    
-                                    {/* Top: Brand & Score */}
                                     <div className="flex justify-between items-start w-full mb-4">
                                         <div className="text-left">
                                             <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 truncate max-w-[120px]">{p.brand || 'Brand'}</p>
@@ -395,7 +439,6 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                                         </div>
                                     </div>
 
-                                    {/* Middle: Icon (Embossed Look) */}
                                     <div className="flex-1 flex items-center justify-center py-2">
                                         <div className={`w-32 h-32 rounded-full flex items-center justify-center shadow-inner ${isActive ? 'bg-white/20 shadow-[inset_0_2px_4px_rgba(255,255,255,0.3)]' : 'bg-transparent'} backdrop-blur-sm transition-all duration-500 ring-1 ring-white/10`}>
                                             <div className={`text-teal-500 opacity-100 drop-shadow-sm transition-transform duration-500 ${isActive ? 'scale-110' : 'scale-100'}`}>
@@ -404,13 +447,10 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                                         </div>
                                     </div>
 
-                                    {/* Bottom: Name & Action */}
                                     <div className="text-left mt-4">
                                         <h3 className="font-medium text-lg text-zinc-800 leading-tight mb-4 line-clamp-2 pr-2 drop-shadow-sm">
                                             {p.name}
                                         </h3>
-                                        
-                                        {/* Action Hint */}
                                         <div className={`flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest transition-all ${isActive ? 'text-zinc-900 translate-x-0' : 'text-zinc-400 -translate-x-2 opacity-0'}`}>
                                             View Details <ArrowRight size={12} />
                                         </div>
@@ -421,7 +461,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                    );
                })}
 
-               {/* ADD NEW CARD (Dashed Matte Look - UPDATED FOR VISIBILITY) */}
+               {/* VISIBLE 'ADD NEW' CARD */}
                {activeTab === 'ROUTINE' && (
                    <div 
                         className="shrink-0 snap-center relative"
@@ -447,7 +487,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
            </div>
        </div>
 
-       {/* ACTIVE PRODUCT INSIGHT (HUD) - EXPANDABLE & IMMERSIVE */}
+       {/* ACTIVE INSIGHT (HUD) - With Fixes */}
        <div 
            className={`w-full flex justify-center mb-4 z-20 relative px-6 transition-all duration-700 ease-out ${
                isScrolling ? 'opacity-0 translate-y-4 pointer-events-none scale-95' : 'opacity-100 translate-y-0 scale-100'
@@ -472,8 +512,6 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                            <h3 className={`text-[10px] font-bold uppercase tracking-widest ${activeInsight.color} truncate flex items-center gap-2`}>
                                {activeInsight.title}
                            </h3>
-                           
-                           {/* COLLAPSED VIEW TEXT (Subtle hint) */}
                            {!isInsightExpanded && (
                                <p className="text-xs font-medium text-zinc-500 truncate mt-0.5">
                                    Tap to view analysis
@@ -481,15 +519,14 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                            )}
                        </div>
 
-                       {/* Expand/Collapse Indicator */}
                        <div className={`w-6 h-6 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-400 transition-transform duration-500 ${isInsightExpanded ? 'rotate-180 bg-zinc-200' : 'rotate-0'}`}>
                            <ChevronDown size={14} strokeWidth={2} />
                        </div>
                    </div>
 
-                   {/* EXPANDED CONTENT AREA */}
+                   {/* FIX: Z-Index for Text visibility */}
                    <div 
-                        className={`transition-all duration-500 ease-in-out overflow-hidden ${isInsightExpanded ? 'max-h-40 opacity-100 mt-4' : 'max-h-0 opacity-0 mt-0'}`}
+                        className={`transition-all duration-500 ease-in-out overflow-hidden relative z-10 ${isInsightExpanded ? 'max-h-40 opacity-100 mt-4' : 'max-h-0 opacity-0 mt-0'}`}
                    >
                         <p className="text-sm font-medium text-zinc-600 leading-relaxed border-l-2 border-zinc-100 pl-3">
                             {activeInsight.text}
@@ -499,15 +536,15 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                         </div>
                    </div>
                    
-                   {/* Background Glow Effect */}
-                   <div className={`absolute inset-0 bg-gradient-to-r ${activeInsight.color.includes('rose') ? 'from-rose-50/50' : activeInsight.color.includes('emerald') ? 'from-emerald-50/50' : 'from-zinc-50/50'} to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none`}></div>
+                   {/* FIX: Softer Gradient, Z-0 */}
+                   <div className={`absolute inset-0 bg-gradient-to-br ${activeInsight.bg || 'from-zinc-50/40'} to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none z-0`}></div>
                </button>
            ) : (
                <div style={{ width: CARD_WIDTH, height: '64px' }} /> 
            )}
        </div>
 
-       {/* GRADING INFO MODAL (Darkened Glass) */}
+       {/* GRADING MODAL */}
        {showGradingInfo && (
             <div 
                 className="fixed inset-0 z-[70] flex items-center justify-center p-6 bg-black/60 backdrop-blur-md animate-in fade-in duration-200" 
@@ -548,20 +585,26 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
             </div>
        )}
 
-       {/* PRODUCT DETAIL MODAL (Light Glass Overlay to match Report) */}
+       {/* PRODUCT DETAIL MODAL */}
        {selectedProduct && (
            <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-6 bg-black/60 backdrop-blur-xl animate-in fade-in duration-300">
                 <div className="w-full max-w-md bg-white/90 backdrop-blur-2xl border border-white/20 rounded-t-[2.5rem] sm:rounded-[2.5rem] h-[90vh] sm:h-auto sm:max-h-[90vh] relative shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-8 sm:slide-in-from-bottom-0 sm:zoom-in-95">
                     
-                    {/* Detail Header */}
+                    {/* Header with FIX: Larger Back Button */}
                     <div className="bg-white/50 px-6 pt-8 pb-6 rounded-b-[2.5rem] shadow-sm z-10 shrink-0 relative overflow-hidden border-b border-white/30">
-                        <button onClick={() => { setSelectedProduct(null); setIsEditingPrice(false); }} className="absolute top-6 left-6 p-2 bg-white/60 rounded-full text-zinc-600 hover:bg-white transition-colors z-10 shadow-sm border border-zinc-100">
+                        <button 
+                            onClick={(e) => { 
+                                e.stopPropagation();
+                                setSelectedProduct(null); 
+                                setIsEditingPrice(false); 
+                            }} 
+                            className="absolute top-5 left-5 w-12 h-12 flex items-center justify-center bg-white/80 backdrop-blur-md rounded-full text-zinc-600 hover:bg-white hover:scale-105 transition-all z-50 shadow-sm border border-zinc-100 cursor-pointer active:scale-95"
+                        >
                             <RotateCcw size={20} className="rotate-180" />
                         </button>
                         
                         <div className="flex flex-col items-center text-center relative z-10 mt-2">
                              <div className={`w-24 h-24 rounded-[2rem] bg-white flex items-center justify-center mb-4 shadow-xl border border-zinc-100`}>
-                                 {/* Colored icon inside white box for detail view */}
                                  {getProductIcon(selectedProduct.type, 40, 'text-zinc-800')}
                              </div>
                              <h2 className="text-2xl font-black text-zinc-900 leading-tight mb-1 max-w-xs tracking-tight">{selectedProduct.name}</h2>
@@ -597,16 +640,14 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-6 space-y-4 pb-safe bg-white/40">
-                        {/* Usage Tip (Contextual) */}
+                        
+                        {/* CONTEXTUAL USAGE GUIDE (HOLISTIC) */}
                         <div className="bg-indigo-50/80 p-5 rounded-[1.5rem] border border-indigo-100">
                             <h3 className="text-xs font-bold text-indigo-900 uppercase tracking-widest mb-2 flex items-center gap-2">
                                 <Clock size={14} /> Usage Guide
                             </h3>
                             <p className="text-xs text-indigo-800 font-medium leading-relaxed">
-                                {selectedProduct.type === 'CLEANSER' ? "Use AM and PM as the first step." : 
-                                 selectedProduct.type === 'SPF' ? "Apply generously every morning as the last step." :
-                                 selectedProduct.type === 'RETINOL' ? "Use only at night. Do not mix with acids." :
-                                 "Apply after cleansing and before heavier creams."}
+                                {renderFormattedText(getContextualUsageGuide(selectedProduct, displayedProducts))}
                             </p>
                         </div>
 
