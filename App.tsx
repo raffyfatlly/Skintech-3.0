@@ -205,17 +205,60 @@ const App: React.FC = () => {
       persistState(updatedUser, shelf);
   };
 
-  const handleAddToWishlist = (product: Product) => {
+  const handleAddToWishlist = async (product: Product) => {
       if (!userProfile) return;
       const currentWishlist = userProfile.wishlist || [];
       if (currentWishlist.some(p => p.name === product.name)) {
           setNotification({ type: 'GENERIC', title: 'Already Saved', description: 'This product is already in your wishlist.' });
           return;
       }
+      
+      // 1. Optimistic Save (Immediate UI Update)
       const newWishlist = [...currentWishlist, product];
       const updatedUser = { ...userProfile, wishlist: newWishlist };
       persistState(updatedUser, shelf);
       setNotification({ type: 'GENERIC', title: 'Saved!', description: 'Product added to wishlist.' });
+
+      // 2. Background Enrichment (If ingredients are missing)
+      if (product.ingredients.length === 0) {
+          setBackgroundTask({ label: `Analyzing ${product.name}...` });
+          try {
+              const shelfIngredients = shelf.flatMap(p => p.ingredients).slice(0, 50);
+              const enriched = await analyzeProductFromSearch(
+                  product.name, 
+                  updatedUser, 
+                  undefined, 
+                  product.brand,
+                  shelfIngredients,
+                  userLocation
+              );
+
+              // Merge Enrichment with existing ID
+              const finalProduct = { ...enriched, id: product.id, dateScanned: product.dateScanned };
+
+              // Functional Update to Ensure Fresh State
+              setUserProfile(prev => {
+                  if (!prev) return null;
+                  const currentList = prev.wishlist || [];
+                  // Only update if it still exists
+                  const listWithEnriched = currentList.map(p => p.id === product.id ? finalProduct : p);
+                  const newProfileState = { ...prev, wishlist: listWithEnriched };
+                  
+                  // Save to storage safely
+                  setShelf(currentShelf => {
+                      saveUserData(newProfileState, currentShelf);
+                      return currentShelf;
+                  });
+                  
+                  return newProfileState;
+              });
+
+          } catch (e) {
+              console.error("Wishlist Enrichment Failed", e);
+          } finally {
+              setBackgroundTask(null);
+          }
+      }
   };
 
   const handleRemoveFromWishlist = (id: string) => {
