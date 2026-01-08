@@ -435,6 +435,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                    const score = Number(audit.adjustedScore);
                    const isActive = i === activeIndex;
                    const dynamicStyle = getCardStyle(i);
+                   const hasAuditFlag = p.risks?.some(r => r.ingredient === 'AI AUDIT');
 
                    return (
                        <div 
@@ -465,6 +466,14 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                            >
                                 <div className="absolute inset-0 opacity-20 pointer-events-none mix-blend-overlay bg-[url('https://www.transparenttextures.com/patterns/stardust.png')]"></div>
                                 
+                                {hasAuditFlag && (
+                                    <div className="absolute top-6 right-6 z-20 animate-pulse">
+                                        <div className="w-8 h-8 bg-rose-50 rounded-full flex items-center justify-center border border-rose-100 shadow-md text-rose-500">
+                                            <AlertOctagon size={16} />
+                                        </div>
+                                    </div>
+                                )}
+
                                 <div className="absolute left-6 top-1/2 -translate-y-1/2 -ml-3 flex items-center justify-center h-full w-4 pointer-events-none opacity-40">
                                      <span className="text-[10px] font-black uppercase tracking-[0.3em] -rotate-90 whitespace-nowrap text-zinc-800">
                                          {p.type}

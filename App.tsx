@@ -507,15 +507,21 @@ const App: React.FC = () => {
       }
       
       const updatedUser: UserProfile = {
-          ...userProfile, hasScannedFace: true, biometrics: metrics, faceImage: image,
+          ...userProfile, 
+          hasScannedFace: true, 
+          biometrics: metrics, 
+          faceImage: image,
           scanHistory: [...(userProfile.scanHistory || []), metrics],
           simulatedSkinImage: null,
-          usage: userProfile.usage || { buyingAssistantViews: 0, manualScans: 0, routineGenerations: 0, simulatorViews: 0 }
+          usage: userProfile.usage || { buyingAssistantViews: 0, manualScans: 0, routineGenerations: 0, simulatorViews: 0 },
+          lastUpdated: Date.now()
       };
       
-      // We will persist state AFTER the audit check below to include shelf changes
-      // persistState(updatedUser, shelf); 
+      // CRITICAL: Update state and storage IMMEDIATELY so the dashboard shows new results instantly
+      setUserProfile(updatedUser);
+      saveUserData(updatedUser, shelf); 
       setCurrentView(AppView.DASHBOARD);
+      
       setTimeout(() => setActiveGuide('SCAN'), 5000);
 
       // --- TRIGGER SHELF AUDIT (UPDATED with ASYNC AI & PERSISTENCE) ---
@@ -524,6 +530,7 @@ const App: React.FC = () => {
 
           (async () => {
               try {
+                  // Wait a moment for UX smoothness
                   await new Promise(r => setTimeout(r, 2000));
                   const report = await runPostScanAudit(updatedUser, shelf);
                   
@@ -582,21 +589,15 @@ const App: React.FC = () => {
                   }
                   
                   // Save EVERYTHING (User + Updated Shelf)
-                  setUserProfile(updatedUser);
+                  // We re-update user profile here just in case, but rely on the shelf update
                   setShelf(finalShelf);
                   saveUserData(updatedUser, finalShelf);
 
               } catch (e) {
                   console.error("Audit failed", e);
                   setBackgroundTask(null);
-                  // Fallback save if audit crashes
-                  setUserProfile(updatedUser);
-                  saveUserData(updatedUser, shelf);
               }
           })();
-      } else {
-          // No shelf to audit, just save user
-          persistState(updatedUser, shelf);
       }
   };
 
