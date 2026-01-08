@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, UserProfile } from '../types';
-import { Plus, Droplet, Sun, Zap, Sparkles, Palette, DollarSign, Edit2, Save, Award, ShoppingBag, ArrowRight, Lightbulb, Clock, Trash2, RotateCcw, ScanBarcode, ChevronRight, LayoutGrid, Heart } from 'lucide-react';
+import { Plus, Droplet, Sun, Zap, Sparkles, Palette, DollarSign, Edit2, Save, Award, ShoppingBag, ArrowRight, Lightbulb, Clock, Trash2, RotateCcw, ScanBarcode, ChevronRight, LayoutGrid, Heart, ChevronDown } from 'lucide-react';
 import { auditProduct, analyzeShelfHealth } from '../services/geminiService';
 
 interface SmartShelfProps {
@@ -29,6 +29,9 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
   const [isScrolling, setIsScrolling] = useState(false); // New state for scroll detection
   const [containerWidth, setContainerWidth] = useState(window.innerWidth);
   
+  // Insight Interaction State
+  const [isInsightExpanded, setIsInsightExpanded] = useState(false);
+
   // Price Editing State
   const [isEditingPrice, setIsEditingPrice] = useState(false);
   const [tempPrice, setTempPrice] = useState<string>('');
@@ -142,6 +145,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
               
               if (safeIndex !== activeIndex) {
                   setActiveIndex(safeIndex);
+                  setIsInsightExpanded(false); // Reset expansion on scroll
               }
           });
       };
@@ -394,7 +398,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                                     {/* Middle: Icon (Embossed Look) */}
                                     <div className="flex-1 flex items-center justify-center py-2">
                                         <div className={`w-32 h-32 rounded-full flex items-center justify-center shadow-inner ${isActive ? 'bg-white/20 shadow-[inset_0_2px_4px_rgba(255,255,255,0.3)]' : 'bg-transparent'} backdrop-blur-sm transition-all duration-500 ring-1 ring-white/10`}>
-                                            <div className={`text-zinc-700 opacity-80 drop-shadow-sm transition-transform duration-500 ${isActive ? 'scale-110' : 'scale-100'}`}>
+                                            <div className={`text-teal-500 opacity-100 drop-shadow-sm transition-transform duration-500 ${isActive ? 'scale-110' : 'scale-100'}`}>
                                                  {getProductIcon(p.type, 64, "currentColor")}
                                             </div>
                                         </div>
@@ -443,31 +447,63 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
            </div>
        </div>
 
-       {/* ACTIVE PRODUCT INSIGHT (HUD) - Refined & Smoothed */}
-       {/* Uses CSS transition for visibility (opacity/translate) instead of mounting/unmounting */}
+       {/* ACTIVE PRODUCT INSIGHT (HUD) - EXPANDABLE & IMMERSIVE */}
        <div 
-           className={`w-full flex justify-center mb-4 z-10 relative px-6 transition-all duration-500 ease-out ${
+           className={`w-full flex justify-center mb-4 z-20 relative px-6 transition-all duration-700 ease-out ${
                isScrolling ? 'opacity-0 translate-y-4 pointer-events-none scale-95' : 'opacity-100 translate-y-0 scale-100'
            }`}
        >
            {activeInsight ? (
-               <div 
+               <button 
+                   onClick={() => setIsInsightExpanded(!isInsightExpanded)}
                    style={{ width: CARD_WIDTH }}
-                   className="bg-white/80 backdrop-blur-xl border border-white/40 rounded-2xl p-4 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.08)] flex items-center gap-4 ring-1 ring-white/60"
+                   className={`
+                        bg-white/80 backdrop-blur-xl border border-white/60 rounded-[1.5rem] shadow-[0_15px_40px_-10px_rgba(0,0,0,0.1)] 
+                        relative overflow-hidden transition-all duration-500 cubic-bezier(0.19, 1, 0.22, 1) text-left group
+                        ${isInsightExpanded ? 'p-6' : 'p-3 hover:bg-white/90 active:scale-[0.98]'}
+                   `}
                >
-                   <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-white shadow-sm border border-zinc-50 ${activeInsight.color}`}>
-                       {activeInsight.icon}
+                   <div className="flex items-center gap-4 relative z-10">
+                       <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-white shadow-sm border border-zinc-50 ${activeInsight.color}`}>
+                           {activeInsight.icon}
+                       </div>
+                       
+                       <div className="flex-1 min-w-0">
+                           <h3 className={`text-[10px] font-bold uppercase tracking-widest ${activeInsight.color} truncate flex items-center gap-2`}>
+                               {activeInsight.title}
+                           </h3>
+                           
+                           {/* COLLAPSED VIEW TEXT (Subtle hint) */}
+                           {!isInsightExpanded && (
+                               <p className="text-xs font-medium text-zinc-500 truncate mt-0.5">
+                                   Tap to view analysis
+                               </p>
+                           )}
+                       </div>
+
+                       {/* Expand/Collapse Indicator */}
+                       <div className={`w-6 h-6 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-400 transition-transform duration-500 ${isInsightExpanded ? 'rotate-180 bg-zinc-200' : 'rotate-0'}`}>
+                           <ChevronDown size={14} strokeWidth={2} />
+                       </div>
                    </div>
-                   <div className="flex-1 min-w-0">
-                       <h3 className={`text-[10px] font-bold uppercase tracking-widest mb-0.5 ${activeInsight.color} truncate`}>{activeInsight.title}</h3>
-                       <p className="text-xs font-medium text-zinc-600 leading-snug line-clamp-2">
-                           {activeInsight.text}
-                       </p>
+
+                   {/* EXPANDED CONTENT AREA */}
+                   <div 
+                        className={`transition-all duration-500 ease-in-out overflow-hidden ${isInsightExpanded ? 'max-h-40 opacity-100 mt-4' : 'max-h-0 opacity-0 mt-0'}`}
+                   >
+                        <p className="text-sm font-medium text-zinc-600 leading-relaxed border-l-2 border-zinc-100 pl-3">
+                            {activeInsight.text}
+                        </p>
+                        <div className="mt-4 flex items-center gap-2 text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
+                            <Sparkles size={10} className="text-teal-500" /> AI Verdict
+                        </div>
                    </div>
-               </div>
+                   
+                   {/* Background Glow Effect */}
+                   <div className={`absolute inset-0 bg-gradient-to-r ${activeInsight.color.includes('rose') ? 'from-rose-50/50' : activeInsight.color.includes('emerald') ? 'from-emerald-50/50' : 'from-zinc-50/50'} to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none`}></div>
+               </button>
            ) : (
-               /* Invisible placeholder to maintain layout if needed, though mostly covered by the scrolling state */
-               <div style={{ width: CARD_WIDTH, height: '80px' }} /> 
+               <div style={{ width: CARD_WIDTH, height: '64px' }} /> 
            )}
        </div>
 
