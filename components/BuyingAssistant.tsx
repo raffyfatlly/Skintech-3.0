@@ -253,20 +253,7 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
                     </p>
                 </div>
 
-                {simpleVerdict.type === 'UNKNOWN' ? (
-                    <div className="mt-4">
-                        <a 
-                            href={`https://www.google.com/search?q=${encodeURIComponent(product.brand + ' ' + product.name + ' ingredients safety review')}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="w-full py-3.5 bg-blue-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-blue-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-600/20 group"
-                        >
-                            <Sparkles size={16} className="text-blue-200 group-hover:text-white transition-colors" /> 
-                            Launch Google AI
-                        </a>
-                        <p className="text-[9px] text-center text-zinc-400 mt-2 font-medium">Opens Google Search for AI Overview</p>
-                    </div>
-                ) : (
+                {simpleVerdict.type !== 'UNKNOWN' && (
                     <>
                         <div className="flex items-center justify-between text-xs font-bold text-zinc-500 px-1">
                             <span>Skin Match Score</span>
@@ -311,6 +298,25 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
                         )}
                     </>
                 )}
+
+                <div className={`mt-5 ${simpleVerdict.type !== 'UNKNOWN' ? 'pt-4 border-t border-zinc-50' : ''}`}>
+                    <a 
+                        href={`https://www.google.com/search?q=${encodeURIComponent(product.brand + ' ' + product.name + ' ingredients safety review')}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className={`w-full py-3.5 rounded-xl font-bold text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-2 group ${
+                            simpleVerdict.type === 'UNKNOWN'
+                            ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-lg shadow-blue-600/20'
+                            : 'bg-zinc-50 text-zinc-500 border border-zinc-100 hover:bg-white hover:border-blue-200 hover:text-blue-600 hover:shadow-md'
+                        }`}
+                    >
+                        <Sparkles size={16} className={`${simpleVerdict.type === 'UNKNOWN' ? 'text-blue-200 group-hover:text-white' : 'text-zinc-400 group-hover:text-blue-500'} transition-colors`} /> 
+                        {simpleVerdict.type === 'UNKNOWN' ? 'Launch Google AI' : 'Verify with Google AI'}
+                    </a>
+                    <p className="text-[9px] text-center text-zinc-300 mt-2 font-medium">
+                        {simpleVerdict.type === 'UNKNOWN' ? "Opens Google Search for AI Overview" : "Compare results with Google Search"}
+                    </p>
+                </div>
             </div>
 
             {!showDetails && simpleVerdict.type !== 'UNKNOWN' && (
