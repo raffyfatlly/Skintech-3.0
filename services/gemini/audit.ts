@@ -184,12 +184,20 @@ export const runPostScanAudit = async (user: UserProfile, shelf: Product[]): Pro
 
         const prev = history.length > 1 ? history[history.length - 2] : null;
 
-        // 1. Detect Negative Shifts
+        // 1. Detect Shifts (Positive and Negative)
         const changes = [];
+        const improvements = [];
+
         if (prev) {
+            // Negative Shifts
             if (current.redness < prev.redness - 10) changes.push(`Redness worsened significantly (Score dropped from ${prev.redness} to ${current.redness})`);
             if (current.hydration < prev.hydration - 10) changes.push(`Hydration dropped (Score from ${prev.hydration} to ${current.hydration})`);
             if (current.acneActive < prev.acneActive - 10) changes.push(`Breakouts increased (Score from ${prev.acneActive} to ${current.acneActive})`);
+            
+            // Positive Shifts (Improvements)
+            if (current.redness > prev.redness + 15) improvements.push(`Redness improved significantly (Score rose from ${prev.redness} to ${current.redness})`);
+            if (current.hydration > prev.hydration + 15) improvements.push(`Hydration improved (Score rose from ${prev.hydration} to ${current.hydration})`);
+            if (current.acneActive > prev.acneActive + 15) improvements.push(`Acne clearing up (Score rose from ${prev.acneActive} to ${current.acneActive})`);
         } else {
             // No history, check for critical current states
             if (current.redness < 45) changes.push(`Severe Redness/Sensitivity detected (Score ${current.redness})`);
@@ -197,8 +205,8 @@ export const runPostScanAudit = async (user: UserProfile, shelf: Product[]): Pro
             if (current.acneActive < 45) changes.push(`Active Breakouts detected (Score ${current.acneActive})`);
         }
 
-        // If skin is stable/good, no need to audit
-        if (changes.length === 0) return null;
+        // If nothing happened, return null
+        if (changes.length === 0 && improvements.length === 0) return null;
 
         // 2. Prepare Context for AI
         const shelfContext = shelf.map(p => ({
@@ -206,7 +214,7 @@ export const runPostScanAudit = async (user: UserProfile, shelf: Product[]): Pro
             name: p.name,
             brand: p.brand || "Unknown",
             type: p.type,
-            // Send first 20 ingredients to save tokens but give enough context
+            // Send first 30 ingredients
             ingredients: p.ingredients.slice(0, 30).join(', ')
         }));
 
@@ -217,21 +225,21 @@ export const runPostScanAudit = async (user: UserProfile, shelf: Product[]): Pro
         
         CONTEXT:
         The user just scanned their face. 
-        ISSUE DETECTED: ${changes.join(' AND ')}.
+        NEGATIVE CHANGES (WORSENED): ${changes.length > 0 ? changes.join(' AND ') : 'None'}.
+        POSITIVE CHANGES (IMPROVED): ${improvements.length > 0 ? improvements.join(' AND ') : 'None'}.
         
         ROUTINE (Shelf):
         ${JSON.stringify(shelfContext)}
         
         INSTRUCTIONS:
-        1. Identify products that might be exacerbating the specific ISSUE DETECTED.
-        2. BE SMART about ingredients. 
-           - Do NOT flag "Cetearyl Alcohol" or "Stearyl Alcohol" as drying (these are good fatty alcohols).
-           - Do NOT flag "Hydrating Cleansers" unless they contain hidden acids/scrubs that irritate redness.
-           - Do NOT flag simple Moisturizers unless they contain heavy fragrance/essential oils that trigger the redness.
-           - FOCUS on: Alcohol Denat (drying), High % Acids (irritating), heavy oils (clogging if acne issue).
-        3. If the product is actually GOOD for the issue (e.g. Cerave Cream for Dryness), DO NOT FLAG IT.
-        4. If a product is irrelevant (e.g. Eye cream when issue is chin acne), IGNORE IT.
-        5. Provide "smartUsage" advice that makes sense. Do NOT say "apply after moisturizer" if the product IS a moisturizer.
+        1. Identify products that relate to the changes.
+        2. IF WORSENED: Identify culprits. Suggest pausing or limiting usage.
+           - BE SMART: Do not flag fatty alcohols (Cetearyl) as drying. Flag Alcohol Denat.
+           - Focus on irritants for redness, cloggers for acne.
+        3. IF IMPROVED: Identify if any *restricted* products can be safely re-introduced or increased.
+           - Example: If Redness improved significantly, maybe they can resume using Retinol or Acids cautiously.
+           - Example: If Hydration improved, they can maybe switch from a heavy balm to a lighter lotion if they prefer.
+           - ONLY suggest this if the product contains strong actives (Retinol, AHA/BHA) that might have been paused previously.
         
         OUTPUT JSON:
         {
@@ -240,14 +248,14 @@ export const runPostScanAudit = async (user: UserProfile, shelf: Product[]): Pro
                     "productId": "id_from_input",
                     "productName": "string",
                     "productType": "string",
-                    "issue": "Specific reason why THIS product is bad for the DETECTED ISSUE.",
+                    "issue": "Explanation referencing the specific change (e.g. 'Since redness improved...')",
                     "severity": "CRITICAL" | "CAUTION",
-                    "advice": "PAUSE" | "LIMIT" | "MONITOR" | "BUFFER" | "LESS_FREQ",
-                    "smartUsage": "Specific actionable tip (e.g. 'Skip this morning', 'Use only on T-zone', 'Pause until redness subsides')"
+                    "advice": "PAUSE" | "LIMIT" | "MONITOR" | "BUFFER" | "LESS_FREQ" | "RESUME",
+                    "smartUsage": "Specific actionable tip (e.g. 'Skip this morning', 'You can now use this 2x a week', 'Pause until redness subsides')"
                 }
             ]
         }
-        Return "flags": [] if no products are problematic.
+        Return "flags": [] if no products need adjustment.
         `;
 
         try {

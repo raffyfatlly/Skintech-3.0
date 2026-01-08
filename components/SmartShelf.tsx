@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, UserProfile, ShelfAuditReport } from '../types';
-import { Plus, Droplet, Sun, Zap, Sparkles, Palette, DollarSign, Edit2, Save, Award, ShoppingBag, ArrowRight, Lightbulb, Clock, Trash2, RotateCcw, ScanBarcode, ChevronDown, AlertOctagon, Check, X, ArrowDown } from 'lucide-react';
+import { Plus, Droplet, Sun, Zap, Sparkles, Palette, DollarSign, Edit2, Save, Award, ShoppingBag, ArrowRight, Lightbulb, Clock, Trash2, RotateCcw, ScanBarcode, ChevronDown, AlertOctagon, Check, X, ArrowDown, TrendingUp } from 'lucide-react';
 import { auditProduct, analyzeShelfHealth } from '../services/geminiService';
 
 interface SmartShelfProps {
@@ -26,13 +26,13 @@ const ShelfAuditModal: React.FC<{ report: ShelfAuditReport; onClose: () => void 
             <div className="w-full max-w-sm bg-white rounded-[2rem] overflow-hidden shadow-2xl relative animate-in zoom-in-95">
                 
                 {/* Header */}
-                <div className="bg-rose-50 p-6 border-b border-rose-100 flex items-center gap-4">
-                    <div className="w-12 h-12 bg-rose-100 rounded-full flex items-center justify-center text-rose-500 shrink-0 border border-rose-200">
+                <div className="bg-white p-6 border-b border-zinc-100 flex items-center gap-4">
+                    <div className="w-12 h-12 bg-rose-50 rounded-full flex items-center justify-center text-rose-500 shrink-0 border border-rose-100">
                         <AlertOctagon size={24} />
                     </div>
                     <div>
-                        <h3 className="text-lg font-black text-rose-900 leading-tight">Routine Update</h3>
-                        <p className="text-xs font-bold text-rose-600/80 uppercase tracking-widest mt-0.5">Based on new face scan</p>
+                        <h3 className="text-lg font-black text-zinc-900 leading-tight">Routine Update</h3>
+                        <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest mt-0.5">Based on new face scan</p>
                     </div>
                 </div>
 
@@ -45,6 +45,7 @@ const ShelfAuditModal: React.FC<{ report: ShelfAuditReport; onClose: () => void 
                         let badgeColor = 'bg-amber-100 text-amber-700';
                         if (flag.severity === 'CRITICAL') badgeColor = 'bg-rose-100 text-rose-700';
                         else if (flag.advice === 'BUFFER' || flag.advice === 'LESS_FREQ') badgeColor = 'bg-indigo-100 text-indigo-700';
+                        else if (flag.advice === 'RESUME') badgeColor = 'bg-emerald-100 text-emerald-700';
 
                         return (
                             <div key={idx} className="flex flex-col gap-3 p-4 bg-white border border-zinc-100 rounded-2xl shadow-sm">
@@ -78,7 +79,7 @@ const ShelfAuditModal: React.FC<{ report: ShelfAuditReport; onClose: () => void 
                 <div className="p-4 bg-zinc-50 border-t border-zinc-100">
                     <button 
                         onClick={onClose}
-                        className="w-full py-4 bg-zinc-900 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-zinc-800 transition-all flex items-center justify-center gap-2 shadow-lg shadow-zinc-900/10"
+                        className="w-full py-4 bg-teal-600 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-teal-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-teal-600/20"
                     >
                         <Check size={16} /> Acknowledge
                     </button>
@@ -351,6 +352,11 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
           return <span key={i}>{part}</span>;
       });
   };
+
+  const selectedProductAuditFlag = useMemo(() => {
+      if (!selectedProduct || !auditReport) return null;
+      return auditReport.flags.find(f => f.productId === selectedProduct.id);
+  }, [selectedProduct, auditReport]);
 
   return (
     <div className="min-h-screen w-full relative flex flex-col font-sans overflow-hidden pb-32 bg-zinc-50">
@@ -700,6 +706,30 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
 
                     <div className="flex-1 overflow-y-auto p-6 space-y-4 pb-safe bg-white/40">
                         
+                        {/* ACTIVE AUDIT ALERT (Injected if flagged) */}
+                        {selectedProductAuditFlag && (
+                            <div className={`p-5 rounded-[1.5rem] border mb-2 shadow-sm animate-in zoom-in-95 duration-500 ${selectedProductAuditFlag.advice === 'RESUME' ? 'bg-emerald-50 border-emerald-100' : 'bg-white border-rose-100'}`}>
+                                <h3 className={`text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-2 ${selectedProductAuditFlag.advice === 'RESUME' ? 'text-emerald-700' : 'text-rose-700'}`}>
+                                    {selectedProductAuditFlag.advice === 'RESUME' ? (
+                                        <><TrendingUp size={14} /> Improvement Detected</>
+                                    ) : (
+                                        <><AlertOctagon size={14} /> Recent Audit Flag</>
+                                    )}
+                                </h3>
+                                <div className="space-y-2">
+                                    <p className={`text-xs font-bold leading-relaxed ${selectedProductAuditFlag.advice === 'RESUME' ? 'text-emerald-900' : 'text-zinc-900'}`}>
+                                        {selectedProductAuditFlag.issue}
+                                    </p>
+                                    {selectedProductAuditFlag.smartUsage && (
+                                        <div className={`p-3 rounded-xl text-xs font-medium leading-snug ${selectedProductAuditFlag.advice === 'RESUME' ? 'bg-emerald-100/50 text-emerald-800' : 'bg-rose-50 text-rose-800'}`}>
+                                            <span className="font-bold block mb-1">Recommendation:</span>
+                                            {selectedProductAuditFlag.smartUsage}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
                         {/* SMART USAGE GUIDE (AI-FIRST) */}
                         <div className="bg-indigo-50/80 p-5 rounded-[1.5rem] border border-indigo-100">
                             <h3 className="text-xs font-bold text-indigo-900 uppercase tracking-widest mb-2 flex items-center gap-2">
