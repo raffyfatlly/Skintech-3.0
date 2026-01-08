@@ -232,9 +232,9 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
       }
   };
 
-  // UPDATED: Sharp, defined icons for crystal-clear look
+  // UPDATED: Thinner stroke width (0.75) for ultra-premium aesthetic
   const getProductIcon = (type: string, size: number = 24, className: string = "") => {
-      const props = { size, strokeWidth: 1.5, className };
+      const props = { size, strokeWidth: 0.75, className };
       switch(type) {
           case 'CLEANSER': return <Droplet {...props} />;
           case 'SPF': return <Sun {...props} />;
@@ -421,7 +421,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                    );
                })}
 
-               {/* ADD NEW CARD (Dashed Matte Look) */}
+               {/* ADD NEW CARD (Dashed Matte Look - UPDATED FOR VISIBILITY) */}
                {activeTab === 'ROUTINE' && (
                    <div 
                         className="shrink-0 snap-center relative"
@@ -433,12 +433,12 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                    >
                        <button 
                             onClick={onScanNew}
-                            className="w-full h-[440px] rounded-[2rem] border-2 border-dashed border-white/40 bg-white/10 backdrop-blur-md flex flex-col items-center justify-center gap-6 text-zinc-400 hover:bg-white/20 hover:border-white/60 transition-all duration-300 group shadow-lg"
+                            className="w-full h-[440px] rounded-[2rem] border-2 border-dashed border-zinc-300 bg-white/40 backdrop-blur-md flex flex-col items-center justify-center gap-6 text-zinc-400 hover:bg-white/60 hover:border-teal-300 transition-all duration-300 group shadow-sm hover:shadow-md"
                        >
-                           <div className="w-24 h-24 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform text-white/50 bg-white/10 group-hover:text-zinc-400 group-hover:bg-white/20 shadow-inner">
+                           <div className="w-24 h-24 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform text-zinc-300 bg-white shadow-sm border border-zinc-100 group-hover:text-teal-500 group-hover:border-teal-100">
                                <ScanBarcode size={48} strokeWidth={1} />
                            </div>
-                           <span className="font-bold text-xs uppercase tracking-[0.2em] text-white/70 group-hover:text-white transition-colors">Scan Product</span>
+                           <span className="font-bold text-xs uppercase tracking-[0.2em] text-zinc-400 group-hover:text-teal-600 transition-colors">Scan Product</span>
                        </button>
                    </div>
                )}
