@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, UserProfile } from '../types';
-import { Plus, Droplet, Sun, Zap, Sparkles, Palette, DollarSign, Wallet, Edit2, Save, Info, Award, Heart, ShoppingBag, ArrowRight, Lightbulb, Clock, RefreshCw, Layers, Trash2, ScanBarcode } from 'lucide-react';
+import { Plus, Droplet, Sun, Zap, Sparkles, Palette, DollarSign, Edit2, Save, Award, ShoppingBag, ArrowRight, Lightbulb, Clock, Trash2, RotateCcw } from 'lucide-react';
 import { auditProduct, analyzeShelfHealth } from '../services/geminiService';
 
 interface SmartShelfProps {
@@ -15,11 +15,18 @@ interface SmartShelfProps {
   onOpenRoutineBuilder?: () => void;
 }
 
+const CARD_WIDTH = 260; // Base width of the cards
+const CARD_GAP = 20;    // Gap for layout calculation
+
 const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onScanNew, onUpdateProduct, userProfile, onMoveToShelf, onRemoveFromWishlist, onOpenRoutineBuilder }) => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [activeTab, setActiveTab] = useState<'ROUTINE' | 'WISHLIST'>('ROUTINE');
   const [showGradingInfo, setShowGradingInfo] = useState(false); 
   const [activeIndex, setActiveIndex] = useState(0);
+  
+  // 3D Scroll State
+  const [scrollX, setScrollX] = useState(0);
+  const [containerWidth, setContainerWidth] = useState(window.innerWidth);
   
   // Price Editing State
   const [isEditingPrice, setIsEditingPrice] = useState(false);
@@ -37,29 +44,80 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
       }
   }, [products, activeTab, userProfile.wishlist]);
 
-  // Handle Scroll Snap Detection
-  const handleScroll = () => {
-      if (!scrollContainerRef.current) return;
-      const container = scrollContainerRef.current;
-      const center = container.scrollLeft + (container.clientWidth / 2);
-      
-      const cardWidth = 260; // Approximate width of card + margin
-      const index = Math.floor(center / cardWidth);
-      
-      // Clamp index
-      const clampedIndex = Math.max(0, Math.min(displayedProducts.length, index)); // length includes "Add New" card
-      if (clampedIndex !== activeIndex) {
-          setActiveIndex(clampedIndex);
-      }
-  };
+  // --- 3D SCROLL LOGIC ---
+  useEffect(() => {
+      const handleResize = () => setContainerWidth(window.innerWidth);
+      window.addEventListener('resize', handleResize);
+      return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
       const container = scrollContainerRef.current;
-      if (container) {
-          container.addEventListener('scroll', handleScroll);
-          return () => container.removeEventListener('scroll', handleScroll);
-      }
-  }, [displayedProducts]);
+      if (!container) return;
+
+      const handleScroll = () => {
+          // Use requestAnimationFrame for smooth 60fps animation updates
+          requestAnimationFrame(() => {
+              setScrollX(container.scrollLeft);
+              
+              // Calculate active index for snapping logic
+              const center = container.scrollLeft + (container.clientWidth / 2);
+              // We add a spacer at start, so index logic needs to account for half viewport padding
+              const firstItemCenter = (container.clientWidth / 2);
+              const distanceFromStart = center - firstItemCenter;
+              const index = Math.round(distanceFromStart / (CARD_WIDTH + CARD_GAP));
+              
+              const maxIndex = activeTab === 'ROUTINE' ? displayedProducts.length : displayedProducts.length - 1;
+              setActiveIndex(Math.max(0, Math.min(maxIndex, index)));
+          });
+      };
+
+      container.addEventListener('scroll', handleScroll);
+      // Initialize center
+      handleScroll();
+      
+      return () => container.removeEventListener('scroll', handleScroll);
+  }, [displayedProducts, activeTab]);
+
+  // Helper to calculate 3D Transform
+  const getCardStyle = (index: number) => {
+      // Center position of this item in the scrollable track
+      const itemCenter = (containerWidth / 2) + (index * (CARD_WIDTH + CARD_GAP));
+      // Current center position of the viewport within the track
+      const viewCenter = scrollX + (containerWidth / 2);
+      
+      // Normalized distance (-1 to 1 means adjacent, 0 means centered)
+      const distance = (viewCenter - itemCenter) / (CARD_WIDTH + CARD_GAP);
+      const absDistance = Math.abs(distance);
+
+      // --- THE 3D FORMULA ---
+      // 1. Rotation: Rotate towards center (Clock effect)
+      const rotateY = distance * 45; // Max 45deg rotation
+      
+      // 2. Depth: Push back non-active items
+      const translateZ = Math.min(0, -absDistance * 150); // Push back up to 150px
+      
+      // 3. Overlap: Pull side items closer to center (Cover Flow)
+      // When distance is 1 (neighbor), pull in by 60px
+      const translateX = distance * -60; 
+
+      // 4. Scale: Subtle shrink for depth perception
+      const scale = Math.max(0.85, 1 - (absDistance * 0.15));
+
+      // 5. Opacity: Fade out far items
+      const opacity = Math.max(0.4, 1 - (absDistance * 0.4));
+      
+      // 6. Blur: Blur background items
+      const blur = absDistance > 0.5 ? Math.min(4, (absDistance - 0.5) * 5) : 0;
+
+      return {
+          transform: `perspective(1200px) translateX(${translateX}px) translateZ(${translateZ}px) rotateY(${rotateY}deg) scale(${scale})`,
+          zIndex: 100 - Math.round(absDistance * 10),
+          opacity,
+          filter: `blur(${blur}px)`,
+          transition: 'transform 0.1s linear, opacity 0.1s linear' // Fast transition for scroll sync
+      };
+  };
 
   const costAnalysis = useMemo(() => {
       let totalValue = 0;
@@ -67,7 +125,6 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
       products.forEach(p => {
           const price = p.estimatedPrice || 45; 
           totalValue += price;
-          // Estimate monthly cost based on depletion rate
           let durationMonths = 3;
           if (p.type === 'SPF') durationMonths = 1.5;
           else if (p.type === 'SERUM' || p.type === 'TREATMENT') durationMonths = 2;
@@ -132,7 +189,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
           <div>
               <h2 className="text-3xl font-black text-zinc-900 tracking-tighter">Digital Shelf</h2>
               <div className="flex items-center gap-2 mt-1">
-                  <span className="px-2 py-0.5 rounded-md bg-teal-600 text-white text-[10px] font-bold uppercase tracking-widest">
+                  <span className="px-2 py-0.5 rounded-md bg-teal-600 text-white text-[10px] font-bold uppercase tracking-widest shadow-sm">
                       {displayedProducts.length} Items
                   </span>
                   {activeTab === 'ROUTINE' && (
@@ -197,18 +254,18 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
            </div>
        )}
 
-       {/* IMMERSIVE CAROUSEL */}
-       <div className="flex-1 flex flex-col justify-center relative">
+       {/* 3D IMMERSIVE CAROUSEL */}
+       <div className="flex-1 flex flex-col justify-center relative perspective-1000 overflow-hidden">
            
            {/* Empty State */}
            {displayedProducts.length === 0 && (
-               <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center z-0">
-                   <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mb-4 shadow-lg text-zinc-300">
+               <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center z-20 pointer-events-none">
+                   <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mb-4 shadow-lg text-zinc-300 pointer-events-auto">
                        <ShoppingBag size={32} strokeWidth={1} />
                    </div>
-                   <h3 className="text-zinc-900 font-bold text-lg mb-2">Shelf is empty</h3>
-                   <p className="text-zinc-500 text-xs max-w-[200px] mb-6">Start building your routine to get AI analysis.</p>
-                   <button onClick={onScanNew} className="px-6 py-3 bg-teal-600 text-white rounded-full text-xs font-bold uppercase tracking-widest shadow-xl hover:scale-105 transition-transform">
+                   <h3 className="text-zinc-900 font-bold text-lg mb-2 pointer-events-auto">Shelf is empty</h3>
+                   <p className="text-zinc-500 text-xs max-w-[200px] mb-6 pointer-events-auto">Start building your routine to get AI analysis.</p>
+                   <button onClick={onScanNew} className="px-6 py-3 bg-teal-600 text-white rounded-full text-xs font-bold uppercase tracking-widest shadow-xl hover:scale-105 transition-transform pointer-events-auto">
                        Scan First Product
                    </button>
                </div>
@@ -216,92 +273,114 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
 
            <div 
                 ref={scrollContainerRef}
-                className="flex overflow-x-auto snap-x snap-mandatory px-[50vw] pb-12 pt-4 no-scrollbar items-center gap-4"
-                style={{ scrollPaddingLeft: '0px' }} // Adjusted via padding
+                // CRITICAL FIX: Stop Propagation to prevent global Swipe Navigation
+                onTouchStart={(e) => e.stopPropagation()}
+                onTouchMove={(e) => e.stopPropagation()}
+                onTouchEnd={(e) => e.stopPropagation()}
+                className="flex overflow-x-auto snap-x snap-mandatory pb-12 pt-12 no-scrollbar items-center px-[50vw] relative z-10"
+                style={{ 
+                    scrollPaddingLeft: '0px',
+                    perspective: '1200px', // Deep perspective for 3D effect
+                    transformStyle: 'preserve-3d'
+                }} 
            >
-               {/* Spacer to center first item */}
-               <div className="w-[10px] shrink-0"></div>
+               {/* Padding Spacer to allow first item to center */}
+               <div className="shrink-0" style={{ width: 0 }} />
 
                {displayedProducts.map((p, i) => {
                    const audit = auditProduct(p, userProfile);
                    const score = Number(audit.adjustedScore);
-                   const isActive = i === activeIndex;
                    const theme = getProductColor(p.type);
+                   const isActive = i === activeIndex;
+                   
+                   // Dynamic Style from 3D Engine
+                   const dynamicStyle = getCardStyle(i);
 
                    return (
-                       <button 
+                       <div 
                             key={p.id}
-                            onClick={() => {
-                                if (isActive) setSelectedProduct(p);
-                                else {
-                                    // Scroll to this item
-                                    const cardWidth = 260 + 16; // width + gap
-                                    scrollContainerRef.current?.scrollTo({
-                                        left: i * cardWidth,
-                                        behavior: 'smooth'
-                                    });
-                                }
+                            className="shrink-0 snap-center relative"
+                            style={{ 
+                                width: CARD_WIDTH,
+                                marginRight: CARD_GAP,
+                                ...dynamicStyle 
                             }}
-                            className={`
-                                relative shrink-0 snap-center w-[260px] h-[380px] rounded-[2.5rem] p-6 flex flex-col justify-between text-left transition-all duration-500
-                                ${isActive ? 'scale-100 opacity-100 shadow-2xl translate-y-0' : 'scale-90 opacity-60 hover:opacity-80 blur-[1px] translate-y-4'}
-                                bg-white border border-zinc-100 overflow-hidden group
-                            `}
                        >
-                            {/* Card Background Decoration */}
-                            <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl ${isActive ? 'from-zinc-50' : 'from-transparent'} to-transparent rounded-bl-full rounded-tr-[2.5rem] transition-colors duration-500`}></div>
+                           <button
+                                onClick={() => {
+                                    if (isActive) setSelectedProduct(p);
+                                    else {
+                                        // Scroll to center this item
+                                        const targetScroll = i * (CARD_WIDTH + CARD_GAP);
+                                        scrollContainerRef.current?.scrollTo({
+                                            left: targetScroll,
+                                            behavior: 'smooth'
+                                        });
+                                    }
+                                }}
+                                className="w-full h-[380px] bg-white rounded-[2.5rem] border border-zinc-100 shadow-2xl relative overflow-hidden flex flex-col justify-between p-6 group transition-colors hover:border-teal-200"
+                           >
+                                {/* Glossy Reflection Overlay */}
+                                <div className="absolute inset-0 bg-gradient-to-tr from-white/0 via-white/40 to-white/0 pointer-events-none opacity-50"></div>
 
-                            {/* Top Stats */}
-                            <div className="flex justify-between items-start relative z-10">
-                                <div className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border ${theme}`}>
-                                    {p.type}
-                                </div>
-                                <div className="text-right">
-                                    <div className={`text-2xl font-black ${score > 80 ? 'text-emerald-500' : score < 60 ? 'text-amber-500' : 'text-teal-500'}`}>
-                                        {score}%
+                                {/* Top Stats */}
+                                <div className="flex justify-between items-start relative z-10">
+                                    <div className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border ${theme}`}>
+                                        {p.type}
                                     </div>
-                                    <span className="text-[8px] font-bold text-zinc-300 uppercase tracking-widest block">Match</span>
+                                    <div className="text-right">
+                                        <div className={`text-2xl font-black ${score > 80 ? 'text-emerald-500' : score < 60 ? 'text-amber-500' : 'text-teal-500'}`}>
+                                            {score}%
+                                        </div>
+                                        <span className="text-[8px] font-bold text-zinc-300 uppercase tracking-widest block">Match</span>
+                                    </div>
                                 </div>
-                            </div>
 
-                            {/* Central Visual */}
-                            <div className="flex-1 flex flex-col items-center justify-center relative z-10">
-                                <div className={`w-28 h-28 rounded-[2rem] flex items-center justify-center shadow-lg transition-transform duration-500 ${isActive ? 'shadow-zinc-200 scale-110 rotate-0' : 'shadow-none scale-100 rotate-3'} ${theme}`}>
-                                    {getProductIcon(p.type, 48)}
+                                {/* Central Visual */}
+                                <div className="flex-1 flex flex-col items-center justify-center relative z-10">
+                                    <div className={`w-28 h-28 rounded-[2rem] flex items-center justify-center shadow-lg transition-transform duration-500 ${isActive ? 'scale-110 rotate-0 shadow-teal-100' : 'scale-100 rotate-3'} ${theme}`}>
+                                        {getProductIcon(p.type, 48)}
+                                    </div>
                                 </div>
-                            </div>
 
-                            {/* Bottom Info */}
-                            <div className="relative z-10">
-                                <h3 className="font-bold text-xl text-zinc-900 leading-tight mb-1 line-clamp-2">{p.name}</h3>
-                                <p className="text-xs text-zinc-400 font-bold uppercase tracking-wide truncate mb-4">{p.brand || 'Unknown Brand'}</p>
-                                
-                                <div className={`w-full py-3 rounded-xl flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest transition-colors ${isActive ? 'bg-teal-600 text-white' : 'bg-zinc-100 text-zinc-400'}`}>
-                                    View Details <ArrowRight size={14} />
+                                {/* Bottom Info */}
+                                <div className="relative z-10">
+                                    <h3 className="font-bold text-xl text-zinc-900 leading-tight mb-1 line-clamp-2">{p.name}</h3>
+                                    <p className="text-xs text-zinc-400 font-bold uppercase tracking-wide truncate mb-4">{p.brand || 'Unknown Brand'}</p>
+                                    
+                                    <div className={`w-full py-3 rounded-xl flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest transition-colors ${isActive ? 'bg-teal-600 text-white shadow-lg shadow-teal-600/20' : 'bg-zinc-100 text-zinc-400'}`}>
+                                        View Details <ArrowRight size={14} />
+                                    </div>
                                 </div>
-                            </div>
-                       </button>
+                           </button>
+                       </div>
                    );
                })}
 
                {/* ADD NEW CARD (Last in Carousel) */}
                {activeTab === 'ROUTINE' && (
-                   <button 
-                        onClick={onScanNew}
-                        className={`
-                            shrink-0 snap-center w-[260px] h-[380px] rounded-[2.5rem] border-2 border-dashed border-zinc-300 flex flex-col items-center justify-center gap-4 text-zinc-400 hover:border-teal-400 hover:text-teal-500 hover:bg-teal-50/50 transition-all duration-300 group
-                            ${activeIndex === displayedProducts.length ? 'scale-100 opacity-100 bg-white shadow-xl' : 'scale-90 opacity-60 bg-transparent'}
-                        `}
+                   <div 
+                        className="shrink-0 snap-center relative"
+                        style={{ 
+                            width: CARD_WIDTH,
+                            marginRight: CARD_GAP,
+                            ...getCardStyle(displayedProducts.length)
+                        }}
                    >
-                       <div className="w-20 h-20 rounded-full bg-zinc-50 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
-                           <Plus size={32} />
-                       </div>
-                       <span className="font-bold text-sm uppercase tracking-widest">Add Product</span>
-                   </button>
+                       <button 
+                            onClick={onScanNew}
+                            className="w-full h-[380px] rounded-[2.5rem] border-2 border-dashed border-zinc-300 flex flex-col items-center justify-center gap-4 text-zinc-400 hover:border-teal-400 hover:text-teal-500 hover:bg-teal-50/50 transition-all duration-300 group bg-white/50 backdrop-blur-sm"
+                       >
+                           <div className="w-20 h-20 rounded-full bg-zinc-50 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform group-hover:bg-white">
+                               <Plus size={32} />
+                           </div>
+                           <span className="font-bold text-sm uppercase tracking-widest">Add Product</span>
+                       </button>
+                   </div>
                )}
                
-               {/* Spacer to center last item */}
-               <div className="w-[calc(50vw-130px)] shrink-0"></div>
+               {/* Trailing Spacer */}
+               <div className="shrink-0" style={{ width: '50vw' }} />
            </div>
        </div>
 
@@ -353,7 +432,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                     
                     <div className="bg-white px-6 pt-8 pb-6 rounded-b-[2.5rem] shadow-sm z-10 shrink-0 relative overflow-hidden">
                         <button onClick={() => { setSelectedProduct(null); setIsEditingPrice(false); }} className="absolute top-6 left-6 p-2 bg-zinc-100 rounded-full text-zinc-500 hover:bg-zinc-200 transition-colors z-10">
-                            <ArrowRight size={20} className="rotate-180" />
+                            <RotateCcw size={20} className="rotate-180" />
                         </button>
                         
                         <div className="flex flex-col items-center text-center relative z-10 mt-2">
