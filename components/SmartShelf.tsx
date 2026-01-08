@@ -1,7 +1,7 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, UserProfile } from '../types';
-import { Plus, Droplet, Sun, Zap, Sparkles, Palette, DollarSign, Wallet, Edit2, Save, Info, Award, Heart, ShoppingBag, ArrowRight, Lightbulb, Clock, RefreshCw, Layers } from 'lucide-react';
+import { Plus, Droplet, Sun, Zap, Sparkles, Palette, DollarSign, Wallet, Edit2, Save, Info, Award, Heart, ShoppingBag, ArrowRight, Lightbulb, Clock, RefreshCw, Layers, Trash2, ScanBarcode } from 'lucide-react';
 import { auditProduct, analyzeShelfHealth } from '../services/geminiService';
 
 interface SmartShelfProps {
@@ -19,10 +19,13 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [activeTab, setActiveTab] = useState<'ROUTINE' | 'WISHLIST'>('ROUTINE');
   const [showGradingInfo, setShowGradingInfo] = useState(false); 
+  const [activeIndex, setActiveIndex] = useState(0);
   
   // Price Editing State
   const [isEditingPrice, setIsEditingPrice] = useState(false);
   const [tempPrice, setTempPrice] = useState<string>('');
+
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const shelfIQ = useMemo(() => analyzeShelfHealth(products, userProfile), [products, userProfile]);
 
@@ -33,6 +36,30 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
           return userProfile.wishlist || [];
       }
   }, [products, activeTab, userProfile.wishlist]);
+
+  // Handle Scroll Snap Detection
+  const handleScroll = () => {
+      if (!scrollContainerRef.current) return;
+      const container = scrollContainerRef.current;
+      const center = container.scrollLeft + (container.clientWidth / 2);
+      
+      const cardWidth = 260; // Approximate width of card + margin
+      const index = Math.floor(center / cardWidth);
+      
+      // Clamp index
+      const clampedIndex = Math.max(0, Math.min(displayedProducts.length, index)); // length includes "Add New" card
+      if (clampedIndex !== activeIndex) {
+          setActiveIndex(clampedIndex);
+      }
+  };
+
+  useEffect(() => {
+      const container = scrollContainerRef.current;
+      if (container) {
+          container.addEventListener('scroll', handleScroll);
+          return () => container.removeEventListener('scroll', handleScroll);
+      }
+  }, [displayedProducts]);
 
   const costAnalysis = useMemo(() => {
       let totalValue = 0;
@@ -68,215 +95,215 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
 
   const getProductColor = (type: string) => {
       switch(type) {
-          case 'CLEANSER': return 'bg-sky-50 text-sky-600';
-          case 'SPF': return 'bg-amber-50 text-amber-600';
-          case 'SERUM': return 'bg-teal-50 text-teal-600';
-          case 'MOISTURIZER': return 'bg-rose-50 text-rose-600';
-          case 'FOUNDATION': return 'bg-orange-50 text-orange-600';
-          default: return 'bg-zinc-50 text-zinc-600';
+          case 'CLEANSER': return 'text-sky-500 bg-sky-50 border-sky-100';
+          case 'SPF': return 'text-amber-500 bg-amber-50 border-amber-100';
+          case 'SERUM': return 'text-teal-500 bg-teal-50 border-teal-100';
+          case 'MOISTURIZER': return 'text-rose-500 bg-rose-50 border-rose-100';
+          case 'FOUNDATION': return 'text-orange-500 bg-orange-50 border-orange-100';
+          default: return 'text-zinc-500 bg-zinc-50 border-zinc-100';
       }
   }
 
-  const getProductIcon = (type: string) => {
+  const getProductIcon = (type: string, size: number = 24) => {
       switch(type) {
-          case 'CLEANSER': return <Droplet size={20} />;
-          case 'SPF': return <Sun size={20} />;
-          case 'SERUM': return <Zap size={20} />;
-          case 'FOUNDATION': return <Palette size={20} />;
-          default: return <Sparkles size={20} />;
+          case 'CLEANSER': return <Droplet size={size} strokeWidth={1.5} />;
+          case 'SPF': return <Sun size={size} strokeWidth={1.5} />;
+          case 'SERUM': return <Zap size={size} strokeWidth={1.5} />;
+          case 'FOUNDATION': return <Palette size={size} strokeWidth={1.5} />;
+          default: return <Sparkles size={size} strokeWidth={1.5} />;
       }
   }
 
   const getGradeColor = (grade: string) => {
       switch(grade) {
-          case 'S': return 'text-emerald-500';
-          case 'A': return 'text-teal-500';
-          case 'B': return 'text-sky-500';
-          case 'C': return 'text-amber-500';
-          default: return 'text-rose-500';
+          case 'S': return 'text-emerald-600 bg-emerald-50 border-emerald-200';
+          case 'A': return 'text-teal-600 bg-teal-50 border-teal-200';
+          case 'B': return 'text-sky-600 bg-sky-50 border-sky-200';
+          case 'C': return 'text-amber-600 bg-amber-50 border-amber-200';
+          default: return 'text-rose-600 bg-rose-50 border-rose-200';
       }
   }
 
-  const renderRoutineCoach = () => {
-      if (activeTab === 'WISHLIST') return null;
-      
-      const { analysis } = shelfIQ;
-      const hasNotes = analysis.notes.length > 0;
-      const hasMissing = analysis.missing.length > 0;
-
-      if (!hasNotes && !hasMissing && products.length > 0) return null;
-
-      return (
-          <div className="space-y-3 animate-in slide-in-from-bottom-4 duration-700">
-               <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2 px-1">
-                    <Lightbulb size={14} className="text-teal-500" /> SkinOS Notes
-               </h3>
-               
-               {analysis.notes.map((item: any, i: number) => (
-                   <div key={`note-${i}`} className="flex items-start gap-4 p-4 rounded-3xl bg-white border border-zinc-100 shadow-sm relative overflow-hidden group">
-                       <div className={`mt-0.5 w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${item.type === 'TIMING' ? 'bg-indigo-50 text-indigo-500' : item.type === 'SWAP' ? 'bg-amber-50 text-amber-500' : 'bg-zinc-50 text-zinc-500'}`}>
-                           {item.type === 'TIMING' ? <Clock size={16} /> : item.type === 'SWAP' ? <RefreshCw size={16} /> : <Info size={16} />}
-                       </div>
-                       <div className="flex-1">
-                           <h4 className="text-xs font-bold text-zinc-900 mb-0.5">{item.product}</h4>
-                           <p className="text-xs text-zinc-500 font-medium leading-relaxed">{item.note}</p>
-                       </div>
-                   </div>
-               ))}
-
-               {analysis.missing.map((missing: string, i: number) => (
-                   <div key={`miss-${i}`} className="flex items-center gap-4 p-4 rounded-3xl bg-teal-50 border border-teal-100 relative overflow-hidden">
-                       <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-teal-600 shrink-0 shadow-sm">
-                           <Plus size={16} />
-                       </div>
-                       <div className="flex-1">
-                           <h4 className="text-xs font-bold text-teal-800 mb-0.5">Missing Step</h4>
-                           <p className="text-xs text-teal-700 font-medium">
-                               Add a <strong>{missing}</strong> to complete your base routine.
-                           </p>
-                       </div>
-                   </div>
-               ))}
-          </div>
-      )
-  };
-
   return (
-    <div className="pb-32 animate-in fade-in duration-500 max-w-7xl mx-auto flex flex-col min-h-screen">
-       <div className="px-6 space-y-8 flex-1">
-          <div className="flex justify-between items-end pt-6">
-              <div>
-                  <h2 className="text-3xl font-black text-zinc-900 tracking-tight">Smart Shelf</h2>
-                  <p className="text-zinc-400 font-medium text-sm mt-1">Your Digital Cabinet.</p>
+    <div className="min-h-screen bg-zinc-50 flex flex-col font-sans overflow-hidden pb-32 transition-colors duration-1000">
+       
+       {/* HEADER SECTION */}
+       <div className="pt-safe-top px-6 pb-4 z-10 flex justify-between items-start">
+          <div>
+              <h2 className="text-3xl font-black text-zinc-900 tracking-tighter">Digital Shelf</h2>
+              <div className="flex items-center gap-2 mt-1">
+                  <span className="px-2 py-0.5 rounded-md bg-teal-600 text-white text-[10px] font-bold uppercase tracking-widest">
+                      {displayedProducts.length} Items
+                  </span>
+                  {activeTab === 'ROUTINE' && (
+                      <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
+                          RM {costAnalysis.monthlyCost}/mo
+                      </span>
+                  )}
               </div>
-              <button onClick={onScanNew} className="w-14 h-14 rounded-[1.2rem] bg-teal-600 text-white flex items-center justify-center shadow-xl shadow-teal-200 hover:scale-105 transition-transform active:scale-95">
-                  <Plus size={24} />
-              </button>
           </div>
 
-          {activeTab === 'ROUTINE' && (
-            <div className="bg-white rounded-[2.5rem] p-8 relative shadow-xl shadow-zinc-100 border border-zinc-50 overflow-hidden">
-                <div className="absolute top-0 right-0 w-48 h-48 bg-teal-50 rounded-full blur-3xl -mr-16 -mt-16 opacity-50 pointer-events-none"></div>
-                
-                <div className="relative z-10 flex items-center gap-6">
-                    <div className="flex flex-col items-center">
-                        <div className="flex items-baseline gap-1">
-                            <span className={`text-6xl font-black tracking-tighter ${getGradeColor(shelfIQ.analysis.grade)}`}>
-                                {shelfIQ.analysis.grade}
-                            </span>
-                        </div>
-                        <button onClick={() => setShowGradingInfo(true)} className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-1 hover:text-zinc-600 transition-colors">
-                            Grade <Info size={10} />
-                        </button>
-                    </div>
-                    
-                    <div className="flex-1 border-l border-zinc-100 pl-6">
-                        <h3 className="text-sm font-bold text-zinc-900 mb-1">{shelfIQ.analysis.headline}</h3>
-                        <p className="text-xs text-zinc-500 font-medium leading-relaxed">
-                            {shelfIQ.analysis.averageScore > 0 
-                                ? `Average match score: ${shelfIQ.analysis.averageScore}%. ${products.length} products active.` 
-                                : "Start scanning to analyze your routine."}
-                        </p>
-                    </div>
-                </div>
-            </div>
-          )}
-
-          {renderRoutineCoach()}
-          
-          {/* VISUAL SPEND TRACKER */}
-          {activeTab === 'ROUTINE' && products.length > 0 && (
-              <div className="bg-zinc-50 rounded-3xl p-5 border border-zinc-100 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-zinc-400 shadow-sm">
-                          <Wallet size={18} />
-                      </div>
-                      <div>
-                          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block">Est. Monthly</span>
-                          <span className="text-sm font-black text-zinc-700">RM {costAnalysis.monthlyCost}</span>
-                      </div>
-                  </div>
-                  <div className="h-8 w-px bg-zinc-200"></div>
-                  <div className="pr-2">
-                      <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block text-right">Items</span>
-                      <span className="text-sm font-black text-zinc-700 block text-right">{products.length}</span>
-                  </div>
-              </div>
-          )}
+          <div className="flex flex-col items-end gap-2">
+              {activeTab === 'ROUTINE' && (
+                  <button 
+                    onClick={() => setShowGradingInfo(true)}
+                    className={`w-12 h-12 rounded-2xl flex flex-col items-center justify-center border shadow-lg transition-transform active:scale-95 ${getGradeColor(shelfIQ.analysis.grade)}`}
+                  >
+                      <span className="text-xl font-black leading-none">{shelfIQ.analysis.grade}</span>
+                      <span className="text-[8px] font-bold uppercase">Grade</span>
+                  </button>
+              )}
+          </div>
        </div>
 
-       {/* TABS */}
-       <div className="px-6 mt-10">
-           <div className="flex bg-zinc-100/50 p-1 rounded-2xl mb-6 border border-zinc-100">
+       {/* TABS (Floating Capsule) */}
+       <div className="px-6 mb-6 z-10">
+           <div className="inline-flex bg-white/60 backdrop-blur-md p-1 rounded-full border border-white/40 shadow-sm">
                <button 
                   onClick={() => setActiveTab('ROUTINE')}
-                  className={`flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-wide transition-all flex items-center justify-center gap-2 ${activeTab === 'ROUTINE' ? 'bg-white shadow-sm text-teal-700' : 'text-zinc-400 hover:text-zinc-600'}`}
+                  className={`px-5 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${activeTab === 'ROUTINE' ? 'bg-teal-600 text-white shadow-md' : 'text-zinc-500 hover:text-teal-600'}`}
                >
-                  <Layers size={14} /> Routine
+                  My Routine
                </button>
                <button 
                   onClick={() => setActiveTab('WISHLIST')}
-                  className={`flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-wide transition-all flex items-center justify-center gap-2 ${activeTab === 'WISHLIST' ? 'bg-white shadow-sm text-teal-700' : 'text-zinc-400 hover:text-zinc-600'}`}
+                  className={`px-5 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${activeTab === 'WISHLIST' ? 'bg-teal-600 text-white shadow-md' : 'text-zinc-500 hover:text-teal-600'}`}
                >
-                  <Heart size={14} className={activeTab === 'WISHLIST' ? "fill-teal-700" : ""} /> Wishlist
+                  Wishlist
                </button>
            </div>
        </div>
 
-       {/* PRODUCT LIST */}
-       <div className="px-6 grid grid-cols-1 gap-3 pb-12">
-           {displayedProducts.map((p) => {
-               const audit = auditProduct(p, userProfile);
-               const score = Number(audit.adjustedScore);
-               
-               return (
-                   <button 
-                        key={p.id} 
-                        onClick={() => setSelectedProduct(p)}
-                        className="bg-white rounded-[1.8rem] p-4 text-left border border-zinc-100 shadow-sm hover:shadow-md hover:border-teal-100 transition-all group flex items-center gap-4 relative overflow-hidden"
-                   >
-                        <div className={`w-16 h-16 rounded-2xl ${getProductColor(p.type)} flex items-center justify-center shrink-0`}>
-                            {getProductIcon(p.type)}
-                        </div>
-
-                        <div className="flex-1 min-w-0">
-                            <h3 className="font-bold text-sm text-zinc-900 leading-tight mb-1 truncate">{p.name}</h3>
-                            <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wide truncate">{p.brand || 'Unknown'}</p>
-                        </div>
-
-                        <div className="text-right pr-2">
-                            <div className={`text-xl font-black ${score > 80 ? 'text-emerald-500' : score < 60 ? 'text-amber-500' : 'text-teal-500'}`}>
-                                {score}%
-                            </div>
-                            <span className="text-[9px] font-bold text-zinc-300 uppercase tracking-widest">Match</span>
-                        </div>
-                   </button>
-               )
-           })}
-
-           {activeTab === 'ROUTINE' && (
-               <button onClick={onScanNew} className="bg-zinc-50 border-2 border-dashed border-zinc-200 rounded-[1.8rem] p-6 flex items-center justify-center gap-3 text-zinc-400 hover:bg-white hover:border-zinc-300 transition-all group">
-                   <Plus size={20} />
-                   <span className="text-xs font-bold uppercase tracking-widest">Add Product</span>
-               </button>
-           )}
-       </div>
-       
-       {activeTab === 'WISHLIST' && displayedProducts.length === 0 && (
-           <div className="px-6 py-12 text-center flex flex-col items-center">
-               <div className="w-16 h-16 bg-zinc-50 rounded-full flex items-center justify-center mb-4 text-zinc-300">
-                   <ShoppingBag size={24} />
+       {/* SKINOS NOTES (Interactive HUD) */}
+       {activeTab === 'ROUTINE' && (shelfIQ.analysis.notes.length > 0 || shelfIQ.analysis.missing.length > 0) && (
+           <div className="px-6 mb-4 z-10 animate-in slide-in-from-top-4 duration-700">
+               <div className="bg-white/80 backdrop-blur-xl border border-white/50 rounded-2xl p-4 shadow-sm flex items-start gap-4">
+                   <div className="w-8 h-8 rounded-full bg-teal-50 flex items-center justify-center text-teal-600 shrink-0">
+                       <Lightbulb size={16} />
+                   </div>
+                   <div className="flex-1">
+                       <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1">SkinOS Notes</h3>
+                       {shelfIQ.analysis.notes.length > 0 ? (
+                           <p className="text-xs font-bold text-zinc-700 leading-snug">
+                               {shelfIQ.analysis.notes[0].note}
+                           </p>
+                       ) : (
+                           <p className="text-xs font-bold text-zinc-700 leading-snug">
+                               Missing steps: {shelfIQ.analysis.missing.join(', ')}.
+                           </p>
+                       )}
+                   </div>
                </div>
-               <h3 className="text-zinc-900 font-bold mb-1">Your wishlist is empty</h3>
-               <p className="text-zinc-400 text-xs font-medium max-w-[200px] mb-6">Use the Routine Architect to find products recommended for your skin.</p>
-               <button 
-                   onClick={onOpenRoutineBuilder || onScanNew} 
-                   className="px-6 py-3 bg-zinc-900 text-white rounded-full text-xs font-bold uppercase tracking-widest shadow-lg"
-               >
-                   Find Products
-               </button>
            </div>
        )}
+
+       {/* IMMERSIVE CAROUSEL */}
+       <div className="flex-1 flex flex-col justify-center relative">
+           
+           {/* Empty State */}
+           {displayedProducts.length === 0 && (
+               <div className="absolute inset-0 flex flex-col items-center justify-center p-8 text-center z-0">
+                   <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mb-4 shadow-lg text-zinc-300">
+                       <ShoppingBag size={32} strokeWidth={1} />
+                   </div>
+                   <h3 className="text-zinc-900 font-bold text-lg mb-2">Shelf is empty</h3>
+                   <p className="text-zinc-500 text-xs max-w-[200px] mb-6">Start building your routine to get AI analysis.</p>
+                   <button onClick={onScanNew} className="px-6 py-3 bg-teal-600 text-white rounded-full text-xs font-bold uppercase tracking-widest shadow-xl hover:scale-105 transition-transform">
+                       Scan First Product
+                   </button>
+               </div>
+           )}
+
+           <div 
+                ref={scrollContainerRef}
+                className="flex overflow-x-auto snap-x snap-mandatory px-[50vw] pb-12 pt-4 no-scrollbar items-center gap-4"
+                style={{ scrollPaddingLeft: '0px' }} // Adjusted via padding
+           >
+               {/* Spacer to center first item */}
+               <div className="w-[10px] shrink-0"></div>
+
+               {displayedProducts.map((p, i) => {
+                   const audit = auditProduct(p, userProfile);
+                   const score = Number(audit.adjustedScore);
+                   const isActive = i === activeIndex;
+                   const theme = getProductColor(p.type);
+
+                   return (
+                       <button 
+                            key={p.id}
+                            onClick={() => {
+                                if (isActive) setSelectedProduct(p);
+                                else {
+                                    // Scroll to this item
+                                    const cardWidth = 260 + 16; // width + gap
+                                    scrollContainerRef.current?.scrollTo({
+                                        left: i * cardWidth,
+                                        behavior: 'smooth'
+                                    });
+                                }
+                            }}
+                            className={`
+                                relative shrink-0 snap-center w-[260px] h-[380px] rounded-[2.5rem] p-6 flex flex-col justify-between text-left transition-all duration-500
+                                ${isActive ? 'scale-100 opacity-100 shadow-2xl translate-y-0' : 'scale-90 opacity-60 hover:opacity-80 blur-[1px] translate-y-4'}
+                                bg-white border border-zinc-100 overflow-hidden group
+                            `}
+                       >
+                            {/* Card Background Decoration */}
+                            <div className={`absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl ${isActive ? 'from-zinc-50' : 'from-transparent'} to-transparent rounded-bl-full rounded-tr-[2.5rem] transition-colors duration-500`}></div>
+
+                            {/* Top Stats */}
+                            <div className="flex justify-between items-start relative z-10">
+                                <div className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border ${theme}`}>
+                                    {p.type}
+                                </div>
+                                <div className="text-right">
+                                    <div className={`text-2xl font-black ${score > 80 ? 'text-emerald-500' : score < 60 ? 'text-amber-500' : 'text-teal-500'}`}>
+                                        {score}%
+                                    </div>
+                                    <span className="text-[8px] font-bold text-zinc-300 uppercase tracking-widest block">Match</span>
+                                </div>
+                            </div>
+
+                            {/* Central Visual */}
+                            <div className="flex-1 flex flex-col items-center justify-center relative z-10">
+                                <div className={`w-28 h-28 rounded-[2rem] flex items-center justify-center shadow-lg transition-transform duration-500 ${isActive ? 'shadow-zinc-200 scale-110 rotate-0' : 'shadow-none scale-100 rotate-3'} ${theme}`}>
+                                    {getProductIcon(p.type, 48)}
+                                </div>
+                            </div>
+
+                            {/* Bottom Info */}
+                            <div className="relative z-10">
+                                <h3 className="font-bold text-xl text-zinc-900 leading-tight mb-1 line-clamp-2">{p.name}</h3>
+                                <p className="text-xs text-zinc-400 font-bold uppercase tracking-wide truncate mb-4">{p.brand || 'Unknown Brand'}</p>
+                                
+                                <div className={`w-full py-3 rounded-xl flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest transition-colors ${isActive ? 'bg-teal-600 text-white' : 'bg-zinc-100 text-zinc-400'}`}>
+                                    View Details <ArrowRight size={14} />
+                                </div>
+                            </div>
+                       </button>
+                   );
+               })}
+
+               {/* ADD NEW CARD (Last in Carousel) */}
+               {activeTab === 'ROUTINE' && (
+                   <button 
+                        onClick={onScanNew}
+                        className={`
+                            shrink-0 snap-center w-[260px] h-[380px] rounded-[2.5rem] border-2 border-dashed border-zinc-300 flex flex-col items-center justify-center gap-4 text-zinc-400 hover:border-teal-400 hover:text-teal-500 hover:bg-teal-50/50 transition-all duration-300 group
+                            ${activeIndex === displayedProducts.length ? 'scale-100 opacity-100 bg-white shadow-xl' : 'scale-90 opacity-60 bg-transparent'}
+                        `}
+                   >
+                       <div className="w-20 h-20 rounded-full bg-zinc-50 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                           <Plus size={32} />
+                       </div>
+                       <span className="font-bold text-sm uppercase tracking-widest">Add Product</span>
+                   </button>
+               )}
+               
+               {/* Spacer to center last item */}
+               <div className="w-[calc(50vw-130px)] shrink-0"></div>
+           </div>
+       </div>
 
        {/* GRADING INFO MODAL */}
        {showGradingInfo && (
@@ -319,7 +346,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
             </div>
        )}
 
-       {/* PRODUCT DETAIL MODAL */}
+       {/* PRODUCT DETAIL MODAL (Overlay) */}
        {selectedProduct && (
            <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-6 bg-zinc-900/60 backdrop-blur-md animate-in fade-in duration-300">
                 <div className="w-full max-w-md bg-zinc-50 rounded-t-[2.5rem] sm:rounded-[2.5rem] h-[90vh] sm:h-auto sm:max-h-[90vh] relative shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-8 sm:slide-in-from-bottom-0 sm:zoom-in-95">
@@ -330,7 +357,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                         </button>
                         
                         <div className="flex flex-col items-center text-center relative z-10 mt-2">
-                             <div className={`w-16 h-16 rounded-2xl ${getProductColor(selectedProduct.type)} flex items-center justify-center mb-4 shadow-lg border border-white/50`}>
+                             <div className={`w-16 h-16 rounded-2xl ${getProductColor(selectedProduct.type).split(' ')[1]} ${getProductColor(selectedProduct.type).split(' ')[0]} flex items-center justify-center mb-4 shadow-lg border border-white/50`}>
                                  {getProductIcon(selectedProduct.type)}
                              </div>
                              <h2 className="text-xl font-black text-zinc-900 leading-tight mb-1 max-w-xs">{selectedProduct.name}</h2>
@@ -366,7 +393,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-6 space-y-4 pb-safe">
-                        {/* Usage Tip (Dynamic "Shelf Mind" Feature) */}
+                        {/* Usage Tip (Contextual) */}
                         <div className="bg-indigo-50 p-5 rounded-[1.5rem] border border-indigo-100">
                             <h3 className="text-xs font-bold text-indigo-900 uppercase tracking-widest mb-2 flex items-center gap-2">
                                 <Clock size={14} /> Usage Guide
@@ -427,15 +454,17 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                                 </button>
                             </div>
                         ) : (
-                            <button 
-                                onClick={() => {
-                                    onRemoveProduct(selectedProduct.id);
-                                    setSelectedProduct(null);
-                                }}
-                                className="w-full py-4 rounded-[1.5rem] border border-zinc-200 bg-white text-zinc-400 font-bold text-xs uppercase hover:text-rose-500 hover:border-rose-200 hover:bg-rose-50 transition-colors"
-                            >
-                                Remove from Shelf
-                            </button>
+                            <div className="flex gap-3">
+                                <button 
+                                    onClick={() => {
+                                        onRemoveProduct(selectedProduct.id);
+                                        setSelectedProduct(null);
+                                    }}
+                                    className="w-full py-4 rounded-[1.5rem] border border-rose-200 bg-rose-50 text-rose-500 font-bold text-xs uppercase hover:bg-rose-100 transition-colors flex items-center justify-center gap-2"
+                                >
+                                    <Trash2 size={16} /> Remove Product
+                                </button>
+                            </div>
                         )}
                     </div>
                 </div>
