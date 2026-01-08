@@ -1,5 +1,5 @@
 
-import { Product, UserProfile, UserPreferences } from '../../types';
+import { Product, UserProfile, UserPreferences, ShelfAuditReport } from '../../types';
 
 // --- SYNCHRONOUS HELPERS (NO AI CALLS) ---
 
@@ -207,6 +207,107 @@ export const analyzeShelfHealth = (products: Product[], user: UserProfile) => {
             notes: notes.slice(0, 3), // Top 3 notes only
             missing,
         }
+    };
+};
+
+export const runPostScanAudit = (user: UserProfile, shelf: Product[]): ShelfAuditReport | null => {
+    const history = user.scanHistory || [];
+    if (history.length < 2) return null; // Need comparison
+
+    const current = history[history.length - 1]; // This is the new scan
+    const prev = history[history.length - 2];
+
+    const flags: any[] = [];
+
+    // 1. Detect Worsened Conditions (Threshold: Drop of 5 points)
+    const drops: Record<string, number> = {};
+    if ((current.redness - prev.redness) < -5) drops['redness'] = current.redness - prev.redness;
+    if ((current.hydration - prev.hydration) < -5) drops['hydration'] = current.hydration - prev.hydration;
+    if ((current.acneActive - prev.acneActive) < -5) drops['acneActive'] = current.acneActive - prev.acneActive;
+
+    // If everything is improving or stable, no audit needed
+    if (Object.keys(drops).length === 0) return null;
+
+    // 2. Audit Products against Drops
+    shelf.forEach(p => {
+        const ingStr = p.ingredients.join(' ').toLowerCase();
+        let flag = null;
+
+        // A. REDNESS SPIKE (Sensitive)
+        if (drops['redness']) {
+            const irritants = ['retinol', 'tretinoin', 'glycolic', 'salicylic', 'lactic', 'fragrance', 'alcohol', 'menthol', 'peppermint', 'eucalyptus'];
+            const found = irritants.find(i => ingStr.includes(i));
+            
+            if (found) {
+                // Nuance: Is it essential or beneficial for something else?
+                const isEssential = p.type === 'CLEANSER' || p.type === 'MOISTURIZER';
+                // Benefit Check: Does this product help acne, which might still be good/needed?
+                const hasAcneBenefit = p.benefits.some(b => b.target === 'acneActive') && current.acneActive > 60;
+
+                if (isEssential) {
+                     flag = {
+                        advice: 'BUFFER',
+                        severity: 'CAUTION',
+                        issue: `Redness increased. ${p.name} contains ${found}.`,
+                        smartUsage: `Your skin is sensitive right now. Apply this over a thin layer of moisturizer to reduce irritation.`
+                    };
+                } else if (hasAcneBenefit) {
+                    flag = {
+                        advice: 'LESS_FREQ',
+                        severity: 'CAUTION',
+                        issue: `Redness increased, but ${p.name} helps your acne.`,
+                        smartUsage: `Don't stop completely. Reduce use to every other day to manage redness while keeping acne in check.`
+                    };
+                } else {
+                    flag = {
+                        advice: 'PAUSE',
+                        severity: 'CRITICAL',
+                        issue: `Redness spike detected. ${found} in ${p.name} is a likely trigger.`,
+                        smartUsage: `Pause use for 3-5 days until your Redness score recovers above ${prev.redness}.`
+                    };
+                }
+            }
+        }
+
+        // B. HYDRATION DROP (Drying)
+        if (!flag && drops['hydration']) {
+             const drying = ['alcohol denat', 'clay', 'charcoal', 'salicylic', 'benzoyl peroxide', 'sulfate'];
+             const found = drying.find(i => ingStr.includes(i));
+             
+             if (found) {
+                 if (p.type === 'CLEANSER') {
+                     flag = {
+                         advice: 'LESS_FREQ',
+                         severity: 'CAUTION',
+                         issue: `Hydration dropped. ${p.name} might be stripping your barrier.`,
+                         smartUsage: `Try washing your face only in the evening, or switch to a milk cleanser temporarily.`
+                     };
+                 } else {
+                     flag = {
+                         advice: 'BUFFER',
+                         severity: 'CAUTION',
+                         issue: `Skin is dehydrated. ${found} can worsen this.`,
+                         smartUsage: `Apply this after your moisturizer (sandwich method) to lock in water.`
+                     };
+                 }
+             }
+        }
+
+        if (flag) {
+            flags.push({
+                productId: p.id,
+                productName: p.name,
+                productType: p.type,
+                ...flag
+            });
+        }
+    });
+
+    if (flags.length === 0) return null;
+
+    return {
+        timestamp: Date.now(),
+        flags
     };
 };
 

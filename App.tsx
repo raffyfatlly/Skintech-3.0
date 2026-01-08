@@ -8,14 +8,15 @@ import {
   SkinType, 
   UsageStats,
   RecommendedProduct,
-  UserPreferences
+  UserPreferences,
+  ShelfAuditReport
 } from './types';
 import { loadUserData, saveUserData, syncLocalToCloud, clearLocalData } from './services/storageService';
 import { auth } from './services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { startCheckout } from './services/stripeService';
 import { trackEvent } from './services/analyticsService';
-import { analyzeProductFromSearch, analyzeProductImage, generateTargetedRecommendations } from './services/geminiService';
+import { analyzeProductFromSearch, analyzeProductImage, generateTargetedRecommendations, analyzeShelfHealth, runPostScanAudit } from './services/geminiService';
 import { runNotificationEngine } from './services/notificationService';
 
 // Components
@@ -71,6 +72,9 @@ const App: React.FC = () => {
   // Notification State
   const [notification, setNotification] = useState<{ type: NotificationType, title: string, description: string, actionLabel?: string, onAction?: () => void } | null>(null);
   
+  // Shelf Audit Report State
+  const [auditReport, setAuditReport] = useState<ShelfAuditReport | null>(null);
+
   const [aiQuery, setAiQuery] = useState<string | null>(null);
   
   // Persisted Routine Results State
@@ -501,6 +505,7 @@ const App: React.FC = () => {
           openAuth('SAVE_RESULTS');
           return;
       }
+      
       const updatedUser: UserProfile = {
           ...userProfile, hasScannedFace: true, biometrics: metrics, faceImage: image,
           scanHistory: [...(userProfile.scanHistory || []), metrics],
@@ -510,6 +515,26 @@ const App: React.FC = () => {
       persistState(updatedUser, shelf);
       setCurrentView(AppView.DASHBOARD);
       setTimeout(() => setActiveGuide('SCAN'), 5000);
+
+      // --- TRIGGER SHELF AUDIT (UPDATED) ---
+      // We run a background check to see if current shelf products conflict with new metrics
+      if (shelf.length > 0) {
+          setTimeout(() => {
+              // Now we pass the updatedUser which contains the FULL history, so the audit function can compare old vs new.
+              const report = runPostScanAudit(updatedUser, shelf);
+              
+              if (report && report.flags.length > 0) {
+                  setAuditReport(report);
+                  setNotification({
+                      type: 'GENERIC',
+                      title: 'Routine Update Needed',
+                      description: `${report.flags.length} product${report.flags.length > 1 ? 's' : ''} flagged based on changes in your skin.`,
+                      actionLabel: 'Review Shelf',
+                      onAction: () => setCurrentView(AppView.SMART_SHELF)
+                  });
+              }
+          }, 2000);
+      }
   };
 
   const handleAddToShelf = () => {
@@ -684,6 +709,8 @@ const App: React.FC = () => {
                       onMoveToShelf={handleMoveToShelf} 
                       onRemoveFromWishlist={handleRemoveFromWishlist}
                       onOpenRoutineBuilder={() => setCurrentView(AppView.ROUTINE_BUILDER)}
+                      auditReport={auditReport}
+                      onClearAudit={() => setAuditReport(null)}
                   />
               ) : null;
           case AppView.PRODUCT_SCANNER:

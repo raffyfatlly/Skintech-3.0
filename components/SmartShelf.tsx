@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Product, UserProfile } from '../types';
-import { Plus, Droplet, Sun, Zap, Sparkles, Palette, DollarSign, Edit2, Save, Award, ShoppingBag, ArrowRight, Lightbulb, Clock, Trash2, RotateCcw, ScanBarcode, ChevronDown } from 'lucide-react';
+import { Product, UserProfile, ShelfAuditReport } from '../types';
+import { Plus, Droplet, Sun, Zap, Sparkles, Palette, DollarSign, Edit2, Save, Award, ShoppingBag, ArrowRight, Lightbulb, Clock, Trash2, RotateCcw, ScanBarcode, ChevronDown, AlertOctagon, Check, X, ArrowDown } from 'lucide-react';
 import { auditProduct, analyzeShelfHealth } from '../services/geminiService';
 
 interface SmartShelfProps {
@@ -13,12 +13,82 @@ interface SmartShelfProps {
   onMoveToShelf?: (product: Product) => void;
   onRemoveFromWishlist?: (id: string) => void;
   onOpenRoutineBuilder?: () => void;
+  auditReport?: ShelfAuditReport | null;
+  onClearAudit?: () => void;
 }
 
 const CARD_WIDTH = 280; 
 const CARD_GAP = 20;    
 
-const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onScanNew, onUpdateProduct, userProfile, onMoveToShelf, onRemoveFromWishlist, onOpenRoutineBuilder }) => {
+const ShelfAuditModal: React.FC<{ report: ShelfAuditReport; onClose: () => void }> = ({ report, onClose }) => {
+    return (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-6 bg-rose-950/40 backdrop-blur-md animate-in fade-in duration-500">
+            <div className="w-full max-w-sm bg-white rounded-[2rem] overflow-hidden shadow-2xl relative animate-in zoom-in-95">
+                
+                {/* Header */}
+                <div className="bg-rose-50 p-6 border-b border-rose-100 flex items-center gap-4">
+                    <div className="w-12 h-12 bg-rose-100 rounded-full flex items-center justify-center text-rose-500 shrink-0 border border-rose-200">
+                        <AlertOctagon size={24} />
+                    </div>
+                    <div>
+                        <h3 className="text-lg font-black text-rose-900 leading-tight">Routine Update</h3>
+                        <p className="text-xs font-bold text-rose-600/80 uppercase tracking-widest mt-0.5">Based on new face scan</p>
+                    </div>
+                </div>
+
+                <div className="p-6 space-y-4 max-h-[60vh] overflow-y-auto no-scrollbar">
+                    <p className="text-sm font-medium text-zinc-600 leading-relaxed">
+                        Your latest skin biometrics indicate a shift in skin condition. We recommend adjusting usage for the following products:
+                    </p>
+
+                    {report.flags.map((flag, idx) => {
+                        let badgeColor = 'bg-amber-100 text-amber-700';
+                        if (flag.severity === 'CRITICAL') badgeColor = 'bg-rose-100 text-rose-700';
+                        else if (flag.advice === 'BUFFER' || flag.advice === 'LESS_FREQ') badgeColor = 'bg-indigo-100 text-indigo-700';
+
+                        return (
+                            <div key={idx} className="flex flex-col gap-3 p-4 bg-white border border-zinc-100 rounded-2xl shadow-sm">
+                                <div className="flex gap-4">
+                                    <div className="w-12 h-12 bg-zinc-50 rounded-xl flex items-center justify-center text-zinc-400 shrink-0 border border-zinc-100">
+                                        {flag.productType === 'CLEANSER' ? <Droplet size={20} /> : <Zap size={20} />}
+                                    </div>
+                                    <div>
+                                        <h4 className="font-bold text-zinc-900 text-sm">{flag.productName}</h4>
+                                        <div className="mt-1 flex flex-wrap gap-2">
+                                            <span className={`text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wide ${badgeColor}`}>
+                                                {flag.advice.replace('_', ' ')}
+                                            </span>
+                                        </div>
+                                        <p className="text-xs text-zinc-500 mt-2 font-medium leading-snug">{flag.issue}</p>
+                                    </div>
+                                </div>
+                                {flag.smartUsage && (
+                                    <div className="bg-zinc-50 rounded-xl p-3 border border-zinc-100/50 flex gap-2">
+                                        <ArrowDown size={14} className="text-teal-500 mt-0.5 shrink-0" />
+                                        <p className="text-xs font-semibold text-zinc-700 leading-snug">
+                                            {flag.smartUsage}
+                                        </p>
+                                    </div>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
+
+                <div className="p-4 bg-zinc-50 border-t border-zinc-100">
+                    <button 
+                        onClick={onClose}
+                        className="w-full py-4 bg-zinc-900 text-white rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-zinc-800 transition-all flex items-center justify-center gap-2 shadow-lg shadow-zinc-900/10"
+                    >
+                        <Check size={16} /> Acknowledge
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onScanNew, onUpdateProduct, userProfile, onMoveToShelf, onRemoveFromWishlist, onOpenRoutineBuilder, auditReport, onClearAudit }) => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [activeTab, setActiveTab] = useState<'ROUTINE' | 'WISHLIST'>('ROUTINE');
   const [showGradingInfo, setShowGradingInfo] = useState(false); 
@@ -288,6 +358,9 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
        <div className="absolute top-[20%] left-[-20%] w-[500px] h-[500px] bg-zinc-300/30 rounded-full blur-[100px] pointer-events-none"></div>
        <div className="absolute top-[40%] right-[-20%] w-[600px] h-[600px] bg-slate-200/40 rounded-full blur-[120px] pointer-events-none"></div>
        <div className="absolute top-[10%] right-[10%] w-[300px] h-[300px] bg-white rounded-full blur-3xl opacity-80 pointer-events-none"></div>
+
+       {/* AUDIT MODAL (NEW) */}
+       {auditReport && <ShelfAuditModal report={auditReport} onClose={onClearAudit || (() => {})} />}
 
        {/* --- HEADER --- */}
        <div className="pt-safe-top px-6 z-20 relative">

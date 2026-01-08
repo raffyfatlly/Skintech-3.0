@@ -295,16 +295,23 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
        setCapturedSnapshot(displayImage);
        const shelfNames = shelf.map(p => `${p.brand || ''} ${p.name}`);
        const skinAnalysisPromise = analyzeFaceSkin(processedImage, localMetrics, shelfNames, scanHistory);
+       
        let identityPromise: Promise<{ isMatch: boolean; confidence: number; reason: string }> | null = null;
+       
+       // PAUSED: Face Verification Logic
+       /*
        if (referenceImage) {
            setIdentityStatus('CHECKING');
            identityPromise = compareFaceIdentity(processedImage, referenceImage);
        }
+       */
+
        try {
            const [aiMetrics, identityResult] = await Promise.all([
                skinAnalysisPromise,
                identityPromise ? identityPromise : Promise.resolve(null)
            ]);
+           
            if (identityResult) {
                if (!identityResult.isMatch) {
                    setIdentityStatus('MISMATCH');

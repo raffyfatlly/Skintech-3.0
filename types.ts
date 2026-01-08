@@ -126,6 +126,19 @@ export interface ShelfConflict {
   severity: 'CAUTION' | 'DANGER';
 }
 
+export interface ShelfAuditReport {
+    timestamp: number;
+    flags: {
+        productId: string;
+        productName: string;
+        productType: string;
+        issue: string;
+        severity: 'CRITICAL' | 'CAUTION';
+        advice: 'PAUSE' | 'LIMIT' | 'MONITOR' | 'LESS_FREQ' | 'BUFFER';
+        smartUsage: string;
+    }[];
+}
+
 export enum AppView {
   LANDING = 'LANDING',
   ONBOARDING = 'ONBOARDING',
