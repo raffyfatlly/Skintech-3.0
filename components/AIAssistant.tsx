@@ -5,7 +5,8 @@ import { createDermatologistSession as initSession, isQuotaError } from '../serv
 import { playNotificationSound } from '../services/soundService';
 import { 
     Send, Mic, X, ChevronLeft, FileText, Keyboard, Sparkles, 
-    AudioWaveform, MessageSquare, Loader, Bookmark, Check, Trash2
+    AudioWaveform, MessageSquare, Loader, Bookmark, Check, Trash2,
+    ChevronDown, ChevronUp
 } from 'lucide-react';
 import type { Chat, GenerateContentResponse, Part } from "@google/genai";
 
@@ -107,6 +108,53 @@ const MessageItem: React.FC<{
                     )}
                 </div>
             )}
+        </div>
+    );
+};
+
+const SavedFileItem: React.FC<{ 
+    file: SavedFile, 
+    onDelete: (id: string) => void 
+}> = ({ file, onDelete }) => {
+    const [isExpanded, setIsExpanded] = useState(false);
+
+    return (
+        <div className={`bg-white/80 backdrop-blur-md rounded-2xl p-5 border border-white/50 shadow-sm relative group animate-in slide-in-from-bottom-2 transition-all duration-300 ${isExpanded ? 'bg-white shadow-md' : ''}`}>
+            <div className="mb-2 pr-8">
+                <p className="text-xs font-bold text-zinc-400 uppercase tracking-wide truncate">
+                    Q: {file.question}
+                </p>
+            </div>
+            <div className={`text-sm font-medium text-zinc-800 leading-relaxed ${isExpanded ? '' : 'line-clamp-4'} transition-all`}>
+                {renderText(file.answer)}
+            </div>
+            
+            <button 
+                onClick={() => setIsExpanded(!isExpanded)}
+                className="w-full flex items-center justify-center pt-3 pb-1 mt-1 group/btn"
+            >
+                {isExpanded ? (
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-zinc-400 uppercase tracking-widest group-hover/btn:text-zinc-600 transition-colors">
+                        Show Less <ChevronUp size={12} />
+                    </div>
+                ) : (
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-zinc-400 uppercase tracking-widest group-hover/btn:text-teal-600 transition-colors">
+                        Read More <ChevronDown size={12} />
+                    </div>
+                )}
+            </button>
+
+            <div className="flex justify-between items-center mt-2 pt-3 border-t border-zinc-100/50">
+                <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">
+                    {new Date(file.timestamp).toLocaleDateString()}
+                </span>
+                <button 
+                    onClick={(e) => { e.stopPropagation(); onDelete(file.id); }}
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-300 hover:text-rose-500 hover:bg-rose-50 transition-all"
+                >
+                    <Trash2 size={16} />
+                </button>
+            </div>
         </div>
     );
 };
@@ -495,27 +543,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
                             </div>
                         ) : (
                             savedFiles.map((file) => (
-                                <div key={file.id} className="bg-white/80 backdrop-blur-md rounded-2xl p-5 border border-white/50 shadow-sm relative group animate-in slide-in-from-bottom-2">
-                                    <div className="mb-2 pr-8">
-                                        <p className="text-xs font-bold text-zinc-400 uppercase tracking-wide truncate">
-                                            Q: {file.question}
-                                        </p>
-                                    </div>
-                                    <div className="text-sm font-medium text-zinc-800 leading-relaxed line-clamp-4">
-                                        {renderText(file.answer)}
-                                    </div>
-                                    <div className="flex justify-between items-center mt-4 pt-4 border-t border-zinc-100/50">
-                                        <span className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest">
-                                            {new Date(file.timestamp).toLocaleDateString()}
-                                        </span>
-                                        <button 
-                                            onClick={() => handleDeleteFile(file.id)}
-                                            className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-300 hover:text-rose-500 hover:bg-rose-50 transition-all"
-                                        >
-                                            <Trash2 size={16} />
-                                        </button>
-                                    </div>
-                                </div>
+                                <SavedFileItem key={file.id} file={file} onDelete={handleDeleteFile} />
                             ))
                         )}
                     </div>
