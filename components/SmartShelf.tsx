@@ -51,9 +51,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
           return {
               title: 'Expand Routine',
               text: 'Scan a new product to check for conflicts.',
-              color: 'text-teal-700',
-              borderColor: 'border-teal-200',
-              bg: 'bg-teal-50/50',
+              color: 'text-zinc-600',
               icon: <ScanBarcode size={16} strokeWidth={2.5} />
           };
       }
@@ -70,9 +68,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
           return {
               title: 'Caution',
               text: critical.reason,
-              color: 'text-rose-700',
-              borderColor: 'border-rose-200',
-              bg: 'bg-rose-50/50',
+              color: 'text-rose-600',
               icon: <Trash2 size={16} strokeWidth={2.5} />
           };
       }
@@ -83,9 +79,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
           return {
               title: 'Note',
               text: caution.reason,
-              color: 'text-amber-700',
-              borderColor: 'border-amber-200',
-              bg: 'bg-amber-50/50',
+              color: 'text-amber-600',
               icon: <Lightbulb size={16} strokeWidth={2.5} />
           };
       }
@@ -95,9 +89,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
           return {
               title: 'Great Match',
               text: `This ${product.type.toLowerCase()} aligns well with your skin profile.`,
-              color: 'text-emerald-700',
-              borderColor: 'border-emerald-200',
-              bg: 'bg-emerald-50/50',
+              color: 'text-emerald-600',
               icon: <Sparkles size={16} strokeWidth={2.5} />
           };
       }
@@ -106,9 +98,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
       return {
           title: 'Product Info',
           text: product.usageTips || 'Tap "View Details" to see full ingredient analysis.',
-          color: 'text-zinc-600',
-          borderColor: 'border-zinc-200',
-          bg: 'bg-white/50',
+          color: 'text-zinc-500',
           icon: <Lightbulb size={16} strokeWidth={2.5} />
       };
 
@@ -236,17 +226,6 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
       }
   }
 
-  // UPDATED: Pastel Glass Colors for Light Mode
-  const getGlassColor = (type: string) => {
-      switch(type) {
-          case 'CLEANSER': return 'bg-sky-50 border-sky-100 text-sky-500';
-          case 'SPF': return 'bg-amber-50 border-amber-100 text-amber-500';
-          case 'SERUM': return 'bg-teal-50 border-teal-100 text-teal-500';
-          case 'MOISTURIZER': return 'bg-rose-50 border-rose-100 text-rose-500';
-          default: return 'bg-zinc-50 border-zinc-200 text-zinc-500';
-      }
-  }
-
   const getGradeColor = (grade: string) => {
       switch(grade) {
           case 'S': return 'text-emerald-600 bg-emerald-50 border-emerald-200';
@@ -259,8 +238,10 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
   return (
     <div className="min-h-screen w-full relative flex flex-col font-sans overflow-hidden pb-32 bg-zinc-50">
        
-       {/* DECORATIVE BACKGROUND (Clean, no heavy blends) */}
-       <div className="absolute top-0 right-0 w-full h-[50vh] bg-gradient-to-b from-white to-transparent pointer-events-none"></div>
+       {/* AMBIENT BACKGROUND ELEMENTS (Updated to White/Grey Shades) */}
+       <div className="absolute top-[20%] left-[-20%] w-[500px] h-[500px] bg-zinc-300/30 rounded-full blur-[100px] pointer-events-none"></div>
+       <div className="absolute top-[40%] right-[-20%] w-[600px] h-[600px] bg-slate-200/40 rounded-full blur-[120px] pointer-events-none"></div>
+       <div className="absolute top-[10%] right-[10%] w-[300px] h-[300px] bg-white rounded-full blur-3xl opacity-80 pointer-events-none"></div>
 
        {/* --- HEADER: CLEAN TYPOGRAPHY --- */}
        <div className="pt-safe-top px-6 z-20 relative">
@@ -270,8 +251,8 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                       Smart Shelf
                   </h2>
                   <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-teal-400 shadow-[0_0_10px_#2dd4bf]"></div> {/* The Orb Dot */}
-                      <p className="text-xs text-teal-600 font-bold uppercase tracking-widest opacity-90">
+                      <div className="w-2 h-2 rounded-full bg-zinc-300 shadow-[0_0_10px_rgba(0,0,0,0.1)]"></div>
+                      <p className="text-xs text-zinc-400 font-bold uppercase tracking-widest opacity-90">
                           Digital Vanity
                       </p>
                   </div>
@@ -294,13 +275,13 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                <div className="inline-flex bg-white/60 backdrop-blur-md p-1 rounded-full border border-zinc-200/50 shadow-sm">
                    <button 
                       onClick={() => setActiveTab('ROUTINE')}
-                      className={`px-5 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${activeTab === 'ROUTINE' ? 'bg-white text-zinc-900 shadow-md ring-1 ring-zinc-100' : 'text-zinc-400 hover:text-zinc-600'}`}
+                      className={`px-5 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${activeTab === 'ROUTINE' ? 'bg-white text-zinc-800 shadow-sm ring-1 ring-zinc-100' : 'text-zinc-400 hover:text-zinc-600'}`}
                    >
                       Routine
                    </button>
                    <button 
                       onClick={() => setActiveTab('WISHLIST')}
-                      className={`px-5 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all flex items-center gap-1.5 ${activeTab === 'WISHLIST' ? 'bg-white text-zinc-900 shadow-md ring-1 ring-zinc-100' : 'text-zinc-400 hover:text-zinc-600'}`}
+                      className={`px-5 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all flex items-center gap-1.5 ${activeTab === 'WISHLIST' ? 'bg-white text-zinc-800 shadow-sm ring-1 ring-zinc-100' : 'text-zinc-400 hover:text-zinc-600'}`}
                    >
                       Wishlist {userProfile.wishlist?.length ? <span className={`w-1.5 h-1.5 rounded-full ${activeTab === 'WISHLIST' ? 'bg-rose-400' : 'bg-rose-500'}`}></span> : ''}
                    </button>
@@ -343,7 +324,6 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                {displayedProducts.map((p, i) => {
                    const audit = auditProduct(p, userProfile);
                    const score = Number(audit.adjustedScore);
-                   const glassStyle = getGlassColor(p.type);
                    const isActive = i === activeIndex;
                    const dynamicStyle = getCardStyle(i);
 
@@ -368,40 +348,56 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                                     }
                                 }}
                                 className={`
-                                    w-full h-[440px] rounded-[2.5rem] border shadow-xl relative overflow-hidden flex flex-col justify-between p-7 group transition-all duration-500
+                                    w-full h-[440px] rounded-[2rem] border relative overflow-hidden flex flex-col p-6 group transition-all duration-500
                                     ${isActive 
-                                        ? 'bg-white/40 backdrop-blur-2xl border-white/50 shadow-2xl opacity-100 ring-1 ring-white/40' 
-                                        : 'bg-white/10 backdrop-blur-md border-white/20 opacity-70 hover:opacity-90'}
+                                        ? 'bg-gradient-to-br from-white/30 via-white/10 to-transparent backdrop-blur-2xl border-white/40 shadow-[0_20px_50px_rgba(0,0,0,0.15)] opacity-100' 
+                                        : 'bg-white/5 backdrop-blur-md border-white/10 opacity-50 hover:opacity-80 scale-95'}
                                 `}
                            >
-                                {/* Top Stats */}
-                                <div className="flex justify-between items-start relative z-10 w-full">
-                                    <div className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-widest border bg-white/40 border-white/50 text-zinc-500`}>
-                                        {p.type}
-                                    </div>
-                                    <div className="text-right">
-                                        <div className={`text-4xl font-thin tracking-tighter ${score > 80 ? 'text-emerald-600' : score < 60 ? 'text-amber-600' : 'text-teal-600'}`}>
-                                            {score}
-                                        </div>
-                                        <span className="text-[8px] font-bold text-zinc-400 uppercase tracking-widest block -mt-1">Match</span>
-                                    </div>
+                                {/* High-End Matte Texture (Noise Overlay) */}
+                                <div className="absolute inset-0 opacity-20 pointer-events-none mix-blend-overlay bg-[url('https://www.transparenttextures.com/patterns/stardust.png')]"></div>
+                                
+                                {/* Vertical Type Label (Left Edge) */}
+                                <div className="absolute left-6 top-1/2 -translate-y-1/2 -ml-3 flex items-center justify-center h-full w-4 pointer-events-none opacity-40">
+                                     <span className="text-[10px] font-black uppercase tracking-[0.3em] -rotate-90 whitespace-nowrap text-zinc-800">
+                                         {p.type}
+                                     </span>
                                 </div>
 
-                                {/* Central Visual - Colored Box */}
-                                <div className="flex-1 flex flex-col items-center justify-center relative z-10 py-4 w-full">
-                                    <div className={`w-40 h-40 rounded-[2.5rem] flex items-center justify-center shadow-sm transition-transform duration-500 border ${isActive ? 'scale-105 rotate-0' : 'scale-95 rotate-3 opacity-90'} ${glassStyle}`}>
-                                        {getProductIcon(p.type, 72, "currentColor")}
-                                    </div>
-                                </div>
-
-                                {/* Bottom Info - Matte Glass Button Style */}
-                                <div className="relative z-10 w-full text-center">
-                                    <h3 className="font-bold text-xl text-zinc-900 leading-tight mb-1 line-clamp-2 drop-shadow-sm">{p.name}</h3>
-                                    <p className="text-xs text-zinc-500 font-bold uppercase tracking-wide truncate mb-6">{p.brand || 'Unknown Brand'}</p>
+                                {/* Content Container (Pushed right to accommodate vertical text) */}
+                                <div className="flex-1 flex flex-col w-full pl-6 relative z-10">
                                     
-                                    {/* Action Button - Soft Glass Pill (No Black) */}
-                                    <div className={`w-full py-4 rounded-2xl flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest transition-all ${isActive ? 'bg-white/80 text-zinc-900 shadow-sm hover:bg-white' : 'bg-white/10 text-zinc-400 border border-white/10'}`}>
-                                        View Details <ChevronRight size={14} />
+                                    {/* Top: Brand & Score */}
+                                    <div className="flex justify-between items-start w-full mb-4">
+                                        <div className="text-left">
+                                            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 truncate max-w-[120px]">{p.brand || 'Brand'}</p>
+                                        </div>
+                                        <div className="flex flex-col items-end">
+                                            <span className={`text-2xl font-light tracking-tighter leading-none ${score > 80 ? 'text-emerald-700' : score < 60 ? 'text-rose-700' : 'text-amber-700'}`}>
+                                                {score}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {/* Middle: Icon (Embossed Look) */}
+                                    <div className="flex-1 flex items-center justify-center py-2">
+                                        <div className={`w-32 h-32 rounded-full flex items-center justify-center shadow-inner ${isActive ? 'bg-white/20 shadow-[inset_0_2px_4px_rgba(255,255,255,0.3)]' : 'bg-transparent'} backdrop-blur-sm transition-all duration-500 ring-1 ring-white/10`}>
+                                            <div className={`text-zinc-700 opacity-80 drop-shadow-sm transition-transform duration-500 ${isActive ? 'scale-110' : 'scale-100'}`}>
+                                                 {getProductIcon(p.type, 64, "currentColor")}
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    {/* Bottom: Name & Action */}
+                                    <div className="text-left mt-4">
+                                        <h3 className="font-medium text-lg text-zinc-800 leading-tight mb-4 line-clamp-2 pr-2 drop-shadow-sm">
+                                            {p.name}
+                                        </h3>
+                                        
+                                        {/* Action Hint */}
+                                        <div className={`flex items-center gap-2 text-[10px] font-bold uppercase tracking-widest transition-all ${isActive ? 'text-zinc-900 translate-x-0' : 'text-zinc-400 -translate-x-2 opacity-0'}`}>
+                                            View Details <ArrowRight size={12} />
+                                        </div>
                                     </div>
                                 </div>
                            </button>
@@ -409,7 +405,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                    );
                })}
 
-               {/* ADD NEW CARD (Ghost Card Style) */}
+               {/* ADD NEW CARD (Dashed Matte Look) */}
                {activeTab === 'ROUTINE' && (
                    <div 
                         className="shrink-0 snap-center relative"
@@ -421,12 +417,12 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                    >
                        <button 
                             onClick={onScanNew}
-                            className="w-full h-[440px] rounded-[2.5rem] border-2 border-dashed border-zinc-300 bg-white/20 backdrop-blur-md flex flex-col items-center justify-center gap-6 text-zinc-400 hover:bg-white/40 hover:border-zinc-400 transition-all duration-300 group"
+                            className="w-full h-[440px] rounded-[2rem] border-2 border-dashed border-white/40 bg-white/10 backdrop-blur-md flex flex-col items-center justify-center gap-6 text-zinc-400 hover:bg-white/20 hover:border-white/60 transition-all duration-300 group shadow-lg"
                        >
-                           <div className="w-24 h-24 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform text-zinc-300 bg-zinc-100/50 group-hover:text-teal-500 group-hover:bg-teal-50">
+                           <div className="w-24 h-24 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform text-white/50 bg-white/10 group-hover:text-zinc-400 group-hover:bg-white/20 shadow-inner">
                                <ScanBarcode size={48} strokeWidth={1} />
                            </div>
-                           <span className="font-bold text-xs uppercase tracking-[0.2em] group-hover:text-zinc-900 transition-colors">Scan Product</span>
+                           <span className="font-bold text-xs uppercase tracking-[0.2em] text-white/70 group-hover:text-white transition-colors">Scan Product</span>
                        </button>
                    </div>
                )}
@@ -435,11 +431,11 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
            </div>
        </div>
 
-       {/* ACTIVE PRODUCT INSIGHT (HUD) - Moved Below Carousel */}
+       {/* ACTIVE PRODUCT INSIGHT (HUD) - Minimal & Clean */}
        {activeInsight && (
            <div className="px-6 mb-4 z-10 relative">
-               <div key={activeIndex} className={`backdrop-blur-md border rounded-2xl p-4 shadow-xl flex items-center gap-4 animate-in slide-in-from-bottom-4 fade-in duration-700 delay-300 ${activeInsight.bg} ${activeInsight.borderColor}`}>
-                   <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border ${activeInsight.color} bg-white/80 border-current/10`}>
+               <div key={activeIndex} className="bg-white/60 backdrop-blur-xl border border-white/40 rounded-2xl p-4 shadow-sm flex items-center gap-4 animate-in slide-in-from-bottom-4 fade-in duration-700 delay-300">
+                   <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-white shadow-sm border border-zinc-100 ${activeInsight.color}`}>
                        {activeInsight.icon}
                    </div>
                    <div className="flex-1">
