@@ -44,6 +44,66 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
       }
   }, [products, activeTab, userProfile.wishlist]);
 
+  // --- DYNAMIC INSIGHT LOGIC ---
+  const activeInsight = useMemo(() => {
+      // 1. If looking at the "Ghost Card" (Add New)
+      if (activeTab === 'ROUTINE' && activeIndex === displayedProducts.length) {
+          return {
+              title: 'Expand Routine',
+              text: 'Scan a new product to check for conflicts.',
+              color: 'text-teal-200',
+              icon: <ScanBarcode size={12} strokeWidth={2.5} />
+          };
+      }
+
+      // 2. If looking at a real product
+      const product = displayedProducts[activeIndex];
+      if (!product) return null;
+
+      const audit = auditProduct(product, userProfile);
+      
+      // Critical Warning
+      const critical = audit.warnings.find(w => w.severity === 'CRITICAL');
+      if (critical) {
+          return {
+              title: 'Caution',
+              text: critical.reason,
+              color: 'text-rose-300',
+              icon: <Trash2 size={12} strokeWidth={2.5} />
+          };
+      }
+
+      // Minor Warning
+      const caution = audit.warnings.find(w => w.severity === 'CAUTION');
+      if (caution) {
+          return {
+              title: 'Note',
+              text: caution.reason,
+              color: 'text-amber-300',
+              icon: <Lightbulb size={12} strokeWidth={2.5} />
+          };
+      }
+
+      // Good Match
+      if (audit.adjustedScore > 80) {
+          return {
+              title: 'Great Match',
+              text: `This ${product.type.toLowerCase()} aligns well with your skin profile.`,
+              color: 'text-emerald-300',
+              icon: <Sparkles size={12} strokeWidth={2.5} />
+          };
+      }
+
+      // Neutral
+      return {
+          title: 'Product Info',
+          text: product.usageTips || 'Tap "View Details" to see full ingredient analysis.',
+          color: 'text-zinc-300',
+          icon: <Lightbulb size={12} strokeWidth={2.5} />
+      };
+
+  }, [activeIndex, displayedProducts, activeTab, userProfile]);
+
   // --- 3D SCROLL LOGIC ---
   useEffect(() => {
       const handleResize = () => setContainerWidth(window.innerWidth);
@@ -60,13 +120,6 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
               setScrollX(container.scrollLeft);
               
               const itemFullWidth = CARD_WIDTH + CARD_GAP;
-              
-              // To find the active index, we look at where the center of the screen 
-              // falls on the scroll track.
-              // Item 0 Center = 50vw + Width/2.
-              // Viewport Center = scrollLeft + 50vw.
-              
-              // Current Scroll Position + Center Offset - (First Item Start Offset)
               const centerPoint = container.scrollLeft + (container.clientWidth / 2);
               const startOffset = (container.clientWidth / 2) + (CARD_WIDTH / 2);
               
@@ -261,31 +314,8 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
           </div>
        </div>
 
-       {/* SKINOS NOTES (Integrated HUD) */}
-       {activeTab === 'ROUTINE' && (shelfIQ.analysis.notes.length > 0 || shelfIQ.analysis.missing.length > 0) && (
-           <div className="px-6 mt-6 z-10 animate-in slide-in-from-top-4 duration-700 relative">
-               <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 shadow-sm flex items-start gap-3">
-                   <div className="w-6 h-6 rounded-full bg-teal-500/20 flex items-center justify-center text-teal-200 shrink-0 shadow-sm mt-0.5 border border-teal-500/30">
-                       <Lightbulb size={12} strokeWidth={2.5} />
-                   </div>
-                   <div className="flex-1">
-                       <h3 className="text-[9px] font-bold text-teal-200 uppercase tracking-widest mb-0.5 opacity-80">AI Insight</h3>
-                       {shelfIQ.analysis.notes.length > 0 ? (
-                           <p className="text-xs font-bold text-white/90 leading-snug">
-                               {shelfIQ.analysis.notes[0].note}
-                           </p>
-                       ) : (
-                           <p className="text-xs font-bold text-white/90 leading-snug">
-                               Missing steps: {shelfIQ.analysis.missing.join(', ')}.
-                           </p>
-                       )}
-                   </div>
-               </div>
-           </div>
-       )}
-
        {/* 3D IMMERSIVE CAROUSEL */}
-       <div className="flex-1 flex flex-col justify-center relative perspective-800 overflow-hidden z-10">
+       <div className="flex-1 flex flex-col justify-center relative perspective-800 overflow-hidden z-10 -mt-4">
            
            {/* Wishlist Empty State (Minimal) */}
            {activeTab === 'WISHLIST' && displayedProducts.length === 0 && (
@@ -301,7 +331,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                 onTouchStart={(e) => e.stopPropagation()}
                 onTouchMove={(e) => e.stopPropagation()}
                 onTouchEnd={(e) => e.stopPropagation()}
-                className="flex overflow-x-auto snap-x snap-mandatory pb-16 pt-8 no-scrollbar items-center px-[50vw] relative z-10"
+                className="flex overflow-x-auto snap-x snap-mandatory pb-8 pt-12 no-scrollbar items-center px-[50vw] relative z-10"
                 style={{ 
                     scrollPaddingLeft: '0px',
                     perspective: '1000px',
@@ -405,6 +435,23 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                <div className="shrink-0" style={{ width: '50vw' }} />
            </div>
        </div>
+
+       {/* ACTIVE PRODUCT INSIGHT (HUD) - Moved Below Carousel */}
+       {activeInsight && (
+           <div className="px-6 mb-4 z-10 relative">
+               <div key={activeIndex} className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 shadow-xl flex items-center gap-4 animate-in slide-in-from-bottom-2 fade-in duration-500">
+                   <div className={`w-10 h-10 rounded-full bg-white/10 flex items-center justify-center shrink-0 border border-white/10 ${activeInsight.color}`}>
+                       {activeInsight.icon}
+                   </div>
+                   <div className="flex-1">
+                       <h3 className={`text-[10px] font-bold uppercase tracking-widest mb-0.5 ${activeInsight.color}`}>{activeInsight.title}</h3>
+                       <p className="text-xs font-medium text-white/90 leading-snug">
+                           {activeInsight.text}
+                       </p>
+                   </div>
+               </div>
+           </div>
+       )}
 
        {/* GRADING INFO MODAL (Darkened Glass) */}
        {showGradingInfo && (
