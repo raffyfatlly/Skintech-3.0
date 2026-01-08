@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, UserProfile } from '../types';
-import { Plus, Droplet, Sun, Zap, Sparkles, Palette, DollarSign, Edit2, Save, Award, ShoppingBag, ArrowRight, Lightbulb, Clock, Trash2, RotateCcw, ScanBarcode, ChevronRight } from 'lucide-react';
+import { Plus, Droplet, Sun, Zap, Sparkles, Palette, DollarSign, Edit2, Save, Award, ShoppingBag, ArrowRight, Lightbulb, Clock, Trash2, RotateCcw, ScanBarcode, ChevronRight, LayoutGrid, Heart } from 'lucide-react';
 import { auditProduct, analyzeShelfHealth } from '../services/geminiService';
 
 interface SmartShelfProps {
@@ -16,7 +16,7 @@ interface SmartShelfProps {
 }
 
 const CARD_WIDTH = 280; // Optimized width for phone screens
-const CARD_GAP = 16;    // Tighter gap for better "stack" feel
+const CARD_GAP = 20;    // Increased gap slightly for better separation
 
 const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onScanNew, onUpdateProduct, userProfile, onMoveToShelf, onRemoveFromWishlist, onOpenRoutineBuilder }) => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -59,17 +59,19 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
           requestAnimationFrame(() => {
               setScrollX(container.scrollLeft);
               
-              // Calculate center of viewport relative to scroll container
+              const itemFullWidth = CARD_WIDTH + CARD_GAP;
+              // Center of viewport in scroll space
               const viewportCenter = container.scrollLeft + (container.clientWidth / 2);
               
-              // Calculate index based on item width + gap
-              // We assume first item starts at 50vw padding
-              const firstItemOffset = container.clientWidth / 2;
-              const rawIndex = (viewportCenter - firstItemOffset) / (CARD_WIDTH + CARD_GAP);
+              // Padding is container.clientWidth / 2.
+              // Start of first item (index 0) is at paddingLeft.
+              // Center of first item is paddingLeft + CARD_WIDTH / 2.
+              const firstItemCenter = (container.clientWidth / 2) + (CARD_WIDTH / 2);
               
+              const rawIndex = (viewportCenter - firstItemCenter) / itemFullWidth;
               const index = Math.round(rawIndex);
-              const maxIndex = activeTab === 'ROUTINE' ? displayedProducts.length : displayedProducts.length - 1;
               
+              const maxIndex = activeTab === 'ROUTINE' ? displayedProducts.length : displayedProducts.length - 1;
               const safeIndex = Math.max(0, Math.min(maxIndex, index));
               
               if (safeIndex !== activeIndex) {
@@ -79,8 +81,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
       };
 
       container.addEventListener('scroll', handleScroll);
-      // Initialize center
-      handleScroll();
+      handleScroll(); // Init
       
       return () => container.removeEventListener('scroll', handleScroll);
   }, [displayedProducts, activeTab, activeIndex]);
@@ -89,54 +90,45 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
   const getCardStyle = (index: number) => {
       const itemFullWidth = CARD_WIDTH + CARD_GAP;
       
-      // Position of this specific item's center in the scroll track
-      // First item is at index 0. Padding accounts for viewport centering.
-      const itemPosition = (index * itemFullWidth) + (CARD_WIDTH / 2);
-      
-      // Where the scroll view's center is currently pointing
-      // We subtract padding (50vw) from scrollLeft to normalize 0 to the first item start
-      // Actually, easier: Just use scrollLeft.
-      // If scrollLeft is 0, the center of screen is at 50vw.
-      // The first item center is at 50vw + (CARD_WIDTH/2) if we use 50vw padding-left?
-      // Let's rely on the relative distance calculation:
-      
+      // Current scroll center
       const viewportCenter = scrollX + (containerWidth / 2);
-      // Padding is half screen. So Item 0 center is at `paddingLeft + CardWidth/2`
-      const visualItemCenter = (containerWidth / 2) + (index * itemFullWidth); 
       
-      // Distance: 0 = centered, 1 = one slot away, -1 = one slot left
+      // Item Center position
+      // Account for 50vw padding (containerWidth / 2) AND the card's own half-width
+      const visualItemCenter = (containerWidth / 2) + (index * itemFullWidth) + (CARD_WIDTH / 2);
+      
+      // Distance in "units" of cards
       const distance = (viewportCenter - visualItemCenter) / itemFullWidth;
-      
-      // --- PHYSICS TWEAKS ---
       const absDistance = Math.abs(distance);
       
-      // 1. DEADZONE ROTATION: Force flat if near center (Snap Fix)
-      // If distance is < 0.15 (15% offset), snap to 0 rotation.
-      // Otherwise, rotate up to 45 deg.
+      // --- PHYSICS TWEAKS ---
+      
+      // 1. ROTATION:
+      // Invert rotation direction: If item is to the right (distance > 0), we want it to look "inwards".
+      // Standard CSS rotateY: positive = right side goes back.
+      // So if item is on Right, we want positive rotation.
+      // However, to make it perfectly flat at 0, we use a tighter curve.
       let rotateY = 0;
-      if (absDistance > 0.1) {
-          rotateY = distance * 45; 
-          // Clamp rotation
-          rotateY = Math.max(-60, Math.min(60, rotateY));
+      if (absDistance > 0.05) { // Smaller deadzone (5%)
+          // Using a sigmoid-like clamp for smooth snap
+          rotateY = distance * -25; // Reduce max rotation angle to 25deg for subtle effect
+          rotateY = Math.max(-25, Math.min(25, rotateY));
       }
 
-      // 2. PARABOLIC SCALE: Pop the center item more aggressively
-      // 1.0 at center, drops quickly to 0.85
-      const scale = Math.max(0.85, 1 - (Math.pow(absDistance, 1.5) * 0.2));
+      // 2. SCALE
+      const scale = Math.max(0.9, 1 - (absDistance * 0.1));
 
-      // 3. DEPTH (Z-Axis): Push sides back
+      // 3. DEPTH & OPACITY
       const translateZ = Math.min(0, -absDistance * 100);
-
-      // 4. OPACITY & BLUR
-      const opacity = Math.max(0.4, 1 - (absDistance * 0.5));
-      const blur = absDistance > 0.5 ? Math.min(4, (absDistance - 0.5) * 6) : 0;
+      const opacity = Math.max(0.5, 1 - (absDistance * 0.4));
+      const blur = absDistance > 0.5 ? Math.min(4, (absDistance - 0.5) * 4) : 0;
 
       return {
-          transform: `perspective(800px) translateZ(${translateZ}px) rotateY(${rotateY}deg) scale(${scale})`,
+          transform: `perspective(1000px) translateZ(${translateZ}px) rotateY(${rotateY}deg) scale(${scale})`,
           zIndex: 100 - Math.round(absDistance * 10),
           opacity,
           filter: `blur(${blur}px)`,
-          transition: 'transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.2s linear', // Snappy spring feel
+          transition: 'transform 0.1s linear, opacity 0.1s linear', 
       };
   };
 
@@ -218,67 +210,66 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
            )}
            {/* The "Light Frost" Overlay */}
            <div className="absolute inset-0 bg-white/40 backdrop-blur-2xl transition-all duration-1000"></div>
-           <div className="absolute inset-0 bg-gradient-to-b from-white/70 via-white/50 to-white/30"></div>
+           <div className="absolute inset-0 bg-gradient-to-b from-white/70 via-white/60 to-white/40"></div>
        </div>
 
-       {/* --- NEW HEADER: FLOATING GLASS CONTROL BAR --- */}
-       <div className="pt-safe-top px-6 pb-2 z-20 flex flex-col gap-4 relative">
-          
-          <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-black text-zinc-900 tracking-tighter mix-blend-overlay opacity-80">SkinOS</h2>
+       {/* --- HEADER: CLEAN TYPOGRAPHY (Matches Skin Report) --- */}
+       <div className="pt-safe-top px-6 z-20 relative">
+          <div className="flex justify-between items-end mb-6 pt-4">
+              <div>
+                  <h2 className="text-4xl font-thin text-zinc-900 tracking-tighter leading-none mb-1 mix-blend-multiply opacity-90">
+                      Smart Shelf
+                  </h2>
+                  <p className="text-xs text-teal-600 font-bold uppercase tracking-widest flex items-center gap-2">
+                      <LayoutGrid size={12} /> Digital Vanity
+                  </p>
+              </div>
+              
               {/* GRADE BADGE */}
               {activeTab === 'ROUTINE' && (
                   <button 
                     onClick={() => setShowGradingInfo(true)}
-                    className={`h-9 px-3 rounded-full flex items-center gap-2 border shadow-lg backdrop-blur-md transition-transform active:scale-95 ${getGradeColor(shelfIQ.analysis.grade)} bg-white/60`}
+                    className={`w-12 h-12 rounded-2xl flex flex-col items-center justify-center border shadow-lg backdrop-blur-md transition-transform active:scale-95 ${getGradeColor(shelfIQ.analysis.grade)} bg-white/60`}
                   >
-                      <Award size={14} />
-                      <span className="text-xs font-bold uppercase tracking-wide">Grade {shelfIQ.analysis.grade}</span>
+                      <span className="text-xl font-black leading-none">{shelfIQ.analysis.grade}</span>
+                      <span className="text-[8px] font-bold uppercase">Grade</span>
                   </button>
               )}
           </div>
 
-          {/* MAIN CONTROL BAR */}
-          <div className="w-full bg-white/40 backdrop-blur-xl border border-white/40 rounded-[2rem] p-1.5 shadow-xl flex items-center justify-between">
-               
-               {/* TABS SEGMENTED CONTROL */}
-               <div className="flex bg-white/30 rounded-full p-1 border border-white/20">
+          {/* TABS & STATS */}
+          <div className="flex items-center justify-between">
+               <div className="inline-flex bg-zinc-900/5 backdrop-blur-md p-1 rounded-full border border-white/40">
                    <button 
                       onClick={() => setActiveTab('ROUTINE')}
-                      className={`px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${activeTab === 'ROUTINE' ? 'bg-white text-teal-700 shadow-md transform scale-105' : 'text-zinc-500 hover:text-zinc-700'}`}
+                      className={`px-5 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${activeTab === 'ROUTINE' ? 'bg-zinc-900 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-900'}`}
                    >
                       Routine
                    </button>
                    <button 
                       onClick={() => setActiveTab('WISHLIST')}
-                      className={`px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${activeTab === 'WISHLIST' ? 'bg-white text-teal-700 shadow-md transform scale-105' : 'text-zinc-500 hover:text-zinc-700'}`}
+                      className={`px-5 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all flex items-center gap-1.5 ${activeTab === 'WISHLIST' ? 'bg-zinc-900 text-white shadow-lg' : 'text-zinc-500 hover:text-zinc-900'}`}
                    >
-                      Wishlist
+                      Wishlist {userProfile.wishlist?.length ? <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span> : ''}
                    </button>
                </div>
 
-               {/* STATS CAPSULE */}
-               <div className="flex items-center gap-3 pr-4">
-                   <div className="text-right hidden sm:block">
-                       <span className="block text-[9px] font-bold text-zinc-400 uppercase tracking-widest">Monthly</span>
-                       <span className="block text-xs font-black text-zinc-700">RM {costAnalysis.monthlyCost}</span>
-                   </div>
-                   <div className="w-8 h-8 rounded-full bg-zinc-900 text-white flex items-center justify-center font-bold text-xs shadow-md">
-                       {displayedProducts.length}
-                   </div>
+               <div className="text-right hidden sm:block">
+                   <span className="block text-[9px] font-bold text-zinc-400 uppercase tracking-widest">Monthly</span>
+                   <span className="block text-sm font-black text-zinc-800">RM {costAnalysis.monthlyCost}</span>
                </div>
           </div>
        </div>
 
        {/* SKINOS NOTES (Integrated HUD) */}
        {activeTab === 'ROUTINE' && (shelfIQ.analysis.notes.length > 0 || shelfIQ.analysis.missing.length > 0) && (
-           <div className="px-6 mt-4 z-10 animate-in slide-in-from-top-4 duration-700 relative">
-               <div className="bg-white/40 backdrop-blur-md border border-white/40 rounded-2xl p-4 shadow-sm flex items-start gap-3">
-                   <div className="w-6 h-6 rounded-full bg-teal-500/10 flex items-center justify-center text-teal-600 shrink-0 border border-teal-500/20 mt-0.5">
+           <div className="px-6 mt-6 z-10 animate-in slide-in-from-top-4 duration-700 relative">
+               <div className="bg-white/40 backdrop-blur-md border border-white/60 rounded-2xl p-4 shadow-sm flex items-start gap-3">
+                   <div className="w-6 h-6 rounded-full bg-teal-600 flex items-center justify-center text-white shrink-0 shadow-sm mt-0.5">
                        <Lightbulb size={12} strokeWidth={2.5} />
                    </div>
                    <div className="flex-1">
-                       <h3 className="text-[9px] font-bold text-zinc-400 uppercase tracking-widest mb-0.5">Smart Insight</h3>
+                       <h3 className="text-[9px] font-bold text-teal-800 uppercase tracking-widest mb-0.5 opacity-60">AI Insight</h3>
                        {shelfIQ.analysis.notes.length > 0 ? (
                            <p className="text-xs font-bold text-zinc-800 leading-snug">
                                {shelfIQ.analysis.notes[0].note}
@@ -319,7 +310,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                 className="flex overflow-x-auto snap-x snap-mandatory pb-16 pt-8 no-scrollbar items-center px-[50vw] relative z-10"
                 style={{ 
                     scrollPaddingLeft: '0px',
-                    perspective: '800px', // Closer perspective for phone screens
+                    perspective: '1000px',
                     transformStyle: 'preserve-3d'
                 }} 
            >
@@ -358,14 +349,14 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                                     }
                                 }}
                                 className={`
-                                    w-full h-[420px] rounded-[2.5rem] border shadow-[0_20px_50px_-12px_rgba(0,0,0,0.1)] relative overflow-hidden flex flex-col justify-between p-6 group transition-all duration-300
+                                    w-full h-[440px] rounded-[2.5rem] border shadow-[0_30px_60px_-15px_rgba(0,0,0,0.15)] relative overflow-hidden flex flex-col justify-between p-7 group transition-all duration-300
                                     ${isActive 
-                                        ? 'bg-white/80 backdrop-blur-2xl border-white/60 ring-1 ring-white/50' 
-                                        : 'bg-white/40 backdrop-blur-md border-white/20 hover:bg-white/50'}
+                                        ? 'bg-white/90 backdrop-blur-2xl border-white ring-1 ring-white/50' 
+                                        : 'bg-white/40 backdrop-blur-md border-white/20 hover:bg-white/60'}
                                 `}
                            >
                                 {/* Glossy Reflection Overlay */}
-                                <div className="absolute inset-0 bg-gradient-to-tr from-white/40 via-white/10 to-transparent pointer-events-none opacity-50"></div>
+                                <div className="absolute inset-0 bg-gradient-to-tr from-white/60 via-white/20 to-transparent pointer-events-none opacity-50"></div>
 
                                 {/* Top Stats */}
                                 <div className="flex justify-between items-start relative z-10">
@@ -373,25 +364,26 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                                         {p.type}
                                     </div>
                                     <div className="text-right">
-                                        <div className={`text-3xl font-black tracking-tighter ${score > 80 ? 'text-emerald-500' : score < 60 ? 'text-amber-500' : 'text-teal-500'}`}>
-                                            {score}%
+                                        <div className={`text-4xl font-thin tracking-tighter ${score > 80 ? 'text-emerald-500' : score < 60 ? 'text-amber-500' : 'text-teal-500'}`}>
+                                            {score}
                                         </div>
+                                        <span className="text-[8px] font-bold text-zinc-300 uppercase tracking-widest block -mt-1">Match</span>
                                     </div>
                                 </div>
 
                                 {/* Central Visual */}
                                 <div className="flex-1 flex flex-col items-center justify-center relative z-10 py-4">
-                                    <div className={`w-36 h-36 rounded-[2.5rem] flex items-center justify-center shadow-xl transition-transform duration-500 ${isActive ? 'scale-105 rotate-0 shadow-teal-500/10' : 'scale-95 rotate-6 opacity-80'} ${theme}`}>
-                                        {getProductIcon(p.type, 64)}
+                                    <div className={`w-40 h-40 rounded-[2.5rem] flex items-center justify-center shadow-xl transition-transform duration-500 ${isActive ? 'scale-105 rotate-0 shadow-teal-500/10' : 'scale-95 rotate-6 opacity-80'} ${theme}`}>
+                                        {getProductIcon(p.type, 72)}
                                     </div>
                                 </div>
 
                                 {/* Bottom Info */}
                                 <div className="relative z-10 w-full text-center">
                                     <h3 className="font-bold text-xl text-zinc-900 leading-tight mb-1 line-clamp-2">{p.name}</h3>
-                                    <p className="text-xs text-zinc-500 font-bold uppercase tracking-wide truncate mb-5">{p.brand || 'Unknown Brand'}</p>
+                                    <p className="text-xs text-zinc-500 font-bold uppercase tracking-wide truncate mb-6 opacity-70">{p.brand || 'Unknown Brand'}</p>
                                     
-                                    <div className={`w-full py-3.5 rounded-2xl flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest transition-colors ${isActive ? 'bg-zinc-900 text-white shadow-lg' : 'bg-white/50 text-zinc-400'}`}>
+                                    <div className={`w-full py-4 rounded-2xl flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest transition-colors ${isActive ? 'bg-zinc-900 text-white shadow-lg' : 'bg-white/50 text-zinc-400'}`}>
                                         View Details <ChevronRight size={14} />
                                     </div>
                                 </div>
@@ -412,10 +404,10 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                    >
                        <button 
                             onClick={onScanNew}
-                            className="w-full h-[420px] rounded-[2.5rem] border-2 border-dashed border-white/40 bg-white/20 backdrop-blur-sm flex flex-col items-center justify-center gap-4 text-zinc-500 hover:border-teal-400 hover:text-teal-600 hover:bg-white/40 transition-all duration-300 group"
+                            className="w-full h-[440px] rounded-[2.5rem] border-2 border-dashed border-white/40 bg-white/20 backdrop-blur-sm flex flex-col items-center justify-center gap-4 text-zinc-500 hover:border-teal-400 hover:text-teal-600 hover:bg-white/40 transition-all duration-300 group"
                        >
-                           <div className="w-20 h-20 rounded-full bg-white/40 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform group-hover:bg-white">
-                               <Plus size={32} strokeWidth={1.5} />
+                           <div className="w-24 h-24 rounded-full bg-white/40 flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform group-hover:bg-white text-teal-600">
+                               <Plus size={40} strokeWidth={1.5} />
                            </div>
                            <span className="font-bold text-sm uppercase tracking-widest">Add Product</span>
                        </button>
@@ -479,11 +471,11 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                         </button>
                         
                         <div className="flex flex-col items-center text-center relative z-10 mt-2">
-                             <div className={`w-20 h-20 rounded-[1.5rem] ${getProductColor(selectedProduct.type).split(' ')[1]} ${getProductColor(selectedProduct.type).split(' ')[0]} flex items-center justify-center mb-4 shadow-lg border border-white/50`}>
-                                 {getProductIcon(selectedProduct.type, 32)}
+                             <div className={`w-24 h-24 rounded-[2rem] ${getProductColor(selectedProduct.type).split(' ')[1]} ${getProductColor(selectedProduct.type).split(' ')[0]} flex items-center justify-center mb-4 shadow-lg border border-white/50`}>
+                                 {getProductIcon(selectedProduct.type, 40)}
                              </div>
-                             <h2 className="text-xl font-black text-zinc-900 leading-tight mb-1 max-w-xs">{selectedProduct.name}</h2>
-                             <p className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">{selectedProduct.brand || 'Unknown Brand'}</p>
+                             <h2 className="text-2xl font-black text-zinc-900 leading-tight mb-1 max-w-xs">{selectedProduct.name}</h2>
+                             <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">{selectedProduct.brand || 'Unknown Brand'}</p>
                              
                              <div className="mt-4 flex items-center justify-center gap-2">
                                 {isEditingPrice ? (
