@@ -1,5 +1,5 @@
 
-import { Product, UserProfile, UserPreferences, ShelfAuditReport } from '../../types';
+import { Product, UserProfile, UserPreferences, ShelfAuditReport, SkinMetrics } from '../../types';
 
 // --- SYNCHRONOUS HELPERS (NO AI CALLS) ---
 
@@ -212,65 +212,80 @@ export const analyzeShelfHealth = (products: Product[], user: UserProfile) => {
 
 export const runPostScanAudit = (user: UserProfile, shelf: Product[]): ShelfAuditReport | null => {
     const history = user.scanHistory || [];
-    if (history.length < 2) return null; // Need comparison
+    // Use latest scan (current) or biometrics if history is single
+    const current = history.length > 0 ? history[history.length - 1] : user.biometrics;
+    
+    if (!current) return null;
 
-    const current = history[history.length - 1]; // This is the new scan
-    const prev = history[history.length - 2];
-
+    const prev = history.length > 1 ? history[history.length - 2] : null;
     const flags: any[] = [];
 
-    // 1. Detect Worsened Conditions (Threshold: Drop of 5 points)
-    const drops: Record<string, number> = {};
-    if ((current.redness - prev.redness) < -5) drops['redness'] = current.redness - prev.redness;
-    if ((current.hydration - prev.hydration) < -5) drops['hydration'] = current.hydration - prev.hydration;
-    if ((current.acneActive - prev.acneActive) < -5) drops['acneActive'] = current.acneActive - prev.acneActive;
+    // Thresholds
+    const DROP_THRESHOLD = -5;
+    const CRITICAL_THRESHOLD = 45;
 
-    // If everything is improving or stable, no audit needed
-    if (Object.keys(drops).length === 0) return null;
+    // Helper: Determine if a metric is problematic (either dropped significantly OR is absolutely bad)
+    const getMetricStatus = (metric: keyof SkinMetrics) => {
+        const currVal = current[metric] as number;
+        const prevVal = prev ? prev[metric] as number : 100; // Default to 100 if no prev so we don't trigger "drop" on first scan
+        
+        const dropped = prev ? (currVal - prevVal) < DROP_THRESHOLD : false;
+        const isBad = currVal < CRITICAL_THRESHOLD;
+        
+        return { 
+            isIssue: dropped || isBad,
+            reason: dropped ? 'dropped' : 'bad'
+        };
+    };
 
-    // 2. Audit Products against Drops
+    const rednessState = getMetricStatus('redness');
+    const hydrationState = getMetricStatus('hydration');
+    const acneState = getMetricStatus('acneActive');
+
+    // If no issues, return null
+    if (!rednessState.isIssue && !hydrationState.isIssue && !acneState.isIssue) return null;
+
+    // 2. Audit Products against Issues
     shelf.forEach(p => {
         const ingStr = p.ingredients.join(' ').toLowerCase();
         let flag = null;
 
-        // A. REDNESS SPIKE (Sensitive)
-        if (drops['redness']) {
+        // A. REDNESS ISSUE (Sensitive)
+        if (rednessState.isIssue) {
             const irritants = ['retinol', 'tretinoin', 'glycolic', 'salicylic', 'lactic', 'fragrance', 'alcohol', 'menthol', 'peppermint', 'eucalyptus'];
             const found = irritants.find(i => ingStr.includes(i));
             
             if (found) {
-                // Nuance: Is it essential or beneficial for something else?
                 const isEssential = p.type === 'CLEANSER' || p.type === 'MOISTURIZER';
-                // Benefit Check: Does this product help acne, which might still be good/needed?
-                const hasAcneBenefit = p.benefits.some(b => b.target === 'acneActive') && current.acneActive > 60;
+                const hasAcneBenefit = p.benefits.some(b => b.target === 'acneActive') && (current.acneActive > 60);
 
                 if (isEssential) {
                      flag = {
                         advice: 'BUFFER',
                         severity: 'CAUTION',
-                        issue: `Redness increased. ${p.name} contains ${found}.`,
+                        issue: `Redness ${rednessState.reason === 'dropped' ? 'spiked' : 'is critical'}. ${p.name} contains ${found}.`,
                         smartUsage: `Your skin is sensitive right now. Apply this over a thin layer of moisturizer to reduce irritation.`
                     };
                 } else if (hasAcneBenefit) {
                     flag = {
                         advice: 'LESS_FREQ',
                         severity: 'CAUTION',
-                        issue: `Redness increased, but ${p.name} helps your acne.`,
+                        issue: `Redness ${rednessState.reason === 'dropped' ? 'spiked' : 'is high'}, but ${p.name} helps acne.`,
                         smartUsage: `Don't stop completely. Reduce use to every other day to manage redness while keeping acne in check.`
                     };
                 } else {
                     flag = {
                         advice: 'PAUSE',
                         severity: 'CRITICAL',
-                        issue: `Redness spike detected. ${found} in ${p.name} is a likely trigger.`,
-                        smartUsage: `Pause use for 3-5 days until your Redness score recovers above ${prev.redness}.`
+                        issue: `Redness detected. ${found} in ${p.name} is a likely trigger.`,
+                        smartUsage: `Pause use for 3-5 days until your Redness score improves.`
                     };
                 }
             }
         }
 
-        // B. HYDRATION DROP (Drying)
-        if (!flag && drops['hydration']) {
+        // B. HYDRATION ISSUE (Drying)
+        if (!flag && hydrationState.isIssue) {
              const drying = ['alcohol denat', 'clay', 'charcoal', 'salicylic', 'benzoyl peroxide', 'sulfate'];
              const found = drying.find(i => ingStr.includes(i));
              
@@ -279,7 +294,7 @@ export const runPostScanAudit = (user: UserProfile, shelf: Product[]): ShelfAudi
                      flag = {
                          advice: 'LESS_FREQ',
                          severity: 'CAUTION',
-                         issue: `Hydration dropped. ${p.name} might be stripping your barrier.`,
+                         issue: `Hydration ${hydrationState.reason === 'dropped' ? 'dropped' : 'is low'}. ${p.name} might be stripping.`,
                          smartUsage: `Try washing your face only in the evening, or switch to a milk cleanser temporarily.`
                      };
                  } else {
