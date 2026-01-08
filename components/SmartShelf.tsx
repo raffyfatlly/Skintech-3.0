@@ -26,6 +26,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
   
   // 3D Scroll State
   const [scrollX, setScrollX] = useState(0);
+  const [isScrolling, setIsScrolling] = useState(false); // New state for scroll detection
   const [containerWidth, setContainerWidth] = useState(window.innerWidth);
   
   // Price Editing State
@@ -33,6 +34,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
   const [tempPrice, setTempPrice] = useState<string>('');
 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null); // Ref for debounce timer
 
   const shelfIQ = useMemo(() => analyzeShelfHealth(products, userProfile), [products, userProfile]);
 
@@ -116,6 +118,15 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
       if (!container) return;
 
       const handleScroll = () => {
+          // Detect scrolling start
+          setIsScrolling(true);
+          
+          // Debounce to detect scroll stop
+          if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+          scrollTimeoutRef.current = setTimeout(() => {
+              setIsScrolling(false);
+          }, 150);
+
           requestAnimationFrame(() => {
               setScrollX(container.scrollLeft);
               
@@ -136,9 +147,12 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
       };
 
       container.addEventListener('scroll', handleScroll);
-      handleScroll(); // Init
+      handleScroll(); // Init to set positions
       
-      return () => container.removeEventListener('scroll', handleScroll);
+      return () => {
+          container.removeEventListener('scroll', handleScroll);
+          if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
+      };
   }, [displayedProducts, activeTab, activeIndex]);
 
   // --- THE IMPROVED 3D ENGINE ---
@@ -432,9 +446,14 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
        </div>
 
        {/* ACTIVE PRODUCT INSIGHT (HUD) - Minimal & Clean */}
-       {activeInsight && (
-           <div className="px-6 mb-4 z-10 relative">
-               <div key={activeIndex} className="bg-white/60 backdrop-blur-xl border border-white/40 rounded-2xl p-4 shadow-sm flex items-center gap-4 animate-in slide-in-from-bottom-4 fade-in duration-700 delay-300">
+       {/* Only show when scrolling stops (!isScrolling) and width matches card */}
+       {activeInsight && !isScrolling && (
+           <div className="w-full flex justify-center mb-4 z-10 relative px-6">
+               <div 
+                   key={activeIndex} 
+                   style={{ width: CARD_WIDTH }}
+                   className="bg-white/60 backdrop-blur-xl border border-white/40 rounded-2xl p-4 shadow-sm flex items-center gap-4 animate-in slide-in-from-bottom-2 fade-in duration-500 fill-mode-forwards"
+               >
                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-white shadow-sm border border-zinc-100 ${activeInsight.color}`}>
                        {activeInsight.icon}
                    </div>
