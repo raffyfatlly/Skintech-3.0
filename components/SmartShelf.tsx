@@ -52,7 +52,9 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
               title: 'Expand Routine',
               text: 'Scan a new product to check for conflicts.',
               color: 'text-teal-200',
-              icon: <ScanBarcode size={12} strokeWidth={2.5} />
+              borderColor: 'border-teal-500/30',
+              bg: 'bg-teal-500/10',
+              icon: <ScanBarcode size={16} strokeWidth={2.5} />
           };
       }
 
@@ -69,7 +71,9 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
               title: 'Caution',
               text: critical.reason,
               color: 'text-rose-300',
-              icon: <Trash2 size={12} strokeWidth={2.5} />
+              borderColor: 'border-rose-500/30',
+              bg: 'bg-rose-500/10',
+              icon: <Trash2 size={16} strokeWidth={2.5} />
           };
       }
 
@@ -80,7 +84,9 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
               title: 'Note',
               text: caution.reason,
               color: 'text-amber-300',
-              icon: <Lightbulb size={12} strokeWidth={2.5} />
+              borderColor: 'border-amber-500/30',
+              bg: 'bg-amber-500/10',
+              icon: <Lightbulb size={16} strokeWidth={2.5} />
           };
       }
 
@@ -90,7 +96,9 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
               title: 'Great Match',
               text: `This ${product.type.toLowerCase()} aligns well with your skin profile.`,
               color: 'text-emerald-300',
-              icon: <Sparkles size={12} strokeWidth={2.5} />
+              borderColor: 'border-emerald-500/30',
+              bg: 'bg-emerald-500/10',
+              icon: <Sparkles size={16} strokeWidth={2.5} />
           };
       }
 
@@ -99,7 +107,9 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
           title: 'Product Info',
           text: product.usageTips || 'Tap "View Details" to see full ingredient analysis.',
           color: 'text-zinc-300',
-          icon: <Lightbulb size={12} strokeWidth={2.5} />
+          borderColor: 'border-white/20',
+          bg: 'bg-white/10',
+          icon: <Lightbulb size={16} strokeWidth={2.5} />
       };
 
   }, [activeIndex, displayedProducts, activeTab, userProfile]);
@@ -214,9 +224,9 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
       }
   };
 
-  // UPDATED: Sharp, thin stroke icons for clinical feel
+  // UPDATED: Sharp, defined icons for crystal-clear look
   const getProductIcon = (type: string, size: number = 24) => {
-      const props = { size, strokeWidth: 1, className: "text-white/90" };
+      const props = { size, strokeWidth: 1.5, className: "text-white" };
       switch(type) {
           case 'CLEANSER': return <Droplet {...props} />;
           case 'SPF': return <Sun {...props} />;
@@ -226,15 +236,15 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
       }
   }
 
-  // UPDATED: Glass Colors
+  // UPDATED: Glass Colors with Sharper Borders
   const getGlassColor = (type: string) => {
       // Returns backdrop colors for the *Icon Container*, not the card
       switch(type) {
-          case 'CLEANSER': return 'bg-sky-500/20 border-sky-400/30';
-          case 'SPF': return 'bg-amber-500/20 border-amber-400/30';
-          case 'SERUM': return 'bg-teal-500/20 border-teal-400/30';
-          case 'MOISTURIZER': return 'bg-rose-500/20 border-rose-400/30';
-          default: return 'bg-white/10 border-white/20';
+          case 'CLEANSER': return 'bg-sky-500/20 border-sky-400/50 shadow-[inset_0_0_20px_rgba(56,189,248,0.2)]';
+          case 'SPF': return 'bg-amber-500/20 border-amber-400/50 shadow-[inset_0_0_20px_rgba(251,191,36,0.2)]';
+          case 'SERUM': return 'bg-teal-500/20 border-teal-400/50 shadow-[inset_0_0_20px_rgba(45,212,191,0.2)]';
+          case 'MOISTURIZER': return 'bg-rose-500/20 border-rose-400/50 shadow-[inset_0_0_20px_rgba(251,113,133,0.2)]';
+          default: return 'bg-white/10 border-white/40 shadow-[inset_0_0_20px_rgba(255,255,255,0.1)]';
       }
   }
 
@@ -371,8 +381,8 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                                 className={`
                                     w-full h-[440px] rounded-[2.5rem] border shadow-[0_30px_60px_-15px_rgba(0,0,0,0.3)] relative overflow-hidden flex flex-col justify-between p-7 group transition-all duration-300
                                     ${isActive 
-                                        ? 'bg-white/20 backdrop-blur-xl border-white/30 ring-1 ring-white/20' 
-                                        : 'bg-white/10 backdrop-blur-md border-white/10 hover:bg-white/15'}
+                                        ? 'bg-white/20 backdrop-blur-xl border-white/60 ring-1 ring-white/40' 
+                                        : 'bg-white/10 backdrop-blur-md border-white/20 hover:bg-white/15'}
                                 `}
                            >
                                 {/* Top Stats */}
@@ -422,7 +432,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                    >
                        <button 
                             onClick={onScanNew}
-                            className="w-full h-[440px] rounded-[2.5rem] border border-dashed border-white/20 bg-white/5 backdrop-blur-sm flex flex-col items-center justify-center gap-6 text-white/30 hover:bg-white/10 hover:border-white/40 transition-all duration-300 group"
+                            className="w-full h-[440px] rounded-[2.5rem] border border-dashed border-white/30 bg-white/5 backdrop-blur-sm flex flex-col items-center justify-center gap-6 text-white/40 hover:bg-white/10 hover:border-white/60 transition-all duration-300 group"
                        >
                            <div className="w-24 h-24 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform text-white/40 group-hover:text-white">
                                <ScanBarcode size={64} strokeWidth={0.5} />
@@ -439,8 +449,8 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
        {/* ACTIVE PRODUCT INSIGHT (HUD) - Moved Below Carousel */}
        {activeInsight && (
            <div className="px-6 mb-4 z-10 relative">
-               <div key={activeIndex} className="bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-4 shadow-xl flex items-center gap-4 animate-in slide-in-from-bottom-2 fade-in duration-500">
-                   <div className={`w-10 h-10 rounded-full bg-white/10 flex items-center justify-center shrink-0 border border-white/10 ${activeInsight.color}`}>
+               <div key={activeIndex} className={`backdrop-blur-md border rounded-2xl p-4 shadow-xl flex items-center gap-4 animate-in slide-in-from-bottom-4 fade-in duration-700 delay-300 ${activeInsight.bg} ${activeInsight.borderColor}`}>
+                   <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 border ${activeInsight.color} border-current/20 bg-white/10`}>
                        {activeInsight.icon}
                    </div>
                    <div className="flex-1">
