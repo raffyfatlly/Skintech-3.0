@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, Product } from '../types';
 import { createDermatologistSession as initSession, isQuotaError } from '../services/geminiService'; 
-import { playMessageSound } from '../services/soundService';
+import { playNotificationSound } from '../services/soundService';
 import { 
     Send, Mic, X, ChevronLeft, FileText, Keyboard, Sparkles, 
     AudioWaveform, MessageSquare, Loader, Bookmark, Check, Trash2
@@ -64,6 +64,7 @@ const MessageItem: React.FC<{
     const [showSave, setShowSave] = useState(false);
 
     useEffect(() => {
+        // Auto-show when streaming finishes, then auto-hide after 4s
         if (!msg.isStreaming && msg.role === 'model') {
             setShowSave(true);
             const timer = setTimeout(() => setShowSave(false), 4000);
@@ -84,7 +85,7 @@ const MessageItem: React.FC<{
                     </p>
                 </div>
             ) : (
-                <div className="w-full relative pb-8"> {/* Added padding bottom for button space */}
+                <div className="w-full relative pb-8 px-2"> {/* Added padding bottom for button space */}
                     <p className="text-xl md:text-2xl font-semibold text-zinc-900 leading-relaxed drop-shadow-sm">
                         {renderText(msg.text)}
                         {msg.isStreaming && <span className="inline-block w-2 h-5 ml-1 bg-teal-500 align-middle animate-pulse rounded-full"/>}
@@ -296,7 +297,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
               const text = (chunk as GenerateContentResponse).text;
               if (text) {
                   if (!hasPlayedSound) {
-                      playMessageSound();
+                      playNotificationSound(); // Play clearer notification sound on first token
                       hasPlayedSound = true;
                   }
 
