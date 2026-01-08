@@ -6,7 +6,7 @@ import { Product, UserProfile, UserPreferences } from '../../types';
 export const auditProduct = (product: Product, user: UserProfile) => {
     if (!product.ingredients || product.ingredients.length === 0) {
         return {
-            adjustedScore: 0,
+            adjustedScore: 50, // Neutral score for unknown
             warnings: [{ severity: 'CAUTION', reason: "Ingredients list could not be retrieved." }],
             analysisReason: "We could not access the ingredient data for this product."
         };
@@ -71,36 +71,31 @@ export const auditProduct = (product: Product, user: UserProfile) => {
         const found = dryingAgents.find(a => ingStr.includes(a));
         if (found) {
             adjustedScore -= 30;
-            warnings.unshift({ severity: 'CRITICAL', reason: `Contains ${found}, which exacerbates dehydration.` });
+            warnings.unshift({ severity: 'CAUTION', reason: `Might be drying due to ${found}. Ensure you moisturize well.` });
         }
     }
 
     // 2. REDNESS / SENSITIVITY CHECK
-    // Logic: Only punish score heavily if skin is ACTIVELY inflamed (Redness < 60) or Eczema present.
-    // If user is just "Sensitive" but skin is calm (Redness > 60), apply mild penalty only.
     const irritants = ['fragrance', 'parfum', 'alcohol denat', 'essential oil', 'menthol', 'peppermint', 'eucalyptus'];
     const foundIrritant = irritants.find(a => ingStr.includes(a));
 
     if (foundIrritant) {
         if (bio.redness < 60 || prefs.hasEczema || prefs.onMedication) {
-            // Critical: Active inflammation or condition
-            adjustedScore = Math.min(adjustedScore, 40);
-            warnings.unshift({ severity: 'CRITICAL', reason: `Contains ${foundIrritant}, a trigger for redness/sensitivity.` });
+            adjustedScore = Math.min(adjustedScore, 45);
+            warnings.unshift({ severity: 'CAUTION', reason: `Contains ${foundIrritant}, which might trigger redness.` });
         } else if (prefs.sensitivity === 'VERY_SENSITIVE') {
-            // Caution: Preventative
             adjustedScore -= 15; 
-            warnings.push({ severity: 'CAUTION', reason: `Contains ${foundIrritant}, use with caution on sensitive skin.` });
+            warnings.push({ severity: 'CAUTION', reason: `Contains ${foundIrritant}, monitor for sensitivity.` });
         }
     }
 
     // 3. ACNE / OIL / PORE CHECK
-    // Only apply strict penalties if the user actually has a problem (Score < 55)
     if (bio.acneActive < 55 || bio.oiliness < 50 || bio.pores < 50) {
         const cloggers = ['coconut oil', 'cocoa butter', 'isopropyl myristate', 'algae extract', 'palm oil', 'wheat germ'];
         const found = cloggers.find(a => ingStr.includes(a));
         if (found) {
-            adjustedScore = Math.min(adjustedScore, 35);
-            warnings.unshift({ severity: 'CRITICAL', reason: `Contains ${found}, which can clog pores.` });
+            adjustedScore = Math.min(adjustedScore, 40);
+            warnings.unshift({ severity: 'CAUTION', reason: `Contains ${found}, which can be heavy for your pores.` });
         }
     }
 
@@ -110,7 +105,7 @@ export const auditProduct = (product: Product, user: UserProfile) => {
         const found = unsafe.find(a => ingStr.includes(a));
         if (found) {
             adjustedScore = 0;
-            warnings.unshift({ severity: 'CRITICAL', reason: `Contains ${found}, not recommended during pregnancy.` });
+            warnings.unshift({ severity: 'CRITICAL', reason: `Contains ${found}, generally not recommended during pregnancy.` });
         }
     }
 
@@ -136,48 +131,81 @@ export const analyzeShelfHealth = (products: Product[], user: UserProfile) => {
     if (!types.has('MOISTURIZER')) missing.push('Moisturizer');
     
     // Calculate Safety & Risks
-    const riskyProducts: any[] = [];
+    const notes: any[] = [];
     let totalScore = 0;
+    let count = 0;
     
     products.forEach(p => {
         const audit = auditProduct(p, user);
         totalScore += audit.adjustedScore;
+        count++;
         
+        // Soften the language. Only show top priority warnings.
         if (audit.warnings.length > 0) {
-            // Aggregate all warnings
-            audit.warnings.forEach(w => {
-                riskyProducts.push({
-                    name: p.name,
-                    reason: w.reason,
-                    severity: w.severity
-                });
+            // Prioritize CRITICAL, then take first CAUTION
+            const mainWarning = audit.warnings.find(w => w.severity === 'CRITICAL') || audit.warnings[0];
+            
+            // Rephrase specifically for the "Coach" persona
+            let tip = mainWarning.reason;
+            if (mainWarning.severity === 'CRITICAL' && (user.preferences?.isPregnant)) {
+                // Keep pregnancy warnings strict
+            } else {
+                // Soften others
+                if (tip.includes("Contains")) tip = `Use ${p.name} mindfully. ${tip.toLowerCase()}`;
+                else tip = `${p.name}: ${tip}`;
+            }
+
+            notes.push({
+                product: p.name,
+                note: tip,
+                type: mainWarning.severity === 'CRITICAL' ? 'SWAP' : 'MONITOR'
             });
         }
     });
 
-    let grade = 'B';
-    const avg = products.length > 0 ? totalScore / products.length : 0;
+    // Check for Retinol/Acid conflicts (Timing advice)
+    const activeIngredients = products.flatMap(p => p.ingredients.join(' ').toLowerCase());
+    const hasRetinol = activeIngredients.some(i => i.includes('retinol') || i.includes('tretinoin'));
+    const hasAcids = activeIngredients.some(i => i.includes('glycolic') || i.includes('salicylic') || i.includes('lactic'));
+    const hasVitC = activeIngredients.some(i => i.includes('ascorbic') || i.includes('vitamin c'));
+
+    if (hasRetinol && hasAcids) {
+        notes.push({ product: "Routine", note: "You have both Retinol and Acids. Use them on alternate nights to avoid irritation.", type: "TIMING" });
+    } else if (hasRetinol && hasVitC) {
+        notes.push({ product: "Routine", note: "Use Vitamin C in the morning and Retinol at night for best results.", type: "TIMING" });
+    }
+
+    // Pure Mathematical Average for Grade
+    const avg = count > 0 ? totalScore / count : 0;
     
-    // Grading Logic
-    if (riskyProducts.some(r => r.severity === 'CRITICAL')) {
-        grade = 'D'; // Downgrade if safety risks exist
-    } else if (avg > 85 && missing.length === 0) {
-        grade = 'S';
-    } else if (avg > 75) {
-        grade = 'A';
-    } else if (avg < 50) {
-        grade = 'C';
+    let grade = 'C';
+    if (products.length === 0) grade = '-';
+    else if (avg >= 90) grade = 'S';
+    else if (avg >= 80) grade = 'A';
+    else if (avg >= 70) grade = 'B';
+    else if (avg >= 60) grade = 'C';
+    else grade = 'D';
+
+    // Generate "Shelf Mind" Headline
+    let headline = "Shelf Analysis";
+    if (grade === 'S') headline = "Perfectly balanced.";
+    else if (grade === 'A') headline = "Great setup. Keep it up.";
+    else if (grade === 'B') headline = "Solid routine with room to improve.";
+    else if (grade === 'C') headline = "Some products may be mismatched.";
+    else if (grade === 'D') headline = "Routine needs adjustment.";
+    else headline = "Start by adding products.";
+
+    if (notes.length > 2 && grade !== 'S' && grade !== 'A') {
+        headline = "Let's refine your product choices.";
     }
 
     return {
         analysis: {
             grade, 
-            conflicts: [], 
-            riskyProducts: riskyProducts.slice(0, 3), // Top 3 risks
-            missing, 
-            redundancies: [], 
-            upgrades: [],
-            balance: { exfoliation: 50, hydration: 50, protection: 50, treatment: 50 }
+            headline,
+            averageScore: Math.round(avg),
+            notes: notes.slice(0, 3), // Top 3 notes only
+            missing,
         }
     };
 };

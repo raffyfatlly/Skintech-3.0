@@ -1,8 +1,8 @@
 
 import React, { useState, useMemo } from 'react';
-import { Product, UserProfile, SkinMetrics } from '../types';
-import { Plus, Droplet, Sun, Zap, Sparkles, AlertTriangle, Layers, AlertOctagon, Target, ShieldCheck, X, FlaskConical, Clock, Ban, ArrowRightLeft, CheckCircle2, Microscope, Dna, Palette, Brush, SprayCan, Stamp, DollarSign, TrendingUp, TrendingDown, Wallet, ArrowUpRight, Edit2, Save, Info, ArrowUpCircle, Check, Award, Heart, ShoppingBag, ArrowRight } from 'lucide-react';
-import { auditProduct, analyzeShelfHealth, analyzeProductContext, getBuyingDecision } from '../services/geminiService';
+import { Product, UserProfile } from '../types';
+import { Plus, Droplet, Sun, Zap, Sparkles, Palette, DollarSign, Wallet, Edit2, Save, Info, Award, Heart, ShoppingBag, ArrowRight, Lightbulb, Clock, RefreshCw, Layers } from 'lucide-react';
+import { auditProduct, analyzeShelfHealth } from '../services/geminiService';
 
 interface SmartShelfProps {
   products: Product[];
@@ -37,46 +37,19 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
   const costAnalysis = useMemo(() => {
       let totalValue = 0;
       let monthlyCost = 0;
-      let totalSuitability = 0;
-      let count = 0;
-
       products.forEach(p => {
           const price = p.estimatedPrice || 45; 
           totalValue += price;
-
           // Estimate monthly cost based on depletion rate
           let durationMonths = 3;
           if (p.type === 'SPF') durationMonths = 1.5;
           else if (p.type === 'SERUM' || p.type === 'TREATMENT') durationMonths = 2;
           else if (p.type === 'CLEANSER' || p.type === 'TONER') durationMonths = 3;
           else if (p.type === 'MOISTURIZER') durationMonths = 2.5;
-
           monthlyCost += price / durationMonths;
-          
-          const audit = auditProduct(p, userProfile);
-          totalSuitability += audit.adjustedScore;
-          count++;
       });
-      
-      const avgSuitability = count > 0 ? totalSuitability / count : 0;
-
-      let verdict = { 
-          title: "Balanced Investment", 
-          desc: "Spending aligns with efficacy.", 
-          icon: Wallet, 
-          color: "text-zinc-600 bg-zinc-50 border-zinc-100" 
-      };
-
-      if (monthlyCost > 250 && avgSuitability < 70) {
-          verdict = { title: "High Waste", desc: "High spend on low-match products.", icon: TrendingDown, color: "text-rose-600 bg-rose-50 border-rose-100" };
-      } else if (monthlyCost > 150 && avgSuitability < 75) {
-          verdict = { title: "Inefficient Spend", desc: "Overpaying for average results.", icon: AlertTriangle, color: "text-amber-600 bg-amber-50 border-amber-100" };
-      } else if (monthlyCost < 200 && avgSuitability > 80) {
-          verdict = { title: "Smart Value", desc: "High match at a smart price.", icon: TrendingUp, color: "text-emerald-600 bg-emerald-50 border-emerald-100" };
-      }
-
-      return { totalValue: Math.round(totalValue), monthlyCost: Math.round(monthlyCost), avgSuitability: Math.round(avgSuitability), verdict };
-  }, [products, userProfile]);
+      return { totalValue: Math.round(totalValue), monthlyCost: Math.round(monthlyCost) };
+  }, [products]);
 
   const handleStartEditPrice = (p: Product) => {
       setTempPrice((p.estimatedPrice || 45).toString());
@@ -116,93 +89,54 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
 
   const getGradeColor = (grade: string) => {
       switch(grade) {
-          case 'S': return 'text-emerald-500 border-emerald-500 bg-emerald-50';
-          case 'A': return 'text-teal-500 border-teal-500 bg-teal-50';
-          case 'B': return 'text-sky-500 border-sky-500 bg-sky-50';
-          case 'C': return 'text-amber-500 border-amber-500 bg-amber-50';
-          default: return 'text-rose-500 border-rose-500 bg-rose-50';
+          case 'S': return 'text-emerald-500';
+          case 'A': return 'text-teal-500';
+          case 'B': return 'text-sky-500';
+          case 'C': return 'text-amber-500';
+          default: return 'text-rose-500';
       }
   }
 
-  const renderActionPlan = () => {
+  const renderRoutineCoach = () => {
       if (activeTab === 'WISHLIST') return null;
       
       const { analysis } = shelfIQ;
-      const hasActions = analysis.riskyProducts.length > 0 || analysis.conflicts.length > 0 || analysis.missing.length > 0 || analysis.upgrades.length > 0;
+      const hasNotes = analysis.notes.length > 0;
+      const hasMissing = analysis.missing.length > 0;
 
-      if (!hasActions && products.length > 0) return null;
+      if (!hasNotes && !hasMissing && products.length > 0) return null;
 
       return (
-          <div className="space-y-4 animate-in slide-in-from-bottom-4 duration-700">
-               <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2 mb-2">
-                    <CheckCircle2 size={14} className="text-teal-500" /> Optimize your routine
+          <div className="space-y-3 animate-in slide-in-from-bottom-4 duration-700">
+               <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2 px-1">
+                    <Lightbulb size={14} className="text-teal-500" /> SkinOS Notes
                </h3>
                
-               {analysis.riskyProducts.map((item, i) => (
-                   <div key={`risk-${i}`} className={`flex items-start gap-4 p-4 rounded-[1.5rem] border relative overflow-hidden group ${item.severity === 'CRITICAL' ? 'bg-rose-50 border-rose-100 text-rose-500' : 'bg-amber-50 border-amber-100 text-amber-500'}`}>
+               {analysis.notes.map((item: any, i: number) => (
+                   <div key={`note-${i}`} className="flex items-start gap-4 p-4 rounded-3xl bg-white border border-zinc-100 shadow-sm relative overflow-hidden group">
+                       <div className={`mt-0.5 w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${item.type === 'TIMING' ? 'bg-indigo-50 text-indigo-500' : item.type === 'SWAP' ? 'bg-amber-50 text-amber-500' : 'bg-zinc-50 text-zinc-500'}`}>
+                           {item.type === 'TIMING' ? <Clock size={16} /> : item.type === 'SWAP' ? <RefreshCw size={16} /> : <Info size={16} />}
+                       </div>
                        <div className="flex-1">
-                           <h4 className="text-xs font-black uppercase tracking-wide mb-1">Issue: {item.name}</h4>
-                           <p className="text-xs font-medium leading-relaxed mb-2">{item.reason}</p>
+                           <h4 className="text-xs font-bold text-zinc-900 mb-0.5">{item.product}</h4>
+                           <p className="text-xs text-zinc-500 font-medium leading-relaxed">{item.note}</p>
                        </div>
                    </div>
                ))}
 
-               {analysis.missing.map((missing, i) => (
-                   <div key={`miss-${i}`} className="flex items-start gap-4 p-4 rounded-[1.5rem] bg-teal-50 border border-teal-100 relative overflow-hidden">
+               {analysis.missing.map((missing: string, i: number) => (
+                   <div key={`miss-${i}`} className="flex items-center gap-4 p-4 rounded-3xl bg-teal-50 border border-teal-100 relative overflow-hidden">
+                       <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-teal-600 shrink-0 shadow-sm">
+                           <Plus size={16} />
+                       </div>
                        <div className="flex-1">
-                           <h4 className="text-xs font-black uppercase tracking-wide text-teal-800 mb-1">Add {missing}</h4>
-                           <p className="text-xs text-teal-700 font-medium leading-relaxed">
-                               Your routine lacks a {missing.toLowerCase()}. Adding this will improve your score.
+                           <h4 className="text-xs font-bold text-teal-800 mb-0.5">Missing Step</h4>
+                           <p className="text-xs text-teal-700 font-medium">
+                               Add a <strong>{missing}</strong> to complete your base routine.
                            </p>
                        </div>
                    </div>
                ))}
-          </div>
-      )
-  };
-
-  const renderDashboard = () => {
-      if (activeTab === 'WISHLIST') return null;
-      if (products.length === 0) {
-           return (
-               <div className="modern-card rounded-[2rem] p-8 text-center border border-dashed border-zinc-200 shadow-none">
-                   <p className="text-sm font-medium text-zinc-400">Your digital shelf is empty. Scan products to get AI insights.</p>
-               </div>
-           );
-      }
-
-      return (
-          <div className="space-y-8 animate-in slide-in-from-bottom-4 duration-700">
-               {/* COST ANALYSIS CARD */}
-               <div className="modern-card rounded-[2rem] p-6 relative overflow-hidden">
-                   <div className="flex justify-between items-center mb-6">
-                        <h3 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">
-                            <DollarSign size={12} className="text-teal-500" /> Cost Efficiency
-                        </h3>
-                        <div className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wide flex items-center gap-1.5 border ${costAnalysis.verdict.color}`}>
-                             <costAnalysis.verdict.icon size={12} />
-                             {costAnalysis.verdict.title}
-                        </div>
-                   </div>
-                   
-                   <div className="flex items-center gap-6 mb-6">
-                       <div className="flex-1">
-                            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide block mb-1">Monthly Burn</span>
-                            <div className="flex items-baseline gap-1">
-                                <span className="text-xs font-bold text-zinc-500">RM</span>
-                                <span className="text-3xl font-black text-zinc-900 tracking-tight">{costAnalysis.monthlyCost}</span>
-                            </div>
-                       </div>
-                       <div className="w-px h-10 bg-zinc-100"></div>
-                       <div className="flex-1">
-                            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide block mb-1">Skin Match</span>
-                            <div className="flex items-baseline gap-1">
-                                <span className="text-3xl font-black text-zinc-900 tracking-tight">{costAnalysis.avgSuitability}</span>
-                                <span className="text-xs font-bold text-zinc-500">%</span>
-                            </div>
-                       </div>
-                   </div>
-               </div>
           </div>
       )
   };
@@ -212,8 +146,8 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
        <div className="px-6 space-y-8 flex-1">
           <div className="flex justify-between items-end pt-6">
               <div>
-                  <h2 className="text-3xl font-black text-zinc-900 tracking-tight">Digital Shelf</h2>
-                  <p className="text-zinc-400 font-medium text-sm mt-1">AI-Optimized Inventory.</p>
+                  <h2 className="text-3xl font-black text-zinc-900 tracking-tight">Smart Shelf</h2>
+                  <p className="text-zinc-400 font-medium text-sm mt-1">Your Digital Cabinet.</p>
               </div>
               <button onClick={onScanNew} className="w-14 h-14 rounded-[1.2rem] bg-teal-600 text-white flex items-center justify-center shadow-xl shadow-teal-200 hover:scale-105 transition-transform active:scale-95">
                   <Plus size={24} />
@@ -221,36 +155,54 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
           </div>
 
           {activeTab === 'ROUTINE' && (
-            <div className="modern-card rounded-[2.5rem] p-8 relative">
-                <div className="relative z-10 flex items-start justify-between">
-                    <div>
-                        <div className="flex items-center mb-1">
-                            <h3 className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Routine Grade</h3>
-                            <button onClick={() => setShowGradingInfo(true)} className="ml-1.5 text-zinc-300 hover:text-teal-600 transition-colors"><Info size={14} /></button>
-                        </div>
-                        <div className="flex items-baseline gap-2">
-                            <span className={`text-5xl font-black ${getGradeColor(shelfIQ.analysis.grade).split(' ')[0]}`}>
+            <div className="bg-white rounded-[2.5rem] p-8 relative shadow-xl shadow-zinc-100 border border-zinc-50 overflow-hidden">
+                <div className="absolute top-0 right-0 w-48 h-48 bg-teal-50 rounded-full blur-3xl -mr-16 -mt-16 opacity-50 pointer-events-none"></div>
+                
+                <div className="relative z-10 flex items-center gap-6">
+                    <div className="flex flex-col items-center">
+                        <div className="flex items-baseline gap-1">
+                            <span className={`text-6xl font-black tracking-tighter ${getGradeColor(shelfIQ.analysis.grade)}`}>
                                 {shelfIQ.analysis.grade}
                             </span>
                         </div>
+                        <button onClick={() => setShowGradingInfo(true)} className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-1 hover:text-zinc-600 transition-colors">
+                            Grade <Info size={10} />
+                        </button>
                     </div>
                     
-                    <div className="text-right space-y-3 pt-1">
-                        <div>
-                            <span className="block text-xl font-bold text-zinc-900">{products.length}</span>
-                            <span className="text-[9px] font-bold text-zinc-400 uppercase">Items</span>
-                        </div>
-                        <div>
-                            <span className={`block text-xl font-bold ${shelfIQ.analysis.conflicts.length > 0 ? 'text-amber-500' : 'text-zinc-900'}`}>{shelfIQ.analysis.conflicts.length}</span>
-                            <span className="text-[9px] font-bold text-zinc-400 uppercase">Conflicts</span>
-                        </div>
+                    <div className="flex-1 border-l border-zinc-100 pl-6">
+                        <h3 className="text-sm font-bold text-zinc-900 mb-1">{shelfIQ.analysis.headline}</h3>
+                        <p className="text-xs text-zinc-500 font-medium leading-relaxed">
+                            {shelfIQ.analysis.averageScore > 0 
+                                ? `Average match score: ${shelfIQ.analysis.averageScore}%. ${products.length} products active.` 
+                                : "Start scanning to analyze your routine."}
+                        </p>
                     </div>
                 </div>
             </div>
           )}
 
-          {renderActionPlan()}
-          {renderDashboard()}
+          {renderRoutineCoach()}
+          
+          {/* VISUAL SPEND TRACKER */}
+          {activeTab === 'ROUTINE' && products.length > 0 && (
+              <div className="bg-zinc-50 rounded-3xl p-5 border border-zinc-100 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-zinc-400 shadow-sm">
+                          <Wallet size={18} />
+                      </div>
+                      <div>
+                          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block">Est. Monthly</span>
+                          <span className="text-sm font-black text-zinc-700">RM {costAnalysis.monthlyCost}</span>
+                      </div>
+                  </div>
+                  <div className="h-8 w-px bg-zinc-200"></div>
+                  <div className="pr-2">
+                      <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block text-right">Items</span>
+                      <span className="text-sm font-black text-zinc-700 block text-right">{products.length}</span>
+                  </div>
+              </div>
+          )}
        </div>
 
        {/* TABS */}
@@ -260,7 +212,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                   onClick={() => setActiveTab('ROUTINE')}
                   className={`flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-wide transition-all flex items-center justify-center gap-2 ${activeTab === 'ROUTINE' ? 'bg-white shadow-sm text-teal-700' : 'text-zinc-400 hover:text-zinc-600'}`}
                >
-                  My Routine
+                  <Layers size={14} /> Routine
                </button>
                <button 
                   onClick={() => setActiveTab('WISHLIST')}
@@ -272,45 +224,40 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
        </div>
 
        {/* PRODUCT LIST */}
-       <div className="px-6 grid grid-cols-2 lg:grid-cols-4 gap-4 pb-12">
+       <div className="px-6 grid grid-cols-1 gap-3 pb-12">
            {displayedProducts.map((p) => {
                const audit = auditProduct(p, userProfile);
-               const warning = audit.warnings.length > 0;
                const score = Number(audit.adjustedScore);
                
                return (
                    <button 
                         key={p.id} 
                         onClick={() => setSelectedProduct(p)}
-                        className="modern-card rounded-[2rem] p-5 text-left relative group flex flex-col items-start min-h-[180px] hover:border-teal-100 transition-colors bg-white"
+                        className="bg-white rounded-[1.8rem] p-4 text-left border border-zinc-100 shadow-sm hover:shadow-md hover:border-teal-100 transition-all group flex items-center gap-4 relative overflow-hidden"
                    >
-                        <div className={`absolute top-5 right-5 w-2 h-2 rounded-full ${score > 70 ? 'bg-emerald-400' : 'bg-amber-400'}`} />
-
-                        <div className={`w-14 h-14 rounded-2xl ${getProductColor(p.type)} flex items-center justify-center mb-5`}>
+                        <div className={`w-16 h-16 rounded-2xl ${getProductColor(p.type)} flex items-center justify-center shrink-0`}>
                             {getProductIcon(p.type)}
                         </div>
 
-                        <div className="flex-1 w-full">
-                            <h3 className="font-bold text-sm text-zinc-900 leading-tight mb-1 line-clamp-2">{p.name}</h3>
-                            <div className="flex justify-between items-center mb-4">
-                                <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wide truncate max-w-[70px]">{p.brand || 'Unknown'}</p>
-                                <span className="text-[10px] font-bold text-zinc-300">RM {p.estimatedPrice || 45}</span>
-                            </div>
+                        <div className="flex-1 min-w-0">
+                            <h3 className="font-bold text-sm text-zinc-900 leading-tight mb-1 truncate">{p.name}</h3>
+                            <p className="text-[10px] text-zinc-400 font-bold uppercase tracking-wide truncate">{p.brand || 'Unknown'}</p>
                         </div>
 
-                        <div className={`inline-flex items-center px-2.5 py-1.5 rounded-lg text-[10px] font-bold tracking-wide ${score > 70 ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
-                            {score}% MATCH
+                        <div className="text-right pr-2">
+                            <div className={`text-xl font-black ${score > 80 ? 'text-emerald-500' : score < 60 ? 'text-amber-500' : 'text-teal-500'}`}>
+                                {score}%
+                            </div>
+                            <span className="text-[9px] font-bold text-zinc-300 uppercase tracking-widest">Match</span>
                         </div>
                    </button>
                )
            })}
 
            {activeTab === 'ROUTINE' && (
-               <button onClick={onScanNew} className="rounded-[2rem] border-2 border-dashed border-zinc-200 flex flex-col items-center justify-center gap-3 min-h-[180px] text-zinc-400 hover:bg-zinc-50 hover:border-zinc-300 transition-all group">
-                   <div className="w-12 h-12 rounded-full bg-zinc-50 flex items-center justify-center group-hover:bg-white group-hover:shadow-sm transition-all">
-                       <Plus size={24} />
-                   </div>
-                   <span className="text-[10px] font-bold uppercase tracking-widest">Check New Match</span>
+               <button onClick={onScanNew} className="bg-zinc-50 border-2 border-dashed border-zinc-200 rounded-[1.8rem] p-6 flex items-center justify-center gap-3 text-zinc-400 hover:bg-white hover:border-zinc-300 transition-all group">
+                   <Plus size={20} />
+                   <span className="text-xs font-bold uppercase tracking-widest">Add Product</span>
                </button>
            )}
        </div>
@@ -338,36 +285,35 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                 onClick={(e) => { e.stopPropagation(); setShowGradingInfo(false); }}
             >
                 <div 
-                    className="w-full max-w-xs bg-white rounded-[2rem] p-6 shadow-2xl relative animate-in zoom-in-95 duration-300 border border-white/50" 
+                    className="w-full max-w-xs bg-white rounded-[2rem] p-6 shadow-2xl relative animate-in zoom-in-95 duration-300" 
                     onClick={(e) => e.stopPropagation()}
                 >
-                    <button 
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); setShowGradingInfo(false); }} 
-                        className="absolute top-4 right-4 p-3 bg-zinc-100 rounded-full text-zinc-500 hover:bg-zinc-200 hover:text-zinc-800 transition-colors z-50 cursor-pointer"
-                    >
-                        <X size={18} />
-                    </button>
-
                     <div className="text-center mb-6 pt-2">
                         <div className="w-12 h-12 bg-teal-50 rounded-2xl flex items-center justify-center mx-auto mb-3 text-teal-600 shadow-sm border border-teal-100">
                             <Award size={24} />
                         </div>
                         <h3 className="text-lg font-black text-zinc-900 tracking-tight">Routine Grading</h3>
-                        <p className="text-xs text-zinc-500 font-medium mt-1">AI evaluation of your shelf efficacy.</p>
+                        <p className="text-xs text-zinc-500 font-medium mt-1">Based on average product suitability.</p>
                     </div>
 
-                    <div className="space-y-3">
-                        <div className="flex items-center gap-3 p-3 bg-emerald-50/50 rounded-xl border border-emerald-100/50">
-                            <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-700 font-black text-sm shadow-sm">S</div>
-                            <div className="flex-1">
-                                <div className="flex justify-between items-center">
-                                    <span className="text-xs font-bold text-emerald-900 uppercase tracking-wide">Elite</span>
-                                    <span className="text-[10px] font-bold text-emerald-600 bg-white px-2 py-0.5 rounded-full border border-emerald-100 shadow-sm">{'>'} 85%</span>
+                    <div className="space-y-2">
+                        {[
+                            { grade: 'S', label: 'Perfect', range: '90-100%', color: 'text-emerald-600 bg-emerald-50' },
+                            { grade: 'A', label: 'Great', range: '80-89%', color: 'text-teal-600 bg-teal-50' },
+                            { grade: 'B', label: 'Good', range: '70-79%', color: 'text-sky-600 bg-sky-50' },
+                            { grade: 'C', label: 'Fair', range: '60-69%', color: 'text-amber-600 bg-amber-50' },
+                            { grade: 'D', label: 'Weak', range: '< 60%', color: 'text-rose-600 bg-rose-50' },
+                        ].map((item) => (
+                            <div key={item.grade} className="flex items-center justify-between p-3 rounded-xl border border-zinc-50">
+                                <div className="flex items-center gap-3">
+                                    <span className={`w-8 h-8 rounded-lg flex items-center justify-center font-black text-sm ${item.color}`}>
+                                        {item.grade}
+                                    </span>
+                                    <span className="text-xs font-bold text-zinc-700">{item.label}</span>
                                 </div>
-                                <p className="text-[10px] text-emerald-800/70 leading-tight mt-0.5 font-medium">Requires Cleanser, Moisturizer & SPF.</p>
+                                <span className="text-[10px] font-mono text-zinc-400">{item.range}</span>
                             </div>
-                        </div>
+                        ))}
                     </div>
                 </div>
             </div>
@@ -380,7 +326,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                     
                     <div className="bg-white px-6 pt-8 pb-6 rounded-b-[2.5rem] shadow-sm z-10 shrink-0 relative overflow-hidden">
                         <button onClick={() => { setSelectedProduct(null); setIsEditingPrice(false); }} className="absolute top-6 left-6 p-2 bg-zinc-100 rounded-full text-zinc-500 hover:bg-zinc-200 transition-colors z-10">
-                            <X size={20} />
+                            <ArrowRight size={20} className="rotate-180" />
                         </button>
                         
                         <div className="flex flex-col items-center text-center relative z-10 mt-2">
@@ -408,7 +354,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                                 ) : (
                                     <button 
                                         onClick={() => handleStartEditPrice(selectedProduct)}
-                                        className="inline-flex items-center gap-1.5 px-3 py-1 bg-zinc-100 rounded-lg text-zinc-500 hover:text-zinc-700 hover:bg-zinc-200 transition-colors group"
+                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-zinc-100 rounded-lg text-zinc-500 hover:text-zinc-700 hover:bg-zinc-200 transition-colors group"
                                     >
                                         <DollarSign size={10} />
                                         <span className="text-[10px] font-bold text-zinc-700">RM {selectedProduct.estimatedPrice || 45}</span>
@@ -420,17 +366,29 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                     </div>
 
                     <div className="flex-1 overflow-y-auto p-6 space-y-4 pb-safe">
-                        {/* Benefits Section */}
+                        {/* Usage Tip (Dynamic "Shelf Mind" Feature) */}
+                        <div className="bg-indigo-50 p-5 rounded-[1.5rem] border border-indigo-100">
+                            <h3 className="text-xs font-bold text-indigo-900 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                <Clock size={14} /> Usage Guide
+                            </h3>
+                            <p className="text-xs text-indigo-800 font-medium leading-relaxed">
+                                {selectedProduct.type === 'CLEANSER' ? "Use AM and PM as the first step." : 
+                                 selectedProduct.type === 'SPF' ? "Apply generously every morning as the last step." :
+                                 selectedProduct.type === 'RETINOL' ? "Use only at night. Do not mix with acids." :
+                                 "Apply after cleansing and before heavier creams."}
+                            </p>
+                        </div>
+
                         {selectedProduct.benefits.length > 0 && (
                             <div className="bg-white p-5 rounded-[1.5rem] border border-zinc-100 shadow-sm">
                                 <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                    <ShieldCheck size={14} className="text-teal-500" /> Key Benefits
+                                    <Sparkles size={14} className="text-teal-500" /> Why it works
                                 </h3>
                                 <div className="space-y-3">
                                     {selectedProduct.benefits.slice(0, 3).map((b, i) => (
                                         <div key={i} className="flex gap-3 items-start">
-                                            <div className="mt-0.5 text-zinc-400">
-                                                <Check size={16} strokeWidth={3} />
+                                            <div className="mt-0.5 text-teal-500">
+                                                <div className="w-1.5 h-1.5 rounded-full bg-teal-500 mt-1.5"></div>
                                             </div>
                                             <div>
                                                 <div className="flex items-center gap-2 mb-0.5">
@@ -474,7 +432,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                                     onRemoveProduct(selectedProduct.id);
                                     setSelectedProduct(null);
                                 }}
-                                className="w-full py-4 rounded-[1.5rem] border border-rose-200 bg-rose-50 text-rose-500 font-bold text-xs uppercase hover:bg-rose-100 transition-colors"
+                                className="w-full py-4 rounded-[1.5rem] border border-zinc-200 bg-white text-zinc-400 font-bold text-xs uppercase hover:text-rose-500 hover:border-rose-200 hover:bg-rose-50 transition-colors"
                             >
                                 Remove from Shelf
                             </button>
