@@ -134,7 +134,7 @@ export interface ShelfAuditReport {
         productType: string;
         issue: string;
         severity: 'CRITICAL' | 'CAUTION';
-        advice: 'PAUSE' | 'LIMIT' | 'MONITOR' | 'LESS_FREQ' | 'BUFFER';
+        advice: 'PAUSE' | 'LIMIT' | 'MONITOR' | 'LESS_FREQ' | 'BUFFER' | 'RESUME';
         smartUsage: string;
     }[];
 }

@@ -128,7 +128,6 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
       }
 
       // 2. Safe Fallback based strictly on Product Type (No ingredient guessing)
-      // This prevents the "overexfoliation" warning bug on moisturizers
       switch (product.type) {
           case 'CLEANSER': return "Use AM and PM. Massage gently onto damp skin for 60 seconds, then rinse.";
           case 'TONER': return "Apply to clean skin immediately after washing to rebalance pH.";
@@ -353,10 +352,10 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
       });
   };
 
-  const selectedProductAuditFlag = useMemo(() => {
-      if (!selectedProduct || !auditReport) return null;
-      return auditReport.flags.find(f => f.productId === selectedProduct.id);
-  }, [selectedProduct, auditReport]);
+  const aiAuditRisk = useMemo(() => {
+      if (!selectedProduct) return null;
+      return selectedProduct.risks?.find(r => r.ingredient === 'AI AUDIT');
+  }, [selectedProduct]);
 
   return (
     <div className="min-h-screen w-full relative flex flex-col font-sans overflow-hidden pb-32 bg-zinc-50">
@@ -706,26 +705,16 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
 
                     <div className="flex-1 overflow-y-auto p-6 space-y-4 pb-safe bg-white/40">
                         
-                        {/* ACTIVE AUDIT ALERT (Injected if flagged) */}
-                        {selectedProductAuditFlag && (
-                            <div className={`p-5 rounded-[1.5rem] border mb-2 shadow-sm animate-in zoom-in-95 duration-500 ${selectedProductAuditFlag.advice === 'RESUME' ? 'bg-emerald-50 border-emerald-100' : 'bg-white border-rose-100'}`}>
-                                <h3 className={`text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-2 ${selectedProductAuditFlag.advice === 'RESUME' ? 'text-emerald-700' : 'text-rose-700'}`}>
-                                    {selectedProductAuditFlag.advice === 'RESUME' ? (
-                                        <><TrendingUp size={14} /> Improvement Detected</>
-                                    ) : (
-                                        <><AlertOctagon size={14} /> Recent Audit Flag</>
-                                    )}
+                        {/* PERSISTENT AUDIT ALERT (DETECTED FROM RISKS) */}
+                        {aiAuditRisk && (
+                            <div className="p-5 rounded-[1.5rem] border border-rose-100 bg-white mb-2 shadow-sm animate-in zoom-in-95 duration-500">
+                                <h3 className="text-xs font-bold uppercase tracking-widest mb-2 flex items-center gap-2 text-rose-700">
+                                    <AlertOctagon size={14} /> Recent Audit Flag
                                 </h3>
                                 <div className="space-y-2">
-                                    <p className={`text-xs font-bold leading-relaxed ${selectedProductAuditFlag.advice === 'RESUME' ? 'text-emerald-900' : 'text-zinc-900'}`}>
-                                        {selectedProductAuditFlag.issue}
+                                    <p className="text-xs font-bold leading-relaxed text-zinc-900">
+                                        {aiAuditRisk.reason}
                                     </p>
-                                    {selectedProductAuditFlag.smartUsage && (
-                                        <div className={`p-3 rounded-xl text-xs font-medium leading-snug ${selectedProductAuditFlag.advice === 'RESUME' ? 'bg-emerald-100/50 text-emerald-800' : 'bg-rose-50 text-rose-800'}`}>
-                                            <span className="font-bold block mb-1">Recommendation:</span>
-                                            {selectedProductAuditFlag.smartUsage}
-                                        </div>
-                                    )}
                                 </div>
                             </div>
                         )}

@@ -512,29 +512,58 @@ const App: React.FC = () => {
           simulatedSkinImage: null,
           usage: userProfile.usage || { buyingAssistantViews: 0, manualScans: 0, routineGenerations: 0, simulatorViews: 0 }
       };
-      persistState(updatedUser, shelf);
+      
+      // We will persist state AFTER the audit check below to include shelf changes
+      // persistState(updatedUser, shelf); 
       setCurrentView(AppView.DASHBOARD);
       setTimeout(() => setActiveGuide('SCAN'), 5000);
 
-      // --- TRIGGER SHELF AUDIT (UPDATED with ASYNC AI) ---
-      // We run a background check to see if current shelf products conflict with new metrics
+      // --- TRIGGER SHELF AUDIT (UPDATED with ASYNC AI & PERSISTENCE) ---
       if (shelf.length > 0) {
-          // Notify user of ongoing audit
           setBackgroundTask({ label: 'Processing Shelf Audit...' });
 
-          // Run async audit without blocking UI transition
           (async () => {
               try {
-                  // Artificial delay for UX pacing (optional, but feels more "processed")
                   await new Promise(r => setTimeout(r, 2000));
-                  
                   const report = await runPostScanAudit(updatedUser, shelf);
                   
-                  // Clear task indicator
                   setBackgroundTask(null);
+
+                  let finalShelf = shelf;
 
                   if (report && report.flags.length > 0) {
                       setAuditReport(report);
+                      
+                      // --- PERSIST FINDINGS TO PRODUCTS ---
+                      finalShelf = shelf.map(p => {
+                          const flag = report.flags.find(f => f.productId === p.id);
+                          if (flag) {
+                              let newRisks = [...(p.risks || [])];
+                              
+                              if (flag.advice === 'RESUME') {
+                                  // Positive: Remove audit risks
+                                  newRisks = newRisks.filter(r => r.ingredient !== 'AI AUDIT');
+                              } else {
+                                  // Negative: Add or update risk
+                                  newRisks = newRisks.filter(r => r.ingredient !== 'AI AUDIT'); // clean old
+                                  newRisks.unshift({
+                                      ingredient: 'AI AUDIT',
+                                      riskLevel: flag.severity === 'CRITICAL' ? 'HIGH' : 'MEDIUM',
+                                      reason: flag.issue
+                                  });
+                              }
+
+                              return {
+                                  ...p,
+                                  usageTips: flag.smartUsage, // Overwrite with smart usage
+                                  risks: newRisks,
+                                  // Append to history of expert review
+                                  expertReview: `[${new Date().toLocaleDateString()}] ${flag.issue}\n\n${p.expertReview || ''}`
+                              };
+                          }
+                          return p;
+                      });
+
                       setNotification({
                           type: 'GENERIC',
                           title: 'Routine Update',
@@ -543,7 +572,6 @@ const App: React.FC = () => {
                           onAction: () => setCurrentView(AppView.SMART_SHELF)
                       });
                   } else {
-                      // Notify success/verification
                       setNotification({
                           type: 'TASK_COMPLETE',
                           title: 'Routine Verified',
@@ -552,11 +580,23 @@ const App: React.FC = () => {
                           onAction: () => setCurrentView(AppView.SMART_SHELF)
                       });
                   }
+                  
+                  // Save EVERYTHING (User + Updated Shelf)
+                  setUserProfile(updatedUser);
+                  setShelf(finalShelf);
+                  saveUserData(updatedUser, finalShelf);
+
               } catch (e) {
                   console.error("Audit failed", e);
                   setBackgroundTask(null);
+                  // Fallback save if audit crashes
+                  setUserProfile(updatedUser);
+                  saveUserData(updatedUser, shelf);
               }
           })();
+      } else {
+          // No shelf to audit, just save user
+          persistState(updatedUser, shelf);
       }
   };
 
