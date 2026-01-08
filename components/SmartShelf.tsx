@@ -294,13 +294,13 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                <div className="inline-flex bg-white/60 backdrop-blur-md p-1 rounded-full border border-zinc-200/50 shadow-sm">
                    <button 
                       onClick={() => setActiveTab('ROUTINE')}
-                      className={`px-5 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${activeTab === 'ROUTINE' ? 'bg-zinc-800 text-white shadow-md' : 'text-zinc-400 hover:text-zinc-600'}`}
+                      className={`px-5 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all ${activeTab === 'ROUTINE' ? 'bg-white text-zinc-900 shadow-md ring-1 ring-zinc-100' : 'text-zinc-400 hover:text-zinc-600'}`}
                    >
                       Routine
                    </button>
                    <button 
                       onClick={() => setActiveTab('WISHLIST')}
-                      className={`px-5 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all flex items-center gap-1.5 ${activeTab === 'WISHLIST' ? 'bg-zinc-800 text-white shadow-md' : 'text-zinc-400 hover:text-zinc-600'}`}
+                      className={`px-5 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest transition-all flex items-center gap-1.5 ${activeTab === 'WISHLIST' ? 'bg-white text-zinc-900 shadow-md ring-1 ring-zinc-100' : 'text-zinc-400 hover:text-zinc-600'}`}
                    >
                       Wishlist {userProfile.wishlist?.length ? <span className={`w-1.5 h-1.5 rounded-full ${activeTab === 'WISHLIST' ? 'bg-rose-400' : 'bg-rose-500'}`}></span> : ''}
                    </button>
@@ -368,10 +368,10 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                                     }
                                 }}
                                 className={`
-                                    w-full h-[440px] rounded-[2.5rem] border shadow-[0_20px_50px_-10px_rgba(0,0,0,0.1)] relative overflow-hidden flex flex-col justify-between p-7 group transition-all duration-500
+                                    w-full h-[440px] rounded-[2.5rem] border shadow-xl relative overflow-hidden flex flex-col justify-between p-7 group transition-all duration-500
                                     ${isActive 
-                                        ? 'bg-white/60 backdrop-blur-2xl border-white/60 shadow-2xl opacity-100 ring-1 ring-white/50' 
-                                        : 'bg-white/30 backdrop-blur-md border-white/30 opacity-70 hover:opacity-90'}
+                                        ? 'bg-white/40 backdrop-blur-2xl border-white/50 shadow-2xl opacity-100 ring-1 ring-white/40' 
+                                        : 'bg-white/10 backdrop-blur-md border-white/20 opacity-70 hover:opacity-90'}
                                 `}
                            >
                                 {/* Top Stats */}
@@ -400,7 +400,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                                     <p className="text-xs text-zinc-500 font-bold uppercase tracking-wide truncate mb-6">{p.brand || 'Unknown Brand'}</p>
                                     
                                     {/* Action Button - Soft Glass Pill (No Black) */}
-                                    <div className={`w-full py-4 rounded-2xl flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest transition-all ${isActive ? 'bg-white/50 border border-white/60 text-zinc-800 shadow-sm hover:bg-white hover:text-teal-700 hover:border-teal-100' : 'bg-white/20 text-zinc-400 border border-white/20'}`}>
+                                    <div className={`w-full py-4 rounded-2xl flex items-center justify-center gap-2 text-xs font-bold uppercase tracking-widest transition-all ${isActive ? 'bg-white/80 text-zinc-900 shadow-sm hover:bg-white' : 'bg-white/10 text-zinc-400 border border-white/10'}`}>
                                         View Details <ChevronRight size={14} />
                                     </div>
                                 </div>
