@@ -125,7 +125,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
           if (scrollTimeoutRef.current) clearTimeout(scrollTimeoutRef.current);
           scrollTimeoutRef.current = setTimeout(() => {
               setIsScrolling(false);
-          }, 150);
+          }, 200); // Increased timeout slightly for smoother stop detection
 
           requestAnimationFrame(() => {
               setScrollX(container.scrollLeft);
@@ -264,12 +264,10 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                   <h2 className="text-4xl font-thin text-zinc-900 tracking-tighter leading-none mb-1">
                       Smart Shelf
                   </h2>
-                  <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-zinc-300 shadow-[0_0_10px_rgba(0,0,0,0.1)]"></div>
-                      <p className="text-xs text-zinc-400 font-bold uppercase tracking-widest opacity-90">
-                          Digital Vanity
-                      </p>
-                  </div>
+                  {/* Cleaned up header: removed circle, changed color to teal */}
+                  <p className="text-xs text-teal-500 font-bold uppercase tracking-widest opacity-90 pl-0.5">
+                      Digital Vanity
+                  </p>
               </div>
               
               {/* GRADE BADGE */}
@@ -445,27 +443,33 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
            </div>
        </div>
 
-       {/* ACTIVE PRODUCT INSIGHT (HUD) - Minimal & Clean */}
-       {/* Only show when scrolling stops (!isScrolling) and width matches card */}
-       {activeInsight && !isScrolling && (
-           <div className="w-full flex justify-center mb-4 z-10 relative px-6">
+       {/* ACTIVE PRODUCT INSIGHT (HUD) - Refined & Smoothed */}
+       {/* Uses CSS transition for visibility (opacity/translate) instead of mounting/unmounting */}
+       <div 
+           className={`w-full flex justify-center mb-4 z-10 relative px-6 transition-all duration-500 ease-out ${
+               isScrolling ? 'opacity-0 translate-y-4 pointer-events-none scale-95' : 'opacity-100 translate-y-0 scale-100'
+           }`}
+       >
+           {activeInsight ? (
                <div 
-                   key={activeIndex} 
                    style={{ width: CARD_WIDTH }}
-                   className="bg-white/60 backdrop-blur-xl border border-white/40 rounded-2xl p-4 shadow-sm flex items-center gap-4 animate-in slide-in-from-bottom-2 fade-in duration-500 fill-mode-forwards"
+                   className="bg-white/80 backdrop-blur-xl border border-white/40 rounded-2xl p-4 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.08)] flex items-center gap-4 ring-1 ring-white/60"
                >
-                   <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-white shadow-sm border border-zinc-100 ${activeInsight.color}`}>
+                   <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-white shadow-sm border border-zinc-50 ${activeInsight.color}`}>
                        {activeInsight.icon}
                    </div>
-                   <div className="flex-1">
-                       <h3 className={`text-[10px] font-bold uppercase tracking-widest mb-0.5 ${activeInsight.color}`}>{activeInsight.title}</h3>
-                       <p className="text-xs font-medium text-zinc-600 leading-snug">
+                   <div className="flex-1 min-w-0">
+                       <h3 className={`text-[10px] font-bold uppercase tracking-widest mb-0.5 ${activeInsight.color} truncate`}>{activeInsight.title}</h3>
+                       <p className="text-xs font-medium text-zinc-600 leading-snug line-clamp-2">
                            {activeInsight.text}
                        </p>
                    </div>
                </div>
-           </div>
-       )}
+           ) : (
+               /* Invisible placeholder to maintain layout if needed, though mostly covered by the scrolling state */
+               <div style={{ width: CARD_WIDTH, height: '80px' }} /> 
+           )}
+       </div>
 
        {/* GRADING INFO MODAL (Darkened Glass) */}
        {showGradingInfo && (
