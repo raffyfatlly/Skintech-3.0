@@ -523,6 +523,7 @@ export const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user,
                     </div>
                 </div>
             )}
+        </div>
     </div>
   );
 };
