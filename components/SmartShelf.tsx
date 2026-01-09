@@ -267,7 +267,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
           });
       };
 
-      container.addEventListener('scroll', handleScroll);
+      container.addEventListener('scroll', handleScroll, { passive: true });
       handleScroll(); 
       return () => {
           container.removeEventListener('scroll', handleScroll);
@@ -283,7 +283,8 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
       const absDistance = Math.abs(distance);
       
       let rotateY = 0;
-      if (absDistance > 0.15) { 
+      // Added Deadzone: If close to center, snap to flat to avoid "weird angles"
+      if (absDistance > 0.02) { 
           // Inverse direction: moving left (pos distance) should rotate showing right face
           rotateY = distance * -20; 
           rotateY = Math.max(-45, Math.min(45, rotateY));
@@ -468,7 +469,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                             style={{ 
                                 width: CARD_WIDTH,
                                 marginRight: CARD_GAP,
-                                scrollSnapStop: 'always',
+                                scrollSnapAlign: 'center',
                                 ...dynamicStyle 
                             }}
                        >
@@ -550,7 +551,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                         style={{ 
                             width: CARD_WIDTH,
                             marginRight: CARD_GAP,
-                            scrollSnapStop: 'always',
+                            scrollSnapAlign: 'center',
                             ...getCardStyle(displayedProducts.length)
                         }}
                    >
@@ -573,7 +574,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                         style={{ 
                             width: CARD_WIDTH,
                             marginRight: CARD_GAP,
-                            scrollSnapStop: 'always',
+                            scrollSnapAlign: 'center',
                             ...getCardStyle(displayedProducts.length)
                         }}
                    >
@@ -602,13 +603,14 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                    onClick={() => setIsInsightExpanded(!isInsightExpanded)}
                    style={{ width: CARD_WIDTH }}
                    className={`
-                        bg-white/80 backdrop-blur-xl border border-white/60 rounded-[1.5rem] shadow-[0_15px_40px_-10px_rgba(0,0,0,0.1)] 
+                        bg-gradient-to-br from-white/40 via-white/20 to-transparent backdrop-blur-2xl border border-white/40 shadow-xl
+                        rounded-[1.5rem] 
                         relative overflow-hidden transition-all duration-500 cubic-bezier(0.19, 1, 0.22, 1) text-left group
-                        ${isInsightExpanded ? 'p-6' : 'p-3 hover:bg-white/90 active:scale-[0.98]'}
+                        ${isInsightExpanded ? 'p-6' : 'p-3 hover:bg-white/30 active:scale-[0.98]'}
                    `}
                >
                    <div className="flex items-center gap-4 relative z-10">
-                       <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-white shadow-sm border border-zinc-50 ${activeInsight.color}`}>
+                       <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-white/80 shadow-sm border border-white/50 ${activeInsight.color}`}>
                            {activeInsight.icon}
                        </div>
                        
@@ -617,13 +619,13 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                                {activeInsight.title}
                            </h3>
                            {!isInsightExpanded && (
-                               <p className="text-xs font-medium text-zinc-500 truncate mt-0.5">
+                               <p className="text-xs font-medium text-zinc-700 truncate mt-0.5">
                                    Tap to view analysis
                                </p>
                            )}
                        </div>
 
-                       <div className={`w-6 h-6 rounded-full bg-zinc-100 flex items-center justify-center text-zinc-400 transition-transform duration-500 ${isInsightExpanded ? 'rotate-180 bg-zinc-200' : 'rotate-0'}`}>
+                       <div className={`w-6 h-6 rounded-full bg-white/30 flex items-center justify-center text-zinc-600 transition-transform duration-500 ${isInsightExpanded ? 'rotate-180 bg-white/50' : 'rotate-0'}`}>
                            <ChevronDown size={14} strokeWidth={2} />
                        </div>
                    </div>
@@ -631,15 +633,13 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                    <div 
                         className={`transition-all duration-500 ease-in-out overflow-hidden relative z-10 ${isInsightExpanded ? 'max-h-40 opacity-100 mt-4' : 'max-h-0 opacity-0 mt-0'}`}
                    >
-                        <p className="text-sm font-medium text-zinc-600 leading-relaxed border-l-2 border-zinc-100 pl-3">
+                        <p className="text-sm font-medium text-zinc-800 leading-relaxed border-l-2 border-white/50 pl-3">
                             {activeInsight.text}
                         </p>
-                        <div className="mt-4 flex items-center gap-2 text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
-                            <Sparkles size={10} className="text-teal-500" /> AI Verdict
+                        <div className="mt-4 flex items-center gap-2 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
+                            <Sparkles size={10} className="text-teal-600" /> AI Verdict
                         </div>
                    </div>
-                   
-                   <div className={`absolute inset-0 bg-gradient-to-br ${activeInsight.bg || 'from-zinc-50/40'} to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none z-0`}></div>
                </button>
            ) : (
                <div style={{ width: CARD_WIDTH, height: '64px' }} /> 
