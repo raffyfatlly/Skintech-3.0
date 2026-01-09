@@ -5,57 +5,75 @@ import { runWithTimeout, runWithRetry, parseJSONFromText, MODEL_FAST, SAFETY_SET
 export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, shelf: string[] = [], history?: SkinMetrics[]): Promise<SkinMetrics> => {
     return runWithTimeout<SkinMetrics>(async (ai) => {
         const prompt = `
-        ACT AS A DERMATOLOGICAL GRADING AI. 
-        Analyze the face image using the 11 BIOMARKERS defined below.
+        ACT AS A BOARD-CERTIFIED DERMATOLOGIST.
+        Perform a strict clinical assessment of the face in the image using the Visual Rubric below.
         
-        INPUT CV METRICS (Reference): ${JSON.stringify(localMetrics)}. 
+        SCORING PROTOCOL (0-100 Scale):
+        - 100: Perfect / Ideal Health.
+        - 90-99: Excellent / Near Perfect.
+        - 75-89: Good / Minor aesthetic issues.
+        - 60-74: Fair / Moderate concern.
+        - < 60: Poor / Significant clinical concern requiring treatment.
         
-        --- SCORING RUBRIC (0-100) ---
-        100 = Perfect/Clear/Healthy.
-        0 = Severe/Damaged/Unhealthy.
+        VISUAL RUBRIC FOR BIOMARKERS (STRICT):
 
-        1. THE "BREAKOUT" GROUP
-        - acneActive: Live pimples, cysts, bacterial inflammation.
-        - blackheads: Oxidized clogged pores (nose/chin).
-        - acneMarks: Post-Acne Marks (PIH brown spots, PIE red spots). NOTE: Do not confuse with active acne.
+        1. BREAKOUTS & ACNE
+        - acneActive: (Inflamed papules/pustules)
+          * 90-100: Clear. No active lesions.
+          * <70: Visible red bumps or whiteheads.
+        - blackheads: (Open comedones)
+          * 90-100: Invisible.
+          * <70: Visible "strawberry nose" or congestion on chin.
+        - acneMarks: (PIH/PIE - post-inflammatory marks)
+          * 90-100: Even tone.
+          * <70: Distinct brown (PIH) or red (PIE) spots from old acne.
 
-        2. THE "TONE" GROUP
-        - darkSpots: Sun damage, melasma, age spots (distinct from acne marks).
-        - redness: Sensitivity, broken capillaries, general inflammation.
-        - darkCircles: Pigment or shadows under eyes.
+        2. TONE & PIGMENTATION
+        - redness: (Erythema/Flushing)
+          * 90-100: Uniform skin color.
+          * <70: Pink/Red patches, broken capillaries, or rosacea signs.
+        - darkSpots: (Sun damage/Melasma)
+          * 90-100: None.
+          * <70: Defined hyperpigmented patches or sun spots.
+        - darkCircles: (Infraorbital shadowing)
+          * 90-100: Bright and smooth undereye.
+          * <70: Visible dark, blue, or purple shadows.
 
-        3. THE "TEXTURE" GROUP
-        - pores: Visible size/openness.
-        - oiliness: Shine intensity (T-zone).
-        - hydration: Water content (Score 100 = Plump, Score 0 = Dehydrated/Flaking).
-        - scars: Atrophic/pitted scars (ice pick, boxcar, rolling). NOT pigmentation marks.
-        - skinTags: Acrochordons or small fleshy growths.
+        3. TEXTURE & SURFACE
+        - pores: (Follicle openings)
+          * 90-100: Invisible at conversational distance.
+          * <70: Distinct "orange peel" texture on cheeks/nose.
+        - oiliness: (Sebum reflection)
+          * 90-100: Balanced/Satin finish.
+          * <70: High glare/greasy film on T-zone.
+        - hydration: (Water retention/Plumpness)
+          * 90-100: Radiant, plump, light-reflecting.
+          * <70: Dull, flat, crepey, or flaky appearance.
+        - scars: (Atrophic/pitted texture)
+          * 90-100: Smooth surface.
+          * <70: Visible indentations (boxcar, icepick, rolling scars).
+        - skinTags: (Acrochordons)
+          * 90-100: None.
+          * <70: Visible fleshy growths.
 
-        4. THE "AGING" GROUP
-        - wrinkles: Static lines (forehead, crows feet, nasolabial).
-        - firmness: Jawline definition, sagging, elasticity.
+        4. AGING & STRUCTURE
+        - wrinkles: (Static lines)
+          * 90-100: Smooth at rest.
+          * <70: Visible forehead lines, crows feet, or nasolabial folds.
+        - firmness: (Laxity/Gravity effects)
+          * 90-100: Sharp jawline contour.
+          * <70: Jowling, sagging, or loss of definition.
 
-        --- LOGIC TREE DIAGNOSIS (HOLISTIC) ---
-        Use this logic to generate the 'headline' and 'generalCondition':
-        
-        RULE 1: BARRIER FIRST. 
-        IF (Redness < 50 OR Hydration < 50):
-           Diagnosis: "Compromised Barrier".
-           Advice: Stop actives. Focus on repair.
-        
-        RULE 2: ACNE TYPES.
-        IF (AcneActive < 60):
-           IF (Oiliness < 50): Diagnosis = "Congestion Oily". Focus: BHA/Clay.
-           IF (Oiliness > 80): Diagnosis = "Dry/Irritated Breakouts". Focus: Hydration + Gentle Spot Treat.
-        
-        RULE 3: AGING vs DEHYDRATION.
-        IF (Wrinkles < 60):
-           IF (Hydration < 60): Diagnosis = "Dehydration Lines". Focus: Hyaluronic Acid (reversible).
-           IF (Hydration > 80): Diagnosis = "Static Wrinkles". Focus: Retinoids/Peptides.
+        ANALYSIS LOGIC:
+        - Identify the 1-2 lowest scores based on the rubric. These are the "Primary Concerns".
+        - Generate a "headline" summarizing these concerns (e.g. "Active Acne with Dehydration").
+        - "immediateAction" should directly address the lowest score.
+
+        INPUT METRICS (Reference Only - Prioritize Visual Evidence): ${JSON.stringify(localMetrics)}
 
         OUTPUT JSON (Strict):
         {
-          "overallScore": number,
+          "overallScore": number (Weighted average: Breakouts 30%, Tone 25%, Texture 25%, Aging 20%),
           "acneActive": number,
           "blackheads": number,
           "acneMarks": number,
@@ -69,20 +87,16 @@ export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, 
           "skinTags": number,
           "wrinkles": number,
           "firmness": number,
-          "skinAge": number,
+          "skinAge": number (Visual estimate),
           "analysisSummary": {
-            "headline": "Short clinical diagnosis (e.g. 'Compromised Barrier with Mild Acne')",
-            "generalCondition": "2 sentences explaining the holistic situation based on the Logic Tree.",
+            "headline": "string",
+            "generalCondition": "string (2-3 sentences)",
             "points": [
-                { "subtitle": "Primary Concern", "content": "The main issue identified." },
-                { "subtitle": "Secondary Observation", "content": "Another notable finding (e.g. 'Dehydration is exacerbating fine lines')." }
+                { "subtitle": "Primary Concern", "content": "string" },
+                { "subtitle": "Secondary Observation", "content": "string" }
             ]
           },
-          "immediateAction": "One specific clinical tip.",
-          "observations": { 
-             "acneActive": "Details...",
-             "tone": "Details..."
-          }
+          "immediateAction": "string"
         }
         `;
         
