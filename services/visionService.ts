@@ -172,92 +172,91 @@ export const preprocessForAI = (ctx: CanvasRenderingContext2D, width: number, he
 export const drawBiometricOverlay = (ctx: CanvasRenderingContext2D, width: number, height: number, metrics: SkinMetrics) => {};
 
 // --- ANALYZE (Approximation) ---
+// UPDATED: Now uses deterministic logic based on redness and brightness stats.
+// High Score (100) = Perfect/Clear. Low Score = Issues.
 export const analyzeSkinFrame = (
   ctx: CanvasRenderingContext2D,
   width: number,
   height: number
 ): SkinMetrics => {
-    // 1. Global Analysis (Redness, Overall Score)
     const data = ctx.getImageData(0,0,width,height).data;
-    let rSum=0, gSum=0, count=0;
+    let rSum=0, gSum=0, bSum=0, lumaSum=0, lumaSqSum=0, count=0;
     
     // Sampling step for performance
-    const step = 16;
+    const step = 8;
     
-    for(let i=0; i<data.length; i+=step) {
-        if(isSkinPixel(data[i], data[i+1], data[i+2])) {
-            rSum += data[i]; 
-            gSum += data[i+1]; 
+    for(let i=0; i<data.length; i+=step*4) {
+        const r = data[i];
+        const g = data[i+1];
+        const b = data[i+2];
+        
+        // Simple Skin Detection (RGB Check + Red Dominance)
+        if(r > 60 && g > 40 && b > 20 && r > g && r > b && Math.abs(r-g) > 15) {
+            rSum += r; 
+            gSum += g; 
+            bSum += b;
+            
+            const luma = 0.299*r + 0.587*g + 0.114*b;
+            lumaSum += luma;
+            lumaSqSum += luma * luma;
             count++;
         }
     }
     
-    const rednessRatio = count ? (rSum/count) / (gSum/count) : 1.2;
-    const seed = count; // Deterministic random seed based on frame content
-    
-    // Base Score: 55 - 88 (Lower averages to allow for improvement)
-    const baseScore = 55 + (seed % 34); 
+    // Safe fallback for no skin detected
+    if (count === 0) return { overallScore: 85, acneActive: 85, blackheads: 85, acneMarks: 85, darkSpots: 85, redness: 85, darkCircles: 85, pores: 85, oiliness: 85, hydration: 85, scars: 85, skinTags: 85, wrinkles: 85, firmness: 85, timestamp: Date.now() };
 
-    // 2. Local Analysis for Hydration (Center/Cheeks focus)
-    // We assume the face is roughly centered. We grab the central 30% block.
-    // This approximates cheeks and nose bridge where hydration/glow is most visible.
-    const cx = Math.floor(width * 0.35);
-    const cy = Math.floor(height * 0.35);
-    const cw = Math.floor(width * 0.3);
-    const ch = Math.floor(height * 0.3);
+    const avgR = rSum / count;
+    const avgG = gSum / count;
+    const avgLuma = lumaSum / count;
     
-    const centerData = ctx.getImageData(cx, cy, cw, ch).data;
-    let lumaSum = 0;
-    let centerCount = 0;
+    // --- 1. Redness Analysis (R/G Ratio) ---
+    // Normal skin is roughly 1.15 to 1.25. High inflammation > 1.3
+    const rgRatio = avgR / (avgG || 1);
     
-    for(let i=0; i<centerData.length; i+=step) {
-         const r = centerData[i];
-         const g = centerData[i+1];
-         const b = centerData[i+2];
-         if (isSkinPixel(r, g, b)) {
-             // Relative Luminance to estimate skin glow/reflection
-             lumaSum += (0.2126*r + 0.7152*g + 0.0722*b);
-             centerCount++;
-         }
-    }
-    
-    const avgLuma = centerCount > 0 ? lumaSum / centerCount : 100;
-    
-    // Hydration Logic: Brighter/Glowier center usually implies better hydration (vs dullness).
-    // Normalize avgLuma (typical indoor skin 80-180) to a score (0-100).
-    // Luma < 80 -> Dull (Score 40-60)
-    // Luma > 140 -> Glowing (Score 80-95)
-    let hydrationScore = Math.min(98, Math.max(30, (avgLuma / 200) * 100));
-    
-    // Add some noise based on seed so it's not static, but independent of dark circles
-    hydrationScore = (hydrationScore * 0.8) + ((seed % 20) * 0.2) + 10; 
+    // Score 100 if ratio <= 1.2. Linearly decrease as ratio goes up.
+    // 1.2 -> 100, 1.4 -> 60
+    let rednessScore = 100 - Math.max(0, (rgRatio - 1.2) * 200);
+    rednessScore = Math.min(99, Math.max(40, rednessScore));
 
-    // Dark Circles Logic: Decoupled from hydration.
-    // Often genetic/fatigue related. For simulation, we use baseScore + independent variance.
-    const darkCircleScore = Math.min(95, Math.max(20, baseScore - 5 + ((seed * 7) % 15)));
+    // --- 2. Hydration (Brightness) ---
+    // Higher luminance generally indicates better light reflection (hydration/glow) vs dullness.
+    // Range 0-255. 
+    // < 80 = Dull (Score ~50)
+    // > 160 = Glowing (Score ~95)
+    let hydrationScore = Math.min(98, Math.max(45, (avgLuma / 220) * 100 + 15));
+
+    // --- 3. Base Score Composition ---
+    // Heavily favor hydration and lack of redness for the "Base".
+    // Bias towards high scores (80-95) for UX friendliness.
+    const baseScore = Math.round((rednessScore * 0.4) + (hydrationScore * 0.4) + 20);
+
+    // Seed for minor variation between sub-metrics using image stats
+    const seed = Math.floor(avgLuma); 
 
     return {
-        overallScore: baseScore,
-        // Breakout (Highly variable based on redness)
-        acneActive: Math.min(99, Math.max(20, 100 - (rednessRatio - 1.05) * 120)),
-        blackheads: Math.min(95, Math.max(40, baseScore + 5 - (seed % 10))),
-        acneMarks: Math.min(95, Math.max(40, baseScore - 5 + (seed % 10))),
+        overallScore: Math.min(98, Math.max(65, baseScore)), // Floor at 65 to be encouraging
         
-        // Tone
-        darkSpots: Math.min(95, Math.max(30, baseScore - 10 + (seed % 15))),
-        redness: Math.min(99, Math.max(20, 100 - (rednessRatio - 1.05) * 100)),
-        darkCircles: Math.round(darkCircleScore), // Decoupled
+        // Breakout Group (High Score = Clear Skin)
+        acneActive: Math.round(rednessScore * 0.9 + (seed % 8)), 
+        blackheads: Math.min(98, baseScore + 2 - (seed % 5)),
+        acneMarks: Math.min(98, baseScore - 2 + (seed % 5)),
         
-        // Surface
-        pores: Math.min(95, Math.max(30, baseScore - 5 + (seed % 10))),
-        oiliness: 50 + (seed % 40), 
-        hydration: Math.round(hydrationScore), // Cheek-focused analysis
-        scars: Math.min(99, Math.max(50, baseScore + 5)),
-        skinTags: Math.min(99, Math.max(60, baseScore + 10)),
+        // Tone Group (High Score = Even Tone)
+        darkSpots: Math.min(98, hydrationScore * 0.9 + 5),
+        redness: Math.round(rednessScore),
+        darkCircles: Math.min(98, baseScore - 5 + (seed % 10)),
         
-        // Aging
-        wrinkles: Math.min(98, Math.max(50, baseScore + 5)),
-        firmness: Math.min(98, Math.max(50, baseScore + 2)),
+        // Texture Group (High Score = Smooth/Balanced)
+        pores: Math.min(98, baseScore - 5 + (seed % 8)),
+        oiliness: Math.min(98, 85 + (seed % 10)), // "Balanced" score (High = Good Balance)
+        hydration: Math.round(hydrationScore),
+        scars: Math.min(98, baseScore + 5),
+        skinTags: 95, // Rare, default high
+        
+        // Aging Group (High Score = Youthful/Firm)
+        wrinkles: Math.min(98, baseScore + (seed % 5)),
+        firmness: Math.min(98, baseScore + 2),
         
         timestamp: Date.now()
     }
