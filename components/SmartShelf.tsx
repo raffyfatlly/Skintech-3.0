@@ -21,6 +21,7 @@ interface SmartShelfProps {
 
 const CARD_WIDTH = 280; 
 const CARD_GAP = 20;    
+const ITEM_FULL_WIDTH = CARD_WIDTH + CARD_GAP;
 
 const ShelfAuditModal: React.FC<{ report: ShelfAuditReport; onClose: () => void; onFindAlternative?: (type: string) => void }> = ({ report, onClose, onFindAlternative }) => {
     return (
@@ -250,11 +251,9 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
 
           requestAnimationFrame(() => {
               setScrollX(container.scrollLeft);
-              const itemFullWidth = CARD_WIDTH + CARD_GAP;
-              const centerPoint = container.scrollLeft + (container.clientWidth / 2);
-              const startOffset = (container.clientWidth / 2) + (CARD_WIDTH / 2);
               
-              const rawIndex = (centerPoint - startOffset) / itemFullWidth;
+              // Simplified Calculation aligned with CSS padding
+              const rawIndex = container.scrollLeft / ITEM_FULL_WIDTH;
               const index = Math.round(rawIndex);
               
               // Allow index to go one past the length for the "Add" card
@@ -277,14 +276,15 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
   }, [displayedProducts, activeTab, activeIndex]);
 
   const getCardStyle = (index: number) => {
-      const itemFullWidth = CARD_WIDTH + CARD_GAP;
-      const viewportCenter = scrollX + (containerWidth / 2);
-      const visualItemCenter = (containerWidth / 2) + (index * itemFullWidth) + (CARD_WIDTH / 2);
-      const distance = (viewportCenter - visualItemCenter) / itemFullWidth;
+      // Distance is relative to the scroll center (which is 0 when item is centered)
+      // Positive = Item is to the left (scrolled past)
+      // Negative = Item is to the right (upcoming)
+      const distance = (scrollX - (index * ITEM_FULL_WIDTH)) / ITEM_FULL_WIDTH;
       const absDistance = Math.abs(distance);
       
       let rotateY = 0;
       if (absDistance > 0.15) { 
+          // Inverse direction: moving left (pos distance) should rotate showing right face
           rotateY = distance * -20; 
           rotateY = Math.max(-45, Math.min(45, rotateY));
       }
@@ -444,15 +444,15 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                 onTouchStart={(e) => e.stopPropagation()}
                 onTouchMove={(e) => e.stopPropagation()}
                 onTouchEnd={(e) => e.stopPropagation()}
-                className="flex overflow-x-auto snap-x snap-mandatory pb-8 pt-12 no-scrollbar items-center px-[50vw] relative z-10"
+                className="flex overflow-x-auto snap-x snap-mandatory pb-8 pt-12 no-scrollbar items-center relative z-10"
                 style={{ 
-                    scrollPaddingLeft: '0px',
+                    // Dynamic padding to center the items based on viewport width
+                    paddingLeft: `calc(50vw - ${CARD_WIDTH / 2}px)`,
+                    paddingRight: `calc(50vw - ${CARD_WIDTH / 2}px)`,
                     perspective: '1000px',
                     transformStyle: 'preserve-3d'
                 }} 
            >
-               <div className="shrink-0" style={{ width: 0 }} />
-
                {displayedProducts.map((p, i) => {
                    const audit = auditProduct(p, userProfile);
                    const score = Number(audit.adjustedScore);
@@ -468,6 +468,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                             style={{ 
                                 width: CARD_WIDTH,
                                 marginRight: CARD_GAP,
+                                scrollSnapStop: 'always',
                                 ...dynamicStyle 
                             }}
                        >
@@ -476,7 +477,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                                     if (isActive) setSelectedProduct(p);
                                     else {
                                         scrollContainerRef.current?.scrollTo({
-                                            left: i * (CARD_WIDTH + CARD_GAP),
+                                            left: i * ITEM_FULL_WIDTH,
                                             behavior: 'smooth'
                                         });
                                     }
@@ -549,6 +550,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                         style={{ 
                             width: CARD_WIDTH,
                             marginRight: CARD_GAP,
+                            scrollSnapStop: 'always',
                             ...getCardStyle(displayedProducts.length)
                         }}
                    >
@@ -571,6 +573,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                         style={{ 
                             width: CARD_WIDTH,
                             marginRight: CARD_GAP,
+                            scrollSnapStop: 'always',
                             ...getCardStyle(displayedProducts.length)
                         }}
                    >
@@ -585,8 +588,6 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                        </button>
                    </div>
                )}
-               
-               <div className="shrink-0" style={{ width: '50vw' }} />
            </div>
        </div>
 

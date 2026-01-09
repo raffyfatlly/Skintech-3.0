@@ -169,7 +169,8 @@ const ProductSearch: React.FC<ProductSearchProps> = ({ userProfile, shelf, onSta
     return (
         <div className="fixed inset-0 z-50 flex flex-col font-sans sm:bg-black/50 sm:backdrop-blur-sm sm:items-center sm:justify-center">
             <div className="flex-1 bg-white sm:flex-none sm:w-full sm:max-w-2xl sm:h-[80vh] sm:rounded-3xl sm:shadow-2xl sm:overflow-hidden relative flex flex-col w-full h-full">
-                <div className="p-6 border-b border-zinc-100 flex items-center gap-4">
+                {/* Updated Header with Safe Area Padding for Mobile PWA */}
+                <div className="px-6 pb-6 pt-safe-offset-4 sm:p-6 border-b border-zinc-100 flex items-center gap-4 transition-all">
                     <button onClick={onCancel} className="p-2 -ml-2 text-zinc-400 hover:text-zinc-600">
                         <X size={24} />
                     </button>
