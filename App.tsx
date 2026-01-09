@@ -221,8 +221,16 @@ const App: React.FC = () => {
       else if (type.includes('MOISTURIZER') || type.includes('CREAM')) category = 'Moisturizer';
       else if (type.includes('SERUM')) category = 'Serum';
       else if (type.includes('TONER')) category = 'Toner';
-      else if (type.includes('TREATMENT') || type.includes('MASK')) category = 'Mask';
+      else if (type.includes('TREATMENT') || type.includes('MASK')) category = 'Treatment';
       else if (type.includes('CLEANSER') || type.includes('WASH')) category = 'Cleanser';
+      
+      // New Makeup & Specialized Mappings
+      else if (type.includes('FOUNDATION')) category = 'Foundation';
+      else if (type.includes('CONCEALER')) category = 'Concealer';
+      else if (type.includes('PRIMER')) category = 'Primer';
+      else if (type.includes('SETTING_SPRAY') || type.includes('SPRAY')) category = 'Setting Spray';
+      else if (type.includes('EYE') || type.includes('EYE_CREAM')) category = 'Eye Cream';
+      else if (type.includes('MASK')) category = 'Mask';
       
       setTargetRoutineCategory(category);
       setCurrentView(AppView.ROUTINE_BUILDER);
