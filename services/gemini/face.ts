@@ -2,83 +2,105 @@
 import { SkinMetrics } from '../../types';
 import { runWithTimeout, runWithRetry, parseJSONFromText, MODEL_FAST, SAFETY_SETTINGS_NONE } from './core';
 
+/**
+ * CLINICAL GRADING ENGINE
+ * Uses a strict 6-tier rubric to evaluate skin health based on visual evidence.
+ */
 export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, shelf: string[] = [], history?: SkinMetrics[]): Promise<SkinMetrics> => {
     return runWithTimeout<SkinMetrics>(async (ai) => {
         const prompt = `
-        ACT AS A BOARD-CERTIFIED DERMATOLOGIST.
-        Perform a strict clinical assessment of the face in the image using the Visual Rubric below.
+        ACT AS A SENIOR CLINICAL DERMATOLOGIST.
+        Perform a rigorous visual grading of the face in the image.
         
-        SCORING PROTOCOL (0-100 Scale):
-        - 100: Perfect / Ideal Health.
-        - 90-99: Excellent / Near Perfect.
-        - 75-89: Good / Minor aesthetic issues.
-        - 60-74: Fair / Moderate concern.
-        - < 60: Poor / Significant clinical concern requiring treatment.
-        
-        VISUAL RUBRIC FOR BIOMARKERS (STRICT):
+        You must assign a score (0-100) for ALL 13 BIOMARKERS based on the "Health/Clearance" scale.
+        HIGH SCORE (100) = PERFECT / HEALTHY.
+        LOW SCORE (0) = SEVERE ISSUE.
 
-        1. BREAKOUTS & ACNE
-        - acneActive: (Inflamed papules/pustules)
-          * 90-100: Clear. No active lesions.
-          * <70: Visible red bumps or whiteheads.
-        - blackheads: (Open comedones)
-          * 90-100: Invisible.
-          * <70: Visible "strawberry nose" or congestion on chin.
-        - acneMarks: (PIH/PIE - post-inflammatory marks)
-          * 90-100: Even tone.
-          * <70: Distinct brown (PIH) or red (PIE) spots from old acne.
+        USE THIS STRICT 6-TIER GRADING MATRIX FOR EVERY METRIC:
 
-        2. TONE & PIGMENTATION
-        - redness: (Erythema/Flushing)
-          * 90-100: Uniform skin color.
-          * <70: Pink/Red patches, broken capillaries, or rosacea signs.
-        - darkSpots: (Sun damage/Melasma)
-          * 90-100: None.
-          * <70: Defined hyperpigmented patches or sun spots.
-        - darkCircles: (Infraorbital shadowing)
-          * 90-100: Bright and smooth undereye.
-          * <70: Visible dark, blue, or purple shadows.
+        TIER 1: CRISIS (Score 0-19)
+        - Condition: Severe, widespread, inflamed, or deep structural damage.
+        - Visuals: Cysts, raw/cracked skin, deep folds, >50% face affected.
 
-        3. TEXTURE & SURFACE
-        - pores: (Follicle openings)
-          * 90-100: Invisible at conversational distance.
-          * <70: Distinct "orange peel" texture on cheeks/nose.
-        - oiliness: (Sebum reflection)
-          * 90-100: Balanced/Satin finish.
-          * <70: High glare/greasy film on T-zone.
-        - hydration: (Water retention/Plumpness)
-          * 90-100: Radiant, plump, light-reflecting.
-          * <70: Dull, flat, crepey, or flaky appearance.
-        - scars: (Atrophic/pitted texture)
-          * 90-100: Smooth surface.
-          * <70: Visible indentations (boxcar, icepick, rolling scars).
-        - skinTags: (Acrochordons)
-          * 90-100: None.
-          * <70: Visible fleshy growths.
+        TIER 2: CLINICAL (Score 20-39)
+        - Condition: Distinct visible issues requiring active treatment.
+        - Visuals: Pustules (>10), distinct hyperpigmentation spots, static lines.
 
-        4. AGING & STRUCTURE
-        - wrinkles: (Static lines)
-          * 90-100: Smooth at rest.
-          * <70: Visible forehead lines, crows feet, or nasolabial folds.
-        - firmness: (Laxity/Gravity effects)
-          * 90-100: Sharp jawline contour.
-          * <70: Jowling, sagging, or loss of definition.
+        TIER 3: REACTIVE (Score 40-59)
+        - Condition: Noticeable fluctuations, mild inflammation.
+        - Visuals: Red patches, clusters of whiteheads (5-10), visible dullness.
 
-        ANALYSIS LOGIC:
-        - Identify the 1-2 lowest scores based on the rubric. These are the "Primary Concerns".
-        - Generate a "headline" summarizing these concerns (e.g. "Active Acne with Dehydration").
-        - "immediateAction" should directly address the lowest score.
+        TIER 4: IMBALANCE (Score 60-79)
+        - Condition: Generally healthy but with texture/tone issues.
+        - Visuals: Visible pores in T-zone, singular blemishes (1-4), uneven tan.
 
-        INPUT METRICS (Reference Only - Prioritize Visual Evidence): ${JSON.stringify(localMetrics)}
+        TIER 5: RESILIENT (Score 80-94)
+        - Condition: Healthy, stable barrier.
+        - Visuals: Smooth texture, even tone, no inflammation. Minor "human" imperfections allowed.
 
-        OUTPUT JSON (Strict):
+        TIER 6: PRISTINE (Score 95-100)
+        - Condition: Flawless, "Glass Skin", Ideal.
+        - Visuals: Invisible pores, high radiance, uniform eumelanin/hemoglobin distribution.
+
+        --- BIOMARKER SPECIFIC SIGNS (Scan for these) ---
+
+        [GROUP 1: BREAKOUTS]
+        1. acneActive: Look for raised red papules, pustules, or cysts.
+           - Crisis: Cystic/Nodular acne.
+           - Imbalance: 1-3 small whiteheads.
+        2. blackheads: Look for oxidized open comedones (nose/chin).
+           - Crisis: "Strawberry nose" texture.
+           - Resilient: Invisible at arm's length.
+        3. acneMarks: Look for PIH (Brown) or PIE (Red) flat spots.
+           - Clinical: Dark/Deep purple spots.
+           - Resilient: Faint fading shadows.
+
+        [GROUP 2: TONE]
+        4. redness: Look for diffuse erythema or broken capillaries.
+           - Crisis: Deep beet-red flushing or Rosacea.
+           - Pristine: Uniform skin tone.
+        5. darkSpots: Look for sun lentigines or melasma patches.
+           - Clinical: Distinct brown patches with defined borders.
+        6. darkCircles: Look for infraorbital shadowing/vascularity.
+           - Crisis: Deep purple/blue hollows.
+
+        [GROUP 3: SURFACE]
+        7. pores: Look for follicle size on cheeks/nose.
+           - Crisis: "Orange peel" texture visible from distance.
+           - Pristine: Blurry/Invisible pores.
+        8. oiliness: Look for specular reflection (shine) on forehead/nose.
+           - Crisis: Wet/Greasy look (High Glare).
+           - Pristine: Satin/Matte finish.
+        9. hydration: Look for plumpness and light bounce.
+           - Crisis: Flaking, cracking, dull/ashy cast.
+           - Pristine: "Glow" / High light reflection.
+        10. scars: Look for atrophic indentations (icepick/boxcar).
+            - Clinical: Visible pitted texture.
+        11. skinTags: Look for fleshy pedunculated growths (neck/eyes).
+
+        [GROUP 4: AGING]
+        12. wrinkles: Look for static lines (forehead, nasolabial, crows feet).
+            - Crisis: Deep folds present at rest.
+            - Resilient: Fine lines only when smiling (dynamic).
+        13. firmness: Look for jawline contour and jowls.
+            - Crisis: Sagging jowls, loss of oval shape.
+            - Pristine: Sharp, defined jawline.
+
+        --- OUTPUT REQUIREMENT ---
+        Return a valid JSON object.
+        - overallScore: Weighted average of all scores.
+        - skinAge: Estimated biological skin age based on wrinkles/firmness.
+        - analysisSummary: A professional summary.
+        - immediateAction: One generic tip.
+
         {
-          "overallScore": number (Weighted average: Breakouts 30%, Tone 25%, Texture 25%, Aging 20%),
+          "overallScore": number,
+          "skinAge": number,
           "acneActive": number,
           "blackheads": number,
           "acneMarks": number,
-          "darkSpots": number,
           "redness": number,
+          "darkSpots": number,
           "darkCircles": number,
           "pores": number,
           "oiliness": number,
@@ -87,22 +109,19 @@ export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, 
           "skinTags": number,
           "wrinkles": number,
           "firmness": number,
-          "skinAge": number (Visual estimate),
           "analysisSummary": {
-            "headline": "string",
-            "generalCondition": "string (2-3 sentences)",
+            "headline": "Short Clinical Headline (e.g. 'Mild Comedonal Acne')",
+            "generalCondition": "2 sentences describing the primary tier (e.g. 'Skin is in the Reactive stage due to visible redness...')",
             "points": [
-                { "subtitle": "Primary Concern", "content": "string" },
-                { "subtitle": "Secondary Observation", "content": "string" }
+               { "subtitle": "Primary Concern", "content": "Specific observation." },
+               { "subtitle": "Strongest Feature", "content": "Specific observation." }
             ]
-          },
-          "immediateAction": "string"
+          }
         }
         `;
         
         const base64Data = image.includes(',') ? image.split(',')[1] : image;
 
-        // Use MODEL_FAST (gemini-3-flash-preview) for robust analysis
         const response = await ai.models.generateContent({
             model: MODEL_FAST, 
             contents: {
@@ -118,12 +137,9 @@ export const analyzeFaceSkin = async (image: string, localMetrics: SkinMetrics, 
         });
         
         const data = parseJSONFromText(response.text || "{}");
-        if (!data.overallScore && !data.analysisSummary) throw new Error("Incomplete analysis");
+        if (!data.overallScore) throw new Error("Incomplete analysis");
 
-        const observations = data.observations || {};
-        if (data.immediateAction) observations.advice = data.immediateAction;
-
-        return { ...localMetrics, ...data, observations, timestamp: Date.now() };
+        return { ...localMetrics, ...data, timestamp: Date.now() };
     }, 60000); 
 };
 
