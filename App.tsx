@@ -398,6 +398,80 @@ const App: React.FC = () => {
       }
   };
 
+  // --- SHARED AUDIT FUNCTION ---
+  const runSmartAudit = async (user: UserProfile, currentShelf: Product[]) => {
+      if (currentShelf.length === 0) return;
+      
+      setBackgroundTask({ label: 'Refreshing Shelf Audit...' });
+
+      try {
+          // 1. Clean old audit flags first (so we don't carry over stale risks)
+          const cleanShelf = currentShelf.map(p => ({
+              ...p,
+              risks: p.risks?.filter(r => r.ingredient !== 'AI AUDIT') || []
+          }));
+
+          // 2. Run Audit against the NEW user profile (which has updated biometrics)
+          const report = await runPostScanAudit(user, cleanShelf);
+          
+          setBackgroundTask(null);
+
+          let finalShelf = cleanShelf;
+
+          if (report && report.flags.length > 0) {
+              setAuditReport(report);
+              
+              // Apply new flags
+              finalShelf = cleanShelf.map(p => {
+                  const flag = report.flags.find(f => f.productId === p.id);
+                  if (flag) {
+                      let newRisks = [...(p.risks || [])];
+                      
+                      // Improvement (RESUME) -> No risk added
+                      // Worsening -> Add AI AUDIT risk
+                      if (flag.advice !== 'RESUME') {
+                          newRisks.unshift({
+                              ingredient: 'AI AUDIT',
+                              riskLevel: flag.severity === 'CRITICAL' ? 'HIGH' : 'MEDIUM',
+                              reason: flag.issue
+                          });
+                      }
+
+                      return {
+                          ...p,
+                          usageTips: flag.smartUsage, 
+                          risks: newRisks,
+                          expertReview: `[${new Date().toLocaleDateString()}] ${flag.issue}\n\n${p.expertReview || ''}`
+                      };
+                  }
+                  return p;
+              });
+
+              setNotification({
+                  type: 'GENERIC',
+                  title: 'Routine Updated',
+                  description: 'Shelf analysis updated to match your current skin profile.',
+                  actionLabel: 'View',
+                  onAction: () => setCurrentView(AppView.SMART_SHELF)
+              });
+          } else {
+              // No flags found for the new state -> Clean shelf is the final shelf
+              setAuditReport(null); 
+          }
+          
+          // 3. Save Everything
+          setShelf(finalShelf);
+          saveUserData(user, finalShelf);
+
+      } catch (e) {
+          console.error("Audit failed", e);
+          setBackgroundTask(null);
+          // Fallback save just in case
+          setShelf(currentShelf); 
+          saveUserData(user, currentShelf);
+      }
+  };
+
   useEffect(() => {
     const init = async () => {
       const urlParams = new URLSearchParams(window.location.search);
@@ -524,81 +598,11 @@ const App: React.FC = () => {
       
       setTimeout(() => setActiveGuide('SCAN'), 5000);
 
-      // --- TRIGGER SHELF AUDIT (UPDATED with ASYNC AI & PERSISTENCE) ---
-      if (shelf.length > 0) {
-          setBackgroundTask({ label: 'Processing Shelf Audit...' });
-
-          (async () => {
-              try {
-                  // Wait a moment for UX smoothness
-                  await new Promise(r => setTimeout(r, 2000));
-                  const report = await runPostScanAudit(updatedUser, shelf);
-                  
-                  setBackgroundTask(null);
-
-                  let finalShelf = shelf;
-
-                  if (report && report.flags.length > 0) {
-                      setAuditReport(report);
-                      
-                      // --- PERSIST FINDINGS TO PRODUCTS ---
-                      finalShelf = shelf.map(p => {
-                          const flag = report.flags.find(f => f.productId === p.id);
-                          if (flag) {
-                              let newRisks = [...(p.risks || [])];
-                              
-                              if (flag.advice === 'RESUME') {
-                                  // Positive: Remove audit risks
-                                  newRisks = newRisks.filter(r => r.ingredient !== 'AI AUDIT');
-                              } else {
-                                  // Negative: Add or update risk
-                                  newRisks = newRisks.filter(r => r.ingredient !== 'AI AUDIT'); // clean old
-                                  newRisks.unshift({
-                                      ingredient: 'AI AUDIT',
-                                      riskLevel: flag.severity === 'CRITICAL' ? 'HIGH' : 'MEDIUM',
-                                      reason: flag.issue
-                                  });
-                              }
-
-                              return {
-                                  ...p,
-                                  usageTips: flag.smartUsage, // Overwrite with smart usage
-                                  risks: newRisks,
-                                  // Append to history of expert review
-                                  expertReview: `[${new Date().toLocaleDateString()}] ${flag.issue}\n\n${p.expertReview || ''}`
-                              };
-                          }
-                          return p;
-                      });
-
-                      setNotification({
-                          type: 'GENERIC',
-                          title: 'Routine Update',
-                          description: `${report.flags.length} product${report.flags.length > 1 ? 's' : ''} flagged based on new results.`,
-                          actionLabel: 'Review Shelf',
-                          onAction: () => setCurrentView(AppView.SMART_SHELF)
-                      });
-                  } else {
-                      setNotification({
-                          type: 'TASK_COMPLETE',
-                          title: 'Routine Verified',
-                          description: 'No conflicts found with your latest skin metrics.',
-                          actionLabel: 'View Shelf',
-                          onAction: () => setCurrentView(AppView.SMART_SHELF)
-                      });
-                  }
-                  
-                  // Save EVERYTHING (User + Updated Shelf)
-                  // We re-update user profile here just in case, but rely on the shelf update
-                  setShelf(finalShelf);
-                  saveUserData(updatedUser, finalShelf);
-
-              } catch (e) {
-                  console.error("Audit failed", e);
-                  setBackgroundTask(null);
-              }
-          })();
-      }
+      // --- TRIGGER SHELF AUDIT ---
+      // We wait a moment for UX smoothness, then call our shared audit function
+      setTimeout(() => {
+          runSmartAudit(updatedUser, shelf);
+      }, 2000);
   };
 
   const handleAddToShelf = () => {
@@ -630,7 +634,32 @@ const App: React.FC = () => {
   }
 
   const handleProfileUpdate = (updatedProfile: UserProfile) => {
-      persistState(updatedProfile, shelf);
+      // 1. Detect if biometrics changed (Deletion/Edit/Scan)
+      const oldTs = userProfile?.biometrics?.timestamp;
+      const newTs = updatedProfile.biometrics?.timestamp;
+      const hasBiometricsChanged = oldTs !== newTs;
+      const hasShelf = shelf.length > 0;
+
+      // 2. Update Local State & Storage Immediately
+      setUserProfile(updatedProfile);
+      saveUserData(updatedProfile, shelf);
+
+      // 3. Handle Shelf Audit Sync if needed
+      if (hasBiometricsChanged && hasShelf) {
+          // If all scans deleted -> Wipe audit flags locally
+          if (!updatedProfile.hasScannedFace) {
+               const wipedShelf = shelf.map(p => ({
+                   ...p,
+                   risks: p.risks?.filter(r => r.ingredient !== 'AI AUDIT') || []
+               }));
+               setShelf(wipedShelf);
+               saveUserData(updatedProfile, wipedShelf);
+               setNotification({ type: 'GENERIC', title: 'Data Cleared', description: 'Shelf audit data reset.' });
+          } else {
+               // If reverted to previous scan -> Re-run audit against that scan
+               runSmartAudit(updatedProfile, shelf); 
+          }
+      }
   };
 
   const handleResetApp = () => {
