@@ -31,6 +31,7 @@ export const analyzeProductFromSearch = async (
         - Acne Score: ${userMetrics.acneActive} (Lower score = More/Severe Acne)
         - Redness Score: ${userMetrics.redness} (Lower score = More Sensitive/Red)
         - Hydration Score: ${userMetrics.hydration} (Lower score = Dehydrated/Dry)
+        - Oiliness Score: ${userMetrics.oiliness} (Lower score = Very Oily, High score = Balanced)
         
         SAFETY ALERTS: ${safetyFlags.join(', ') || 'None specific'}.
         
@@ -38,21 +39,25 @@ export const analyzeProductFromSearch = async (
 
         TASK: 
         1. Find ingredients and price.
-        2. Analyze against user profile (Warning: If user has low scores or safety alerts, be strict).
-        3. Output strict JSON.
+        2. Analyze against user profile.
+        3. IF MAKEUP (Foundation, Concealer, Primer, Blush):
+           - Check for "Finish" (Matte vs Dewy). If user is Dry (Hydration < 50) and product is Matte, flag as Risk.
+           - Check for "Pore Clogging" ingredients (Ethylhexyl Palmitate, Algae Extract, etc) if Acne Score < 60.
+           - Check for "Flashback" ingredients (Silica/Zinc Oxide) if relevant.
+        4. Output strict JSON.
 
         OUTPUT JSON SCHEMA:
         \`\`\`json
         {
           "name": "string",
           "brand": "string",
-          "type": "CLEANSER" | "TONER" | "SERUM" | "MOISTURIZER" | "SPF" | "TREATMENT" | "FOUNDATION" | "UNKNOWN",
+          "type": "CLEANSER" | "TONER" | "SERUM" | "MOISTURIZER" | "SPF" | "TREATMENT" | "FOUNDATION" | "CONCEALER" | "PRIMER" | "SETTING_SPRAY" | "POWDER" | "UNKNOWN",
           "ingredients": ["string"],
           "estimatedPrice": number,
           "suitabilityScore": number,
           "risks": [{ "ingredient": "string", "riskLevel": "LOW"|"MEDIUM"|"HIGH", "reason": "string" }],
           "benefits": [{ "ingredient": "string", "target": "acneActive"|"hydration" etc, "description": "string", "relevance": "HIGH"|"MAINTENANCE" }],
-          "usageTips": "string (A 'Smart Usage' guide: 1-2 sentences specifying Frequency (AM/PM), Layering Order (e.g. 'before moisturizer'), and Technique (e.g. 'damp skin'). If it conflicts with known routine actives, mention how to space them out.)",
+          "usageTips": "string (Smart Usage guide. For makeup: Mention finish, skin prep needed (e.g. 'Use hydrating primer first'), and removal method (e.g. 'Double cleanse required').)",
           "expertReview": "string"
         }
         \`\`\`
@@ -90,6 +95,9 @@ export const analyzeProductFromSearch = async (
             else if (lowerName.includes('serum')) detectedType = 'SERUM';
             else if (lowerName.includes('moist') || lowerName.includes('cream')) detectedType = 'MOISTURIZER';
             else if (lowerName.includes('sun') || lowerName.includes('spf')) detectedType = 'SPF';
+            else if (lowerName.includes('foundation') || lowerName.includes('tint')) detectedType = 'FOUNDATION';
+            else if (lowerName.includes('conceal')) detectedType = 'CONCEALER';
+            else if (lowerName.includes('prime')) detectedType = 'PRIMER';
         }
 
         const hasIngredients = Array.isArray(data.ingredients) && data.ingredients.length > 0;
@@ -120,7 +128,7 @@ export const analyzeProductImage = async (
     location: string = "Global"
 ): Promise<Product> => {
     return runWithTimeout<Product>(async (ai) => {
-        const visionPrompt = `Identify the skincare product in this image. Return JSON: { "brand": "Brand Name", "name": "Product Name" }. If unclear, return { "name": "Unknown" }`;
+        const visionPrompt = `Identify the skincare or makeup product in this image. Return JSON: { "brand": "Brand Name", "name": "Product Name" }. If unclear, return { "name": "Unknown" }`;
         const base64Data = base64.includes(',') ? base64.split(',')[1] : base64;
 
         const visionResp = await ai.models.generateContent({
@@ -165,7 +173,7 @@ export const analyzeProductImage = async (
 export const searchProducts = async (query: string): Promise<{ name: string, brand: string }[]> => {
     return runWithRetry(async (ai) => {
         const prompt = `
-        Search for commercial skincare products matching: "${query}".
+        Search for commercial skincare or makeup products matching: "${query}".
         
         STRICT RULES:
         1. If the user specifies a BRAND (e.g. "Neutrogena"), ONLY return products from that brand.

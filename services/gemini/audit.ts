@@ -17,6 +17,7 @@ export const auditProduct = (product: Product, user: UserProfile) => {
     const bio = user.biometrics;
     const prefs = user.preferences || {} as Partial<UserPreferences>;
     const ingStr = product.ingredients.join(' ').toLowerCase();
+    const isMakeup = ['FOUNDATION', 'CONCEALER', 'PRIMER', 'POWDER', 'BLUSH', 'BRONZER', 'SETTING_SPRAY'].includes(product.type);
 
     // --- STEP 1: SMART FILTERING OF GENERIC RISKS ---
     const relevantRisks = (product.risks || []).filter(risk => {
@@ -82,6 +83,35 @@ export const auditProduct = (product: Product, user: UserProfile) => {
         if (found) {
             adjustedScore = 0;
             warnings.unshift({ severity: 'CRITICAL', reason: `Contains ${found}, generally not recommended during pregnancy.` });
+        }
+    }
+
+    // 4. MAKEUP SPECIFIC LOGIC
+    if (isMakeup) {
+        // A. PORE CLOGGING CHECK (Acne Cosmetica)
+        if (bio.acneActive < 60 || bio.pores < 50 || bio.oiliness < 50) {
+            const comedogenic = ['ethylhexyl palmitate', 'isopropyl myristate', 'isopropyl palmitate', 'butyl stearate', 'isocetyl stearate', 'myristyl myristate', 'algae extract', 'carrageenan', 'acetylated lanolin', 'cocoa butter', 'coconut oil'];
+            const foundClogger = comedogenic.find(c => ingStr.includes(c));
+            if (foundClogger) {
+                adjustedScore = Math.min(adjustedScore, 50);
+                warnings.unshift({ severity: 'CRITICAL', reason: `Contains ${foundClogger}, a common pore-clogger for acne-prone skin.` });
+            }
+        }
+
+        // B. FINISH MISMATCH (Dry vs Matte)
+        if (bio.hydration < 50 && (product.name.toLowerCase().includes('matte') || ingStr.includes('kaolin') || ingStr.includes('talc'))) {
+            adjustedScore -= 20;
+            warnings.push({ severity: 'CAUTION', reason: `Matte finish may accentuate dry patches. Use a hydrating primer.` });
+        }
+
+        // C. FINISH MISMATCH (Oily vs Glow)
+        if (bio.oiliness < 50 && (product.name.toLowerCase().includes('glow') || product.name.toLowerCase().includes('radiant') || product.name.toLowerCase().includes('luminous'))) {
+            // Check if it has heavy oils
+            const heavyOils = ['mineral oil', 'petrolatum'];
+            if (heavyOils.some(o => ingStr.includes(o))) {
+                adjustedScore -= 20;
+                warnings.push({ severity: 'CAUTION', reason: `Radiant formula with heavy oils may feel greasy. Set with powder.` });
+            }
         }
     }
 
