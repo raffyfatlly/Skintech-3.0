@@ -8,9 +8,9 @@ import { runWithTimeout, parseJSONFromText, getAi, MODEL_FAST, SAFETY_SETTINGS_N
 export const auditProduct = (product: Product, user: UserProfile) => {
     if (!product.ingredients || product.ingredients.length === 0) {
         return {
-            adjustedScore: 50, // Neutral score for unknown
-            warnings: [{ severity: 'CAUTION', reason: "Ingredients list could not be retrieved." }],
-            analysisReason: "We could not access the ingredient data for this product."
+            adjustedScore: -1, // Signal for Missing Data (do not use 50)
+            warnings: [],
+            analysisReason: "Ingredients list could not be retrieved."
         };
     }
 
@@ -141,8 +141,11 @@ export const analyzeShelfHealth = (products: Product[], user: UserProfile) => {
     
     products.forEach(p => {
         const audit = auditProduct(p, user);
-        totalScore += audit.adjustedScore;
-        count++;
+        // Skip items with no data from average calculation to avoid skewing
+        if (audit.adjustedScore !== -1) {
+            totalScore += audit.adjustedScore;
+            count++;
+        }
         
         if (audit.warnings.length > 0) {
             const mainWarning = audit.warnings.find(w => w.severity === 'CRITICAL') || audit.warnings[0];
@@ -345,7 +348,7 @@ export const getBuyingDecision = (product: Product, shelf: Product[], user: User
                 description: "We couldn't retrieve the ingredients for this product.", 
                 color: 'zinc' 
             },
-            audit: { adjustedScore: 0, warnings: [], analysisReason: "Ingredients missing." },
+            audit: { adjustedScore: -1, warnings: [], analysisReason: "Ingredients missing." },
             shelfConflicts: [],
             comparison: { result: 'NEUTRAL' }
         };

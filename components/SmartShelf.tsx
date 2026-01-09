@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, UserProfile, ShelfAuditReport } from '../types';
-import { Plus, Droplet, Sun, Zap, Sparkles, Palette, DollarSign, Edit2, Save, Award, ShoppingBag, ArrowRight, Lightbulb, Clock, Trash2, RotateCcw, ScanBarcode, ChevronDown, AlertOctagon, Check, X, ArrowDown, TrendingUp, RefreshCw } from 'lucide-react';
+import { Plus, Droplet, Sun, Zap, Sparkles, Palette, DollarSign, Edit2, Save, Award, ShoppingBag, ArrowRight, Lightbulb, Clock, Trash2, RotateCcw, ScanBarcode, ChevronDown, AlertOctagon, Check, X, ArrowDown, TrendingUp, RefreshCw, AlertCircle } from 'lucide-react';
 import { auditProduct, analyzeShelfHealth } from '../services/geminiService';
 
 interface SmartShelfProps {
@@ -16,6 +16,7 @@ interface SmartShelfProps {
   auditReport?: ShelfAuditReport | null;
   onClearAudit?: () => void;
   onFindAlternative?: (productType: string) => void;
+  onReaudit?: (product: Product) => void;
 }
 
 const CARD_WIDTH = 280; 
@@ -103,7 +104,7 @@ const ShelfAuditModal: React.FC<{ report: ShelfAuditReport; onClose: () => void;
     );
 };
 
-const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onScanNew, onUpdateProduct, userProfile, onMoveToShelf, onRemoveFromWishlist, onOpenRoutineBuilder, auditReport, onClearAudit, onFindAlternative }) => {
+const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onScanNew, onUpdateProduct, userProfile, onMoveToShelf, onRemoveFromWishlist, onOpenRoutineBuilder, auditReport, onClearAudit, onFindAlternative, onReaudit }) => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [activeTab, setActiveTab] = useState<'ROUTINE' | 'WISHLIST'>('ROUTINE');
   const [showGradingInfo, setShowGradingInfo] = useState(false); 
@@ -455,6 +456,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                {displayedProducts.map((p, i) => {
                    const audit = auditProduct(p, userProfile);
                    const score = Number(audit.adjustedScore);
+                   const isMissingData = score === -1; // New missing check
                    const isActive = i === activeIndex;
                    const dynamicStyle = getCardStyle(i);
                    const hasAuditFlag = p.risks?.some(r => r.ingredient === 'AI AUDIT');
@@ -508,9 +510,13 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                                             <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 truncate max-w-[120px]">{p.brand || 'Brand'}</p>
                                         </div>
                                         <div className="flex flex-col items-end">
-                                            <span className={`text-2xl font-light tracking-tighter leading-none ${score > 80 ? 'text-emerald-700' : score < 60 ? 'text-rose-700' : 'text-amber-700'}`}>
-                                                {score}
-                                            </span>
+                                            {isMissingData ? (
+                                                <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest">No Data</span>
+                                            ) : (
+                                                <span className={`text-2xl font-light tracking-tighter leading-none ${score > 80 ? 'text-emerald-700' : score < 60 ? 'text-rose-700' : 'text-amber-700'}`}>
+                                                    {score}
+                                                </span>
+                                            )}
                                         </div>
                                     </div>
 
@@ -750,37 +756,63 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                             </div>
                         )}
 
-                        {/* SMART USAGE GUIDE (AI-FIRST) */}
-                        <div className="bg-indigo-50/80 p-5 rounded-[1.5rem] border border-indigo-100">
-                            <h3 className="text-xs font-bold text-indigo-900 uppercase tracking-widest mb-2 flex items-center gap-2">
-                                <Clock size={14} /> Smart Usage Guide
-                            </h3>
-                            <p className="text-xs text-indigo-800 font-medium leading-relaxed">
-                                {renderFormattedText(getSmartUsageGuide(selectedProduct))}
-                            </p>
-                        </div>
-
-                        {selectedProduct.benefits.length > 0 && (
-                            <div className="bg-white/80 p-5 rounded-[1.5rem] border border-white/50 shadow-sm">
-                                <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                    <Sparkles size={14} className="text-teal-500" /> Why it works
-                                </h3>
-                                <div className="space-y-3">
-                                    {selectedProduct.benefits.slice(0, 3).map((b, i) => (
-                                        <div key={i} className="flex gap-3 items-start">
-                                            <div className="mt-0.5 text-teal-500">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-teal-500 mt-1.5"></div>
-                                            </div>
-                                            <div>
-                                                <div className="flex items-center gap-2 mb-0.5">
-                                                    <span className="text-sm font-bold text-zinc-900">{b.ingredient}</span>
-                                                </div>
-                                                <p className="text-xs text-zinc-500 font-medium leading-snug">{b.description}</p>
-                                            </div>
-                                        </div>
-                                    ))}
+                        {auditProduct(selectedProduct, userProfile).adjustedScore === -1 ? (
+                            // MISSING DATA VIEW
+                            <div className="p-6 text-center animate-in fade-in bg-white rounded-[2rem] border border-zinc-100 shadow-sm">
+                                <div className="w-16 h-16 bg-zinc-50 rounded-full flex items-center justify-center mx-auto mb-4 border border-zinc-100">
+                                    <AlertCircle size={32} className="text-zinc-400" />
                                 </div>
+                                <h3 className="text-zinc-900 font-bold mb-2">Analysis Unavailable</h3>
+                                <p className="text-zinc-500 text-xs mb-6 leading-relaxed">
+                                    We couldn't retrieve the ingredients for this product. Re-run the audit to try finding it again.
+                                </p>
+                                {onReaudit && (
+                                    <button 
+                                        onClick={() => {
+                                            setSelectedProduct(null);
+                                            onReaudit(selectedProduct);
+                                        }}
+                                        className="w-full py-3 bg-zinc-900 text-white rounded-xl text-xs font-bold uppercase tracking-widest hover:bg-zinc-800 transition-colors flex items-center justify-center gap-2 shadow-lg"
+                                    >
+                                        <RefreshCw size={14} /> Re-Audit Product
+                                    </button>
+                                )}
                             </div>
+                        ) : (
+                            <>
+                                {/* SMART USAGE GUIDE (AI-FIRST) */}
+                                <div className="bg-indigo-50/80 p-5 rounded-[1.5rem] border border-indigo-100">
+                                    <h3 className="text-xs font-bold text-indigo-900 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                        <Clock size={14} /> Smart Usage Guide
+                                    </h3>
+                                    <p className="text-xs text-indigo-800 font-medium leading-relaxed">
+                                        {renderFormattedText(getSmartUsageGuide(selectedProduct))}
+                                    </p>
+                                </div>
+
+                                {selectedProduct.benefits.length > 0 && (
+                                    <div className="bg-white/80 p-5 rounded-[1.5rem] border border-white/50 shadow-sm">
+                                        <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                            <Sparkles size={14} className="text-teal-500" /> Why it works
+                                        </h3>
+                                        <div className="space-y-3">
+                                            {selectedProduct.benefits.slice(0, 3).map((b, i) => (
+                                                <div key={i} className="flex gap-3 items-start">
+                                                    <div className="mt-0.5 text-teal-500">
+                                                        <div className="w-1.5 h-1.5 rounded-full bg-teal-500 mt-1.5"></div>
+                                                    </div>
+                                                    <div>
+                                                        <div className="flex items-center gap-2 mb-0.5">
+                                                            <span className="text-sm font-bold text-zinc-900">{b.ingredient}</span>
+                                                        </div>
+                                                        <p className="text-xs text-zinc-500 font-medium leading-snug">{b.description}</p>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </>
                         )}
 
                         {shouldShowAlternative && onFindAlternative && (

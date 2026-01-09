@@ -229,7 +229,7 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
             )}
 
             <div 
-                className="pt-12 pb-10 px-6 rounded-b-[2.5rem] relative overflow-hidden shadow-2xl"
+                className="pt-safe-top mt-2 pb-10 px-6 rounded-b-[2.5rem] relative overflow-hidden shadow-2xl"
                 style={{ backgroundColor: 'rgb(163, 206, 207)' }}
             >
                  <div className="absolute top-0 right-0 w-64 h-64 bg-white/20 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none mix-blend-overlay"></div>

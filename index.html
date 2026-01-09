@@ -70,10 +70,15 @@
       /* --- UTILITIES --- */
       .no-scrollbar::-webkit-scrollbar { display: none; }
       .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-      .pb-safe { padding-bottom: env(safe-area-inset-bottom); }
-      /* IOS NOTCH FIX: Adds padding equal to the safe area (notch) plus 20px */
+      
+      /* IOS SAFE AREA UTILS */
+      .pb-safe { padding-bottom: env(safe-area-inset-bottom, 20px); }
       .pt-safe-top { padding-top: max(env(safe-area-inset-top), 20px); }
       
+      /* Extra spacing for inputs/buttons near safe areas */
+      .pb-safe-offset-4 { padding-bottom: calc(env(safe-area-inset-bottom, 20px) + 1rem); }
+      .pt-safe-offset-4 { padding-top: calc(max(env(safe-area-inset-top), 20px) + 1rem); }
+
       .scan-line {
         position: absolute;
         width: 100%;

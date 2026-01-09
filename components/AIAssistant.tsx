@@ -443,7 +443,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
         <div className="absolute inset-2 z-10 bg-white/70 backdrop-blur-3xl rounded-[2.5rem] border border-white/50 shadow-2xl flex flex-col overflow-hidden">
             
             {/* --- HEADER --- */}
-            <div className={`absolute top-0 left-0 right-0 px-6 pt-6 pb-4 flex items-center justify-between z-50 transition-all duration-500`}>
+            <div className={`absolute top-0 left-0 right-0 px-6 pt-safe-top pt-2 pb-4 flex items-center justify-between z-50 transition-all duration-500`}>
                 <button 
                     onClick={handleClose} 
                     className="w-10 h-10 rounded-full flex items-center justify-center text-zinc-600 hover:text-zinc-900 transition-colors active:scale-95 bg-white/40 backdrop-blur-md border border-white/50 shadow-sm"
@@ -471,7 +471,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
             {viewMode === 'CHAT' && (
                 <>
                     {/* 1. THE ORB (MOVES FROM CENTER TO TOP) */}
-                    <div className={`w-full shrink-0 flex flex-col items-center justify-center relative z-10 transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${hasStarted ? 'h-[45%] pt-28' : 'h-full pb-32'}`}>
+                    <div className={`w-full shrink-0 flex flex-col items-center justify-center relative z-10 transition-all duration-1000 ease-[cubic-bezier(0.34,1.56,0.64,1)] ${hasStarted ? 'h-[45%] pt-safe-offset-4' : 'h-full pb-safe-offset-4'}`}>
                         <div className="relative flex items-center justify-center w-48 h-48">
                             <div className="absolute inset-0 rounded-full border-2 border-teal-500/10 animate-[spin_8s_linear_infinite]"></div>
                             <div className="absolute inset-4 rounded-full border border-teal-500/20 animate-[spin_6s_linear_infinite_reverse]"></div>
@@ -501,7 +501,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
 
                     {/* 2. TEXT CONTENT AREA */}
                     <div className="flex-1 relative overflow-hidden w-full z-20">
-                        <div className="absolute inset-0 overflow-y-auto no-scrollbar px-6 pb-32 pt-4 animate-in fade-in duration-500 font-sans">
+                        <div className="absolute inset-0 overflow-y-auto no-scrollbar px-6 pb-safe-offset-4 pt-4 animate-in fade-in duration-500 font-sans">
                             <div className="w-full max-w-md mx-auto flex flex-col justify-start space-y-8 min-h-min">
                                 {messages.length === 0 && !isListening && hasStarted && (
                                     <div className="flex-1 flex flex-col items-center justify-center text-center text-zinc-400 opacity-50 py-10">
@@ -531,7 +531,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
             )}
 
             {viewMode === 'FILES' && (
-                <div className="absolute inset-0 pt-24 pb-32 px-6 overflow-y-auto z-20 animate-in fade-in slide-in-from-right-8 duration-300">
+                <div className="absolute inset-0 pt-safe-offset-4 pb-safe-offset-4 px-6 overflow-y-auto z-20 animate-in fade-in slide-in-from-right-8 duration-300">
                     <div className="max-w-md mx-auto space-y-4">
                         {savedFiles.length === 0 ? (
                             <div className="flex flex-col items-center justify-center text-center h-[50vh] text-zinc-400">
@@ -552,7 +552,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
 
             {/* --- BOTTOM CONTROLS (Only in Chat Mode) --- */}
             {viewMode === 'CHAT' && (
-                <div className="absolute bottom-0 left-0 right-0 p-6 pb-8 z-40 bg-gradient-to-t from-white/90 via-white/80 to-transparent">
+                <div className="absolute bottom-0 left-0 right-0 p-6 pb-safe z-40 bg-gradient-to-t from-white/90 via-white/80 to-transparent">
                     <div className="flex items-center justify-between max-w-sm mx-auto w-full">
                         
                         <button 

@@ -72,7 +72,7 @@ const Onboarding: React.FC<OnboardingProps> = ({ onComplete, onSignIn, initialNa
   };
 
   return (
-    <div className="min-h-[100dvh] w-full relative bg-white flex flex-col font-sans p-6 sm:p-8 overflow-y-auto supports-[min-height:100dvh]:min-h-[100dvh]">
+    <div className="min-h-[100dvh] w-full relative bg-white flex flex-col font-sans px-6 pt-safe-top pb-safe sm:p-8 overflow-y-auto supports-[min-height:100dvh]:min-h-[100dvh]">
       
       <div className="w-full flex justify-between items-center mb-8 pt-2 shrink-0">
           <div className="flex items-center gap-4">

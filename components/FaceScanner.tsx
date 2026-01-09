@@ -474,7 +474,7 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
         <div className="relative h-[100dvh] w-full bg-black font-sans overflow-hidden animate-in fade-in duration-700">
             <img src={capturedSnapshot} className="absolute inset-0 w-full h-full object-cover opacity-80" alt="Scan Result" />
             <div className="absolute inset-0 bg-gradient-to-b from-black/20 via-transparent to-black/90" />
-            <div className="relative z-10 h-full flex flex-col items-center justify-between py-safe pt-12 pb-12 px-6">
+            <div className="relative z-10 h-full flex flex-col items-center justify-between pb-safe-offset-4 pt-safe-offset-4 px-6">
                 <div className="animate-in slide-in-from-top-8 duration-700 delay-100">
                     <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20 shadow-xl">
                         <CheckCircle2 size={16} className="text-emerald-400" />
@@ -572,7 +572,7 @@ const FaceScanner: React.FC<FaceScannerProps> = ({ onScanComplete, scanHistory, 
       />
       
       <div className="absolute inset-0 z-20 flex flex-col justify-between pointer-events-none">
-          <div className="w-full p-6 pt-safe-top mt-2 flex justify-between items-start pointer-events-auto">
+          <div className="w-full px-6 pt-safe-top mt-4 flex justify-between items-start pointer-events-auto">
              <div className="backdrop-blur-md bg-black/20 border border-white/10 rounded-full px-4 py-2 flex items-center gap-2 shadow-lg">
                 <ScanFace size={16} className="text-teal-400" />
                 <span className="text-white text-xs font-bold tracking-widest uppercase">SkinOS AI</span>

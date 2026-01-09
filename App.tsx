@@ -832,6 +832,9 @@ const App: React.FC = () => {
                       auditReport={auditReport}
                       onClearAudit={() => setAuditReport(null)}
                       onFindAlternative={handleFindAlternative}
+                      onReaudit={(prod) => {
+                          handleBackgroundAnalysis('SEARCH', prod.name, prod.brand);
+                      }}
                   />
               ) : null;
           case AppView.PRODUCT_SCANNER:

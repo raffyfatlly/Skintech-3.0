@@ -204,7 +204,7 @@ export const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user,
     <div className="min-h-screen pb-32 animate-in slide-in-from-bottom-8 duration-500 bg-zinc-50 font-sans">
         
         <div 
-            className="pt-12 pb-12 px-6 rounded-b-[2.5rem] relative overflow-hidden shadow-xl"
+            className="pt-safe-top mt-2 pb-12 px-6 rounded-b-[2.5rem] relative overflow-hidden shadow-xl"
             style={{ backgroundColor: 'rgb(163, 206, 207)' }}
         >
              <div className="absolute top-0 right-0 w-64 h-64 bg-white/20 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none mix-blend-overlay"></div>
