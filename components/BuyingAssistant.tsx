@@ -30,7 +30,7 @@ const renderFormattedText = (text: string, highlightClass: string = "font-black"
   });
 };
 
-const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf, onAddToShelf, onDiscard, onUnlockPremium, usageCount, onIncrementUsage, onFindAlternative }) => {
+export const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf, onAddToShelf, onDiscard, onUnlockPremium, usageCount, onIncrementUsage, onFindAlternative }) => {
   const [isUnlocked, setIsUnlocked] = useState(!!user.isPremium);
   const [showDetails, setShowDetails] = useState(false);
   const detailsRef = useRef<HTMLDivElement>(null);
@@ -321,17 +321,17 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
                 </div>
             </div>
 
-            {/* Better Alternative Button */}
+            {/* Better Alternative Button (Updated to clean aesthetic) */}
             {showAlternativeButton && (
                 <button 
                     onClick={() => onFindAlternative!(product.type)}
-                    className="w-full bg-indigo-50 border border-indigo-100 rounded-[2rem] p-4 flex flex-col items-center justify-center gap-1 shadow-sm text-indigo-700 font-bold text-xs uppercase tracking-widest hover:bg-indigo-100 transition-all active:scale-95 group animate-in slide-in-from-bottom-2"
+                    className="w-full bg-white border border-zinc-200 rounded-[2rem] p-4 flex flex-col items-center justify-center gap-1 shadow-sm text-zinc-700 font-bold text-xs uppercase tracking-widest hover:border-teal-300 hover:text-teal-700 hover:shadow-md transition-all active:scale-95 group animate-in slide-in-from-bottom-2"
                 >
                     <div className="flex items-center gap-2">
-                        <RefreshCw size={16} className="group-hover:rotate-180 transition-transform duration-500" />
+                        <RefreshCw size={16} className="group-hover:rotate-180 transition-transform duration-500 text-teal-500" />
                         Find Better Alternative
                     </div>
-                    <span className="text-[9px] text-indigo-400 font-medium">
+                    <span className="text-[9px] text-zinc-400 font-medium group-hover:text-teal-600/70 transition-colors">
                         Search top-rated matches for your skin
                     </span>
                 </button>
@@ -502,30 +502,27 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
                     </div>
                 </div>
             )}
-        </div>
 
-        {(isUnlocked || !isUsageLimitReached || simpleVerdict.type === 'UNKNOWN') && (
-            <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 backdrop-blur-xl border-t border-zinc-100 z-50 pb-safe animate-in slide-in-from-bottom-full duration-500">
-                <div className="flex gap-3 max-w-md mx-auto">
-                    <button 
-                        onClick={onDiscard}
-                        className="flex-1 py-4 bg-white text-zinc-500 border border-zinc-200 rounded-2xl font-bold text-sm hover:bg-zinc-50 transition-colors"
-                    >
-                        Cancel
-                    </button>
-                    {simpleVerdict.type !== 'UNKNOWN' && (
+            {(isUnlocked || !isUsageLimitReached || simpleVerdict.type === 'UNKNOWN') && (
+                <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 backdrop-blur-xl border-t border-zinc-100 z-50 pb-safe animate-in slide-in-from-bottom-full duration-500">
+                    <div className="flex gap-3 max-w-md mx-auto">
                         <button 
-                            onClick={onAddToShelf}
-                            className="flex-[2] py-4 bg-teal-600 text-white rounded-2xl font-bold text-sm hover:bg-teal-700 transition-colors shadow-lg shadow-teal-600/20 flex items-center justify-center gap-2"
+                            onClick={onDiscard}
+                            className="flex-1 py-4 bg-white text-zinc-500 border border-zinc-200 rounded-2xl font-bold text-sm hover:bg-zinc-50 transition-colors"
                         >
-                            Add to Routine <ArrowRight size={18} />
+                            Cancel
                         </button>
-                    )}
+                        {simpleVerdict.type !== 'UNKNOWN' && (
+                            <button 
+                                onClick={onAddToShelf}
+                                className="flex-[2] py-4 bg-teal-600 text-white rounded-2xl font-bold text-sm hover:bg-teal-700 transition-colors shadow-lg shadow-teal-600/20 flex items-center justify-center gap-2"
+                            >
+                                Add to Routine <ArrowRight size={18} />
+                            </button>
+                        )}
+                    </div>
                 </div>
-            </div>
-        )}
+            )}
     </div>
   );
 };
-
-export default BuyingAssistant;

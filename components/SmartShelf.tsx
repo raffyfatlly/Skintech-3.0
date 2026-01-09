@@ -773,13 +773,13 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                         {shouldShowAlternative && onFindAlternative && (
                             <button 
                                 onClick={() => onFindAlternative(selectedProduct.type)}
-                                className="w-full bg-indigo-50 border border-indigo-100 rounded-[2rem] p-4 flex flex-col items-center justify-center gap-1 shadow-sm text-indigo-700 font-bold text-xs uppercase tracking-widest hover:bg-indigo-100 transition-all active:scale-95 group animate-in slide-in-from-bottom-2 mt-2"
+                                className="w-full bg-white border border-zinc-200 rounded-[2rem] p-4 flex flex-col items-center justify-center gap-1 shadow-sm text-zinc-700 font-bold text-xs uppercase tracking-widest hover:border-teal-300 hover:text-teal-700 hover:shadow-md transition-all active:scale-95 group animate-in slide-in-from-bottom-2 mt-2"
                             >
                                 <div className="flex items-center gap-2">
-                                    <RefreshCw size={16} className="group-hover:rotate-180 transition-transform duration-500" />
+                                    <RefreshCw size={16} className="group-hover:rotate-180 transition-transform duration-500 text-teal-500" />
                                     Find Better Alternative
                                 </div>
-                                <span className="text-[9px] text-indigo-400 font-medium">
+                                <span className="text-[9px] text-zinc-400 font-medium group-hover:text-teal-600/70 transition-colors">
                                     Replace this {selectedProduct.type.toLowerCase()}
                                 </span>
                             </button>

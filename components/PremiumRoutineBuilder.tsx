@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { UserProfile, SkinMetrics, RecommendedProduct, Product } from '../types';
-import { Sparkles, ArrowLeft, DollarSign, Star, Crown, Lock, Search, Droplet, Sun, Zap, ShieldCheck, Loader, Sliders, AlertCircle, Target, CheckCircle2, Check, ArrowRight, Minimize2, Dna, Heart, StarHalf, Activity, Layers, Scan, Eraser, Plus, Bookmark, RefreshCw } from 'lucide-react';
+import { Sparkles, ArrowLeft, DollarSign, Star, Crown, Lock, Search, Droplet, Sun, Zap, ShieldCheck, Loader, Sliders, AlertCircle, Target, CheckCircle2, Check, ArrowRight, Minimize2, Dna, Heart, StarHalf, Activity, Layers, Scan, Eraser, Plus, Bookmark, RefreshCw, Eye, Palette, SprayCan } from 'lucide-react';
 
 interface PremiumRoutineBuilderProps {
     user: UserProfile;
@@ -25,7 +25,13 @@ const CATEGORIES = [
     { label: 'Serum', icon: Zap },
     { label: 'Moisturizer', icon: ShieldCheck },
     { label: 'Sunscreen', icon: Sun },
+    { label: 'Treatment', icon:  Activity},
+    { label: 'Eye Cream', icon: Eye },
     { label: 'Mask', icon: Star },
+    { label: 'Foundation', icon: Palette },
+    { label: 'Concealer', icon: Eraser },
+    { label: 'Primer', icon: Layers },
+    { label: 'Setting Spray', icon: SprayCan },
 ];
 
 const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onBack, onUnlockPremium, usageCount, onIncrementUsage, onProductSelect, savedResults, onSaveResults, onGenerateBackground, onAddToWishlist, initialCategory }) => {
@@ -80,9 +86,12 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
     // Handle initialCategory changes
     useEffect(() => {
         if (initialCategory) {
-            setSelectedCategory(initialCategory);
-            // Optional: Reset results if switching category context significantly
-            // setResults([]); 
+            // Fuzzy match category
+            const match = CATEGORIES.find(c => c.label.toLowerCase() === initialCategory.toLowerCase()) || 
+                          CATEGORIES.find(c => initialCategory.toLowerCase().includes(c.label.toLowerCase()));
+            
+            if (match) setSelectedCategory(match.label);
+            else setSelectedCategory('Cleanser'); // Fallback
         }
     }, [initialCategory]);
 
@@ -136,10 +145,16 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
         const map: Record<string, string> = {
             'Sunscreen': 'SPF',
             'Mask': 'TREATMENT',
+            'Treatment': 'TREATMENT',
+            'Eye Cream': 'MOISTURIZER',
             'Cleanser': 'CLEANSER',
             'Toner': 'TONER',
             'Serum': 'SERUM',
-            'Moisturizer': 'MOISTURIZER'
+            'Moisturizer': 'MOISTURIZER',
+            'Foundation': 'FOUNDATION',
+            'Concealer': 'CONCEALER',
+            'Primer': 'PRIMER',
+            'Setting Spray': 'SETTING_SPRAY'
         };
         return map[cat] || 'UNKNOWN';
     };
@@ -244,7 +259,7 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                             </div>
                             <div className="flex-1">
                                 <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-wide">Optimization Mode</p>
-                                <p className="text-xs font-bold text-indigo-900">Finding better {initialCategory}s</p>
+                                <p className="text-xs font-bold text-indigo-900">Finding better {selectedCategory}</p>
                             </div>
                         </div>
                     )}
@@ -277,24 +292,21 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
                                 );
                             })}
                         </div>
-                        <p className="text-[9px] text-zinc-400 mt-2 px-1 flex items-center gap-1.5">
-                            <Sparkles size={10} className="text-teal-500" />
-                            Based on your scan analysis.
-                        </p>
                     </div>
 
                     <div className="mb-6">
                         <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block mb-3 pl-1">Product Category</label>
-                        <div className="grid grid-cols-3 gap-2">
+                        {/* REFACTORED to Horizontal Scroll for unlimited items */}
+                        <div className="flex gap-2 overflow-x-auto pb-2 no-scrollbar -mx-2 px-2 snap-x">
                             {CATEGORIES.map(cat => (
                                 <button
                                     key={cat.label}
                                     onClick={() => setSelectedCategory(cat.label)}
                                     disabled={isGenerating}
-                                    className={`flex flex-col items-center justify-center p-3 rounded-xl border transition-all ${selectedCategory === cat.label ? 'bg-teal-50 border-teal-500 text-teal-700 shadow-inner' : 'bg-zinc-50 border-zinc-100 text-zinc-500 hover:bg-white hover:border-zinc-200'}`}
+                                    className={`shrink-0 flex flex-col items-center justify-center p-3 rounded-xl border transition-all min-w-[80px] snap-start ${selectedCategory === cat.label ? 'bg-teal-50 border-teal-500 text-teal-700 shadow-inner' : 'bg-zinc-50 border-zinc-100 text-zinc-500 hover:bg-white hover:border-zinc-200'}`}
                                 >
-                                    <cat.icon size={18} className="mb-1.5" strokeWidth={selectedCategory === cat.label ? 2.5 : 2} />
-                                    <span className="text-[10px] font-bold">{cat.label}</span>
+                                    <cat.icon size={20} className="mb-1.5" strokeWidth={selectedCategory === cat.label ? 2.5 : 1.5} />
+                                    <span className="text-[10px] font-bold whitespace-nowrap">{cat.label}</span>
                                 </button>
                             ))}
                         </div>

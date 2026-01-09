@@ -6,7 +6,7 @@ import {
   Product, 
   SkinMetrics, 
   SkinType, 
-  UsageStats,
+  UsageStats, 
   RecommendedProduct,
   UserPreferences,
   ShelfAuditReport
@@ -29,7 +29,7 @@ import ProductScanner from './components/ProductScanner';
 import ProductSearch from './components/ProductSearch';
 import ProfileSetup from './components/ProfileSetup';
 import AIAssistant from './components/AIAssistant';
-import BuyingAssistant from './components/BuyingAssistant';
+import { BuyingAssistant } from './components/BuyingAssistant';
 import PremiumRoutineBuilder from './components/PremiumRoutineBuilder';
 import SaveProfileModal, { AuthTrigger } from './components/SaveProfileModal';
 import SmartNotification, { NotificationType } from './components/SmartNotification';
