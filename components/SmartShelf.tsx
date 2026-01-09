@@ -21,7 +21,7 @@ interface SmartShelfProps {
 const CARD_WIDTH = 280; 
 const CARD_GAP = 20;    
 
-const ShelfAuditModal: React.FC<{ report: ShelfAuditReport; onClose: () => void }> = ({ report, onClose }) => {
+const ShelfAuditModal: React.FC<{ report: ShelfAuditReport; onClose: () => void; onFindAlternative?: (type: string) => void }> = ({ report, onClose, onFindAlternative }) => {
     return (
         <div className="fixed inset-0 z-[80] flex items-center justify-center p-6 bg-rose-950/40 backdrop-blur-md animate-in fade-in duration-500">
             <div className="w-full max-w-sm bg-white rounded-[2rem] overflow-hidden shadow-2xl relative animate-in zoom-in-95">
@@ -54,8 +54,8 @@ const ShelfAuditModal: React.FC<{ report: ShelfAuditReport; onClose: () => void 
                                     <div className="w-12 h-12 bg-zinc-50 rounded-xl flex items-center justify-center text-zinc-400 shrink-0 border border-zinc-100">
                                         {flag.productType === 'CLEANSER' ? <Droplet size={20} /> : <Zap size={20} />}
                                     </div>
-                                    <div>
-                                        <h4 className="font-bold text-zinc-900 text-sm">{flag.productName}</h4>
+                                    <div className="flex-1 min-w-0">
+                                        <h4 className="font-bold text-zinc-900 text-sm truncate">{flag.productName}</h4>
                                         <div className="mt-1 flex flex-wrap gap-2">
                                             <span className={`text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wide ${badgeColor}`}>
                                                 {flag.advice.replace('_', ' ')}
@@ -71,6 +71,19 @@ const ShelfAuditModal: React.FC<{ report: ShelfAuditReport; onClose: () => void 
                                             {flag.smartUsage}
                                         </p>
                                     </div>
+                                )}
+                                
+                                {(flag.advice === 'PAUSE' || flag.advice === 'LIMIT' || flag.severity === 'CRITICAL') && onFindAlternative && (
+                                    <button 
+                                        onClick={() => {
+                                            onClose();
+                                            onFindAlternative(flag.productType);
+                                        }}
+                                        className="mt-1 w-full py-2.5 bg-white border border-zinc-200 text-zinc-600 rounded-xl text-[10px] font-bold uppercase tracking-widest hover:border-teal-300 hover:text-teal-600 hover:bg-teal-50/30 transition-all flex items-center justify-center gap-2 shadow-sm group"
+                                    >
+                                        <RefreshCw size={12} className="group-hover:rotate-180 transition-transform duration-500" /> 
+                                        Find Better Alternative
+                                    </button>
                                 )}
                             </div>
                         );
@@ -374,7 +387,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
        <div className="absolute top-[10%] right-[10%] w-[300px] h-[300px] bg-white rounded-full blur-3xl opacity-80 pointer-events-none"></div>
 
        {/* AUDIT MODAL (NEW) */}
-       {auditReport && <ShelfAuditModal report={auditReport} onClose={onClearAudit || (() => {})} />}
+       {auditReport && <ShelfAuditModal report={auditReport} onClose={onClearAudit || (() => {})} onFindAlternative={onFindAlternative} />}
 
        {/* --- HEADER --- */}
        <div className="pt-safe-top px-6 z-20 relative">
