@@ -86,7 +86,7 @@ const MessageItem: React.FC<{
                     </p>
                 </div>
             ) : (
-                <div className="w-full relative pb-8 px-2"> {/* Added padding bottom for button space */}
+                <div className="w-full relative pb-10 px-2"> {/* Added generous bottom padding to ensure save button space */}
                     <p className="text-xl md:text-2xl font-semibold text-zinc-900 leading-relaxed drop-shadow-sm">
                         {renderText(msg.text)}
                         {msg.isStreaming && <span className="inline-block w-2 h-5 ml-1 bg-teal-500 align-middle animate-pulse rounded-full"/>}
@@ -94,12 +94,12 @@ const MessageItem: React.FC<{
                     
                     {!msg.isStreaming && (
                         <div 
-                            className={`absolute bottom-0 right-0 transform transition-all duration-500 z-10 ${showSave ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100'}`}
+                            className={`absolute bottom-0 right-0 left-0 flex justify-center transform transition-all duration-500 z-10 ${showSave ? 'translate-y-0 opacity-100' : 'translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100'}`}
                         >
                             <button 
                                 onClick={() => onSave(index)}
                                 disabled={isSaved}
-                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest border shadow-sm backdrop-blur-md transition-colors ${isSaved ? 'bg-emerald-100/80 text-emerald-700 border-emerald-200' : 'bg-white/80 text-zinc-400 border-zinc-200 hover:bg-white hover:text-teal-600 hover:border-teal-200'}`}
+                                className={`flex items-center gap-1.5 px-4 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest border shadow-sm backdrop-blur-md transition-colors ${isSaved ? 'bg-emerald-100/80 text-emerald-700 border-emerald-200' : 'bg-white/80 text-zinc-400 border-zinc-200 hover:bg-white hover:text-teal-600 hover:border-teal-200'}`}
                             >
                                 {isSaved ? <Check size={12} strokeWidth={2.5} /> : <Bookmark size={12} />}
                                 {isSaved ? 'Saved' : 'Save'}
@@ -501,7 +501,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
 
                     {/* 2. TEXT CONTENT AREA */}
                     <div className="flex-1 relative overflow-hidden w-full z-20">
-                        <div className="absolute inset-0 overflow-y-auto no-scrollbar px-6 pb-safe-offset-4 pt-4 animate-in fade-in duration-500 font-sans">
+                        <div className="absolute inset-0 overflow-y-auto no-scrollbar px-6 pb-48 pt-4 animate-in fade-in duration-500 font-sans">
                             <div className="w-full max-w-md mx-auto flex flex-col justify-start space-y-8 min-h-min">
                                 {messages.length === 0 && !isListening && hasStarted && (
                                     <div className="flex-1 flex flex-col items-center justify-center text-center text-zinc-400 opacity-50 py-10">
@@ -531,7 +531,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
             )}
 
             {viewMode === 'FILES' && (
-                <div className="absolute inset-0 pt-safe-offset-4 pb-safe-offset-4 px-6 overflow-y-auto z-20 animate-in fade-in slide-in-from-right-8 duration-300">
+                <div className="absolute inset-0 pt-32 pb-48 px-6 overflow-y-auto z-20 animate-in fade-in slide-in-from-right-8 duration-300">
                     <div className="max-w-md mx-auto space-y-4">
                         {savedFiles.length === 0 ? (
                             <div className="flex flex-col items-center justify-center text-center h-[50vh] text-zinc-400">
