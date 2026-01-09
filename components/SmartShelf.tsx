@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Product, UserProfile, ShelfAuditReport } from '../types';
-import { Plus, Droplet, Sun, Zap, Sparkles, Palette, DollarSign, Edit2, Save, Award, ShoppingBag, ArrowRight, Lightbulb, Clock, Trash2, RotateCcw, ScanBarcode, ChevronDown, AlertOctagon, Check, X, ArrowDown, TrendingUp } from 'lucide-react';
+import { Plus, Droplet, Sun, Zap, Sparkles, Palette, DollarSign, Edit2, Save, Award, ShoppingBag, ArrowRight, Lightbulb, Clock, Trash2, RotateCcw, ScanBarcode, ChevronDown, AlertOctagon, Check, X, ArrowDown, TrendingUp, RefreshCw } from 'lucide-react';
 import { auditProduct, analyzeShelfHealth } from '../services/geminiService';
 
 interface SmartShelfProps {
@@ -15,6 +15,7 @@ interface SmartShelfProps {
   onOpenRoutineBuilder?: () => void;
   auditReport?: ShelfAuditReport | null;
   onClearAudit?: () => void;
+  onFindAlternative?: (productType: string) => void;
 }
 
 const CARD_WIDTH = 280; 
@@ -89,7 +90,7 @@ const ShelfAuditModal: React.FC<{ report: ShelfAuditReport; onClose: () => void 
     );
 };
 
-const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onScanNew, onUpdateProduct, userProfile, onMoveToShelf, onRemoveFromWishlist, onOpenRoutineBuilder, auditReport, onClearAudit }) => {
+const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onScanNew, onUpdateProduct, userProfile, onMoveToShelf, onRemoveFromWishlist, onOpenRoutineBuilder, auditReport, onClearAudit, onFindAlternative }) => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [activeTab, setActiveTab] = useState<'ROUTINE' | 'WISHLIST'>('ROUTINE');
   const [showGradingInfo, setShowGradingInfo] = useState(false); 
@@ -356,6 +357,14 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
       if (!selectedProduct) return null;
       return selectedProduct.risks?.find(r => r.ingredient === 'AI AUDIT');
   }, [selectedProduct]);
+
+  // Check if current product needs alternative
+  const shouldShowAlternative = useMemo(() => {
+      if (!selectedProduct) return false;
+      const audit = auditProduct(selectedProduct, userProfile);
+      // Show if low score (< 70) or has critical warnings
+      return audit.adjustedScore < 70 || audit.warnings.some(w => w.severity === 'CRITICAL');
+  }, [selectedProduct, userProfile]);
 
   return (
     <div className="min-h-screen w-full relative flex flex-col font-sans overflow-hidden pb-32 bg-zinc-50">
@@ -759,6 +768,21 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                                     ))}
                                 </div>
                             </div>
+                        )}
+
+                        {shouldShowAlternative && onFindAlternative && (
+                            <button 
+                                onClick={() => onFindAlternative(selectedProduct.type)}
+                                className="w-full bg-indigo-50 border border-indigo-100 rounded-[2rem] p-4 flex flex-col items-center justify-center gap-1 shadow-sm text-indigo-700 font-bold text-xs uppercase tracking-widest hover:bg-indigo-100 transition-all active:scale-95 group animate-in slide-in-from-bottom-2 mt-2"
+                            >
+                                <div className="flex items-center gap-2">
+                                    <RefreshCw size={16} className="group-hover:rotate-180 transition-transform duration-500" />
+                                    Find Better Alternative
+                                </div>
+                                <span className="text-[9px] text-indigo-400 font-medium">
+                                    Replace this {selectedProduct.type.toLowerCase()}
+                                </span>
+                            </button>
                         )}
 
                         <div className="h-4"></div>

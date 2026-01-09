@@ -3,7 +3,7 @@ import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Product, UserProfile } from '../types';
 import { getBuyingDecision, auditProduct } from '../services/geminiService';
 import { startCheckout } from '../services/stripeService';
-import { Check, X, AlertTriangle, ShieldCheck, Zap, AlertOctagon, TrendingUp, DollarSign, Clock, ArrowRight, Lock, Sparkles, Crown, Link, ExternalLink, CloudSun, Layers, MessageCircle, ArrowLeft, ThumbsUp, ThumbsDown, HelpCircle, ChevronDown, Eye, Search } from 'lucide-react';
+import { Check, X, AlertTriangle, ShieldCheck, Zap, AlertOctagon, TrendingUp, DollarSign, Clock, ArrowRight, Lock, Sparkles, Crown, Link, ExternalLink, CloudSun, Layers, MessageCircle, ArrowLeft, ThumbsUp, ThumbsDown, HelpCircle, ChevronDown, Eye, Search, RefreshCw } from 'lucide-react';
 
 interface BuyingAssistantProps {
   product: Product;
@@ -14,6 +14,7 @@ interface BuyingAssistantProps {
   onUnlockPremium: () => void;
   usageCount: number;
   onIncrementUsage: () => void;
+  onFindAlternative?: (productType: string) => void;
 }
 
 const LIMIT_VIEWS = 3;
@@ -29,7 +30,7 @@ const renderFormattedText = (text: string, highlightClass: string = "font-black"
   });
 };
 
-const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf, onAddToShelf, onDiscard, onUnlockPremium, usageCount, onIncrementUsage }) => {
+const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf, onAddToShelf, onDiscard, onUnlockPremium, usageCount, onIncrementUsage, onFindAlternative }) => {
   const [isUnlocked, setIsUnlocked] = useState(!!user.isPremium);
   const [showDetails, setShowDetails] = useState(false);
   const detailsRef = useRef<HTMLDivElement>(null);
@@ -197,6 +198,7 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
 
   const theme = getThemeClasses();
   const isUsageLimitReached = !user.isPremium && usageCount >= LIMIT_VIEWS;
+  const showAlternativeButton = (simpleVerdict.type === 'AVOID' || simpleVerdict.type === 'CONSIDER') && onFindAlternative;
   
   return (
     <div className="min-h-screen pb-32 animate-in slide-in-from-bottom-8 duration-500 bg-zinc-50 font-sans">
@@ -318,6 +320,22 @@ const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user, shelf,
                     </p>
                 </div>
             </div>
+
+            {/* Better Alternative Button */}
+            {showAlternativeButton && (
+                <button 
+                    onClick={() => onFindAlternative!(product.type)}
+                    className="w-full bg-indigo-50 border border-indigo-100 rounded-[2rem] p-4 flex flex-col items-center justify-center gap-1 shadow-sm text-indigo-700 font-bold text-xs uppercase tracking-widest hover:bg-indigo-100 transition-all active:scale-95 group animate-in slide-in-from-bottom-2"
+                >
+                    <div className="flex items-center gap-2">
+                        <RefreshCw size={16} className="group-hover:rotate-180 transition-transform duration-500" />
+                        Find Better Alternative
+                    </div>
+                    <span className="text-[9px] text-indigo-400 font-medium">
+                        Search top-rated matches for your skin
+                    </span>
+                </button>
+            )}
 
             {!showDetails && simpleVerdict.type !== 'UNKNOWN' && (
                 <button 

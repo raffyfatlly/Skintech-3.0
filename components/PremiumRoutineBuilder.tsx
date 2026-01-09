@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { UserProfile, SkinMetrics, RecommendedProduct, Product } from '../types';
-import { Sparkles, ArrowLeft, DollarSign, Star, Crown, Lock, Search, Droplet, Sun, Zap, ShieldCheck, Loader, Sliders, AlertCircle, Target, CheckCircle2, Check, ArrowRight, Minimize2, Dna, Heart, StarHalf, Activity, Layers, Scan, Eraser, Plus, Bookmark } from 'lucide-react';
+import { Sparkles, ArrowLeft, DollarSign, Star, Crown, Lock, Search, Droplet, Sun, Zap, ShieldCheck, Loader, Sliders, AlertCircle, Target, CheckCircle2, Check, ArrowRight, Minimize2, Dna, Heart, StarHalf, Activity, Layers, Scan, Eraser, Plus, Bookmark, RefreshCw } from 'lucide-react';
 
 interface PremiumRoutineBuilderProps {
     user: UserProfile;
@@ -14,6 +14,7 @@ interface PremiumRoutineBuilderProps {
     onSaveResults: (results: RecommendedProduct[]) => void;
     onGenerateBackground: (category: string, price: number, allergies: string, goals: string[]) => void;
     onAddToWishlist?: (product: Product) => void;
+    initialCategory?: string | null;
 }
 
 const LIMIT_ROUTINES = 1;
@@ -27,7 +28,7 @@ const CATEGORIES = [
     { label: 'Mask', icon: Star },
 ];
 
-const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onBack, onUnlockPremium, usageCount, onIncrementUsage, onProductSelect, savedResults, onSaveResults, onGenerateBackground, onAddToWishlist }) => {
+const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onBack, onUnlockPremium, usageCount, onIncrementUsage, onProductSelect, savedResults, onSaveResults, onGenerateBackground, onAddToWishlist, initialCategory }) => {
     
     const displayGoals = useMemo(() => {
         const b = user.biometrics;
@@ -68,13 +69,22 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
     }, [user.biometrics]);
 
     const [selectedGoals, setSelectedGoals] = useState<string[]>([displayGoals[0].label]);
-    const [selectedCategory, setSelectedCategory] = useState('Cleanser');
+    const [selectedCategory, setSelectedCategory] = useState(initialCategory || 'Cleanser');
     const [maxPrice, setMaxPrice] = useState(100);
     const [allergies, setAllergies] = useState('');
     const [results, setResults] = useState<RecommendedProduct[]>(savedResults);
     const [isGenerating, setIsGenerating] = useState(false);
     const [loadingText, setLoadingText] = useState("Initializing Architect...");
     const [savedIds, setSavedIds] = useState<string[]>([]);
+
+    // Handle initialCategory changes
+    useEffect(() => {
+        if (initialCategory) {
+            setSelectedCategory(initialCategory);
+            // Optional: Reset results if switching category context significantly
+            // setResults([]); 
+        }
+    }, [initialCategory]);
 
     useEffect(() => {
         if (savedResults.length > 0) {
@@ -226,6 +236,19 @@ const PremiumRoutineBuilder: React.FC<PremiumRoutineBuilderProps> = ({ user, onB
 
             <div className="px-6 -mt-6 relative z-20">
                 <div className={`bg-white rounded-[2rem] p-6 shadow-xl shadow-zinc-200/50 border border-zinc-100 transition-opacity duration-300 ${isGenerating ? 'opacity-50 pointer-events-none grayscale' : ''}`}>
+                    
+                    {initialCategory && (
+                        <div className="mb-4 bg-indigo-50 border border-indigo-100 p-3 rounded-xl flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
+                                <RefreshCw size={14} />
+                            </div>
+                            <div className="flex-1">
+                                <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-wide">Optimization Mode</p>
+                                <p className="text-xs font-bold text-indigo-900">Finding better {initialCategory}s</p>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="mb-6">
                         <div className="flex justify-between items-center mb-3 px-1">
                             <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-2">

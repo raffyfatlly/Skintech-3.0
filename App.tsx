@@ -66,6 +66,9 @@ const App: React.FC = () => {
   // New: Swipe Instruction State
   const [showSwipeInstruction, setShowSwipeInstruction] = useState(false);
   
+  // New: Target Category for Routine Builder Auto-fill
+  const [targetRoutineCategory, setTargetRoutineCategory] = useState<string | null>(null);
+  
   // Location Context State
   const [userLocation, setUserLocation] = useState<string>("Global");
 
@@ -207,6 +210,22 @@ const App: React.FC = () => {
       const newUsage = { ...currentUsage, [type]: (currentUsage[type] || 0) + 1 };
       const updatedUser = { ...userProfile, usage: newUsage };
       persistState(updatedUser, shelf);
+  };
+
+  const handleFindAlternative = (productType: string) => {
+      // Map generic product types to Routine Builder categories
+      let category = 'Cleanser'; // Default fallback
+      const type = productType.toUpperCase();
+
+      if (type.includes('SPF') || type.includes('SUN')) category = 'Sunscreen';
+      else if (type.includes('MOISTURIZER') || type.includes('CREAM')) category = 'Moisturizer';
+      else if (type.includes('SERUM')) category = 'Serum';
+      else if (type.includes('TONER')) category = 'Toner';
+      else if (type.includes('TREATMENT') || type.includes('MASK')) category = 'Mask';
+      else if (type.includes('CLEANSER') || type.includes('WASH')) category = 'Cleanser';
+      
+      setTargetRoutineCategory(category);
+      setCurrentView(AppView.ROUTINE_BUILDER);
   };
 
   const handleAddToWishlist = async (product: Product) => {
@@ -804,6 +823,7 @@ const App: React.FC = () => {
                       onOpenRoutineBuilder={() => setCurrentView(AppView.ROUTINE_BUILDER)}
                       auditReport={auditReport}
                       onClearAudit={() => setAuditReport(null)}
+                      onFindAlternative={handleFindAlternative}
                   />
               ) : null;
           case AppView.PRODUCT_SCANNER:
@@ -851,6 +871,7 @@ const App: React.FC = () => {
                       onUnlockPremium={handleUnlockPremium} 
                       usageCount={userProfile.usage?.buyingAssistantViews || 0} 
                       onIncrementUsage={() => incrementUsage('buyingAssistantViews')} 
+                      onFindAlternative={handleFindAlternative}
                   />
               ) : null;
           case AppView.PROFILE_SETUP:
@@ -883,6 +904,7 @@ const App: React.FC = () => {
                       savedResults={routineResults}
                       onSaveResults={setRoutineResults}
                       onAddToWishlist={handleAddToWishlist}
+                      initialCategory={targetRoutineCategory}
                   />
               ) : null;
           case AppView.AI_ASSISTANT:
