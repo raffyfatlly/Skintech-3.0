@@ -818,6 +818,7 @@ const App: React.FC = () => {
                          if (userProfile.hasScannedFace) setCurrentView(AppView.SMART_SHELF); 
                          else setCurrentView(AppView.DASHBOARD); 
                      }}
+                     onSwitchToSearch={() => setCurrentView(AppView.PRODUCT_SEARCH)}
                      usageCount={userProfile.usage?.manualScans || 0}
                      limit={LIMIT_SCANS}
                      isPremium={!!userProfile.isPremium}

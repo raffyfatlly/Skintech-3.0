@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { Camera, RefreshCw, Check, X, AlertOctagon, ScanLine, Image as ImageIcon, Upload, ZoomIn, ZoomOut, Zap, ZapOff, Search, ChevronRight, Lock, Crown, Minimize2, Loader, Database, ShieldCheck } from 'lucide-react';
+import { Camera, RefreshCw, Check, X, AlertOctagon, ScanLine, Image as ImageIcon, Upload, ZoomIn, ZoomOut, Zap, ZapOff, Search, ChevronRight, Lock, Crown, Minimize2, Loader, Database, ShieldCheck, Keyboard } from 'lucide-react';
 import { Product, UserProfile } from '../types';
 
 interface ProductScannerProps {
@@ -8,13 +8,14 @@ interface ProductScannerProps {
   shelf: Product[];
   onStartAnalysis: (base64: string) => void;
   onCancel: () => void;
+  onSwitchToSearch: () => void;
   usageCount: number;
   limit: number;
   isPremium: boolean;
   onUnlockPremium: () => void;
 }
 
-const ProductScanner: React.FC<ProductScannerProps> = ({ userProfile, shelf, onStartAnalysis, onCancel, usageCount, limit, isPremium, onUnlockPremium }) => {
+const ProductScanner: React.FC<ProductScannerProps> = ({ userProfile, shelf, onStartAnalysis, onCancel, onSwitchToSearch, usageCount, limit, isPremium, onUnlockPremium }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -239,7 +240,7 @@ const ProductScanner: React.FC<ProductScannerProps> = ({ userProfile, shelf, onS
           <button onClick={onCancel} className="p-3 bg-black/40 backdrop-blur-md rounded-full text-white border border-white/10 hover:bg-black/60 transition-colors"><X size={20} /></button>
           <div className="flex flex-col gap-2">
             {hasTorch && <button onClick={toggleTorch} className={`p-3 rounded-full backdrop-blur-md transition-all ${torchOn ? 'bg-yellow-400 text-black shadow-lg shadow-yellow-400/20' : 'bg-black/40 text-white border border-white/10'}`}>{torchOn ? <Zap size={20} fill="currentColor" /> : <ZapOff size={20} />}</button>}
-            <button onClick={() => onCancel()} className="p-3 bg-black/40 backdrop-blur-md rounded-full text-white border border-white/10 hover:bg-black/60 transition-colors"><Search size={20} /></button>
+            <button onClick={onSwitchToSearch} className="p-3 bg-black/40 backdrop-blur-md rounded-full text-white border border-white/10 hover:bg-black/60 transition-colors"><Search size={20} /></button>
           </div>
       </div>
 
@@ -269,8 +270,10 @@ const ProductScanner: React.FC<ProductScannerProps> = ({ userProfile, shelf, onS
         {maxZoom > 1 && <div className="flex items-center gap-4 w-full max-w-xs px-4"><ZoomOut size={16} className="text-zinc-500" /><input type="range" min="1" max={Math.min(maxZoom, 3)} step="0.1" value={zoomLevel} onChange={handleZoom} className="flex-1 h-1 bg-zinc-700 rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-white" /><ZoomIn size={16} className="text-white" /></div>}
         <div className="flex w-full items-center justify-between max-w-sm px-2">
             <button onClick={() => fileInputRef.current?.click()} className="flex flex-col items-center gap-2 text-zinc-400 hover:text-white transition-colors p-2"><div className="w-12 h-12 rounded-full bg-zinc-900 border border-zinc-700 flex items-center justify-center hover:bg-zinc-800 transition-colors"><ImageIcon size={20} /></div><span className="text-[9px] font-bold uppercase tracking-widest">Upload</span></button>
+            
             <button onClick={captureFromCamera} disabled={!useCamera} className="w-20 h-20 rounded-full border-4 border-white flex items-center justify-center relative group active:scale-95 transition disabled:opacity-50 disabled:scale-100 shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:shadow-[0_0_50px_rgba(255,255,255,0.4)]"><div className="w-16 h-16 bg-white rounded-full transition-transform group-active:scale-90"></div></button>
-            <div className="flex flex-col items-center gap-2 text-zinc-400 p-2 opacity-0 pointer-events-none"><div className="w-12 h-12"></div><span className="text-[9px] font-bold uppercase tracking-widest">History</span></div>
+            
+            <button onClick={onSwitchToSearch} className="flex flex-col items-center gap-2 text-zinc-400 hover:text-white transition-colors p-2"><div className="w-12 h-12 rounded-full bg-zinc-900 border border-zinc-700 flex items-center justify-center hover:bg-zinc-800 transition-colors"><Keyboard size={20} /></div><span className="text-[9px] font-bold uppercase tracking-widest">Search</span></button>
         </div>
       </div>
     </div>
