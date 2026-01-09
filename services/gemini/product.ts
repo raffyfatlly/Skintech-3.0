@@ -164,7 +164,18 @@ export const analyzeProductImage = async (
 
 export const searchProducts = async (query: string): Promise<{ name: string, brand: string }[]> => {
     return runWithRetry(async (ai) => {
-        const prompt = `Find 5 skincare products matching: "${query}". Return strict JSON array: [{"brand": "Brand", "name": "Product"}]`;
+        const prompt = `
+        Search for commercial skincare products matching: "${query}".
+        
+        STRICT RULES:
+        1. If the user specifies a BRAND (e.g. "Neutrogena"), ONLY return products from that brand.
+        2. If the user specifies a CATEGORY (e.g. "Cleanser"), ONLY return products of that type.
+        3. If specific (e.g. "Neutrogena Hydro Boost"), return that exact item plus relevant variations.
+        4. Return 5 distinct items if possible.
+        
+        Return strict JSON array: [{"brand": "Brand Name", "name": "Full Product Name"}]
+        `;
+        
         try {
             const response = await ai.models.generateContent({
                 model: MODEL_FAST,

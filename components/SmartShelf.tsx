@@ -531,7 +531,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                            <div className="w-24 h-24 rounded-full flex items-center justify-center group-hover:scale-110 transition-transform text-zinc-300 bg-white shadow-sm border border-zinc-100 group-hover:text-teal-500 group-hover:border-teal-100">
                                <ScanBarcode size={48} strokeWidth={1} />
                            </div>
-                           <span className="font-bold text-xs uppercase tracking-[0.2em] text-zinc-400 group-hover:text-teal-600 transition-colors">Scan Product</span>
+                           <span className="font-bold text-xs uppercase tracking-[0.2em] text-zinc-400 group-hover:text-teal-600 transition-colors">Scan / Search</span>
                        </button>
                    </div>
                )}
