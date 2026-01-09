@@ -24,7 +24,7 @@ const CARD_GAP = 20;
 
 const ShelfAuditModal: React.FC<{ report: ShelfAuditReport; onClose: () => void; onFindAlternative?: (type: string) => void }> = ({ report, onClose, onFindAlternative }) => {
     return (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center p-6 bg-rose-950/40 backdrop-blur-md animate-in fade-in duration-500">
+        <div className="fixed inset-0 z-[200] flex items-center justify-center p-6 bg-rose-950/40 backdrop-blur-md animate-in fade-in duration-500">
             <div className="w-full max-w-sm bg-white rounded-[2rem] overflow-hidden shadow-2xl relative animate-in zoom-in-95">
                 
                 {/* Header */}
@@ -688,7 +688,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
 
        {/* PRODUCT DETAIL MODAL */}
        {selectedProduct && (
-           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center sm:p-6 bg-black/60 backdrop-blur-xl animate-in fade-in duration-300">
+           <div className="fixed inset-0 z-[150] flex items-end sm:items-center justify-center sm:p-6 bg-black/60 backdrop-blur-xl animate-in fade-in duration-300">
                 <div className="w-full max-w-md bg-white/90 backdrop-blur-2xl border border-white/20 rounded-t-[2.5rem] sm:rounded-[2.5rem] h-[90vh] sm:h-auto sm:max-h-[90vh] relative shadow-2xl overflow-hidden flex flex-col animate-in slide-in-from-bottom-8 sm:slide-in-from-bottom-0 sm:zoom-in-95">
                     
                     {/* Header */}
@@ -740,7 +740,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                         </div>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto p-6 space-y-4 pb-safe bg-white/40">
+                    <div className="flex-1 overflow-y-auto p-6 space-y-4 pb-safe pb-24 bg-white/40">
                         
                         {/* PERSISTENT AUDIT ALERT (DETECTED FROM RISKS) */}
                         {aiAuditRisk && (

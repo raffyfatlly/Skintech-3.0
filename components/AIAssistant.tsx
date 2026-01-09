@@ -443,7 +443,7 @@ const AIAssistant: React.FC<AIAssistantProps> = ({ user, shelf, triggerQuery, on
         <div className="absolute inset-2 z-10 bg-white/70 backdrop-blur-3xl rounded-[2.5rem] border border-white/50 shadow-2xl flex flex-col overflow-hidden">
             
             {/* --- HEADER --- */}
-            <div className={`absolute top-0 left-0 right-0 px-6 pt-safe-top pt-2 pb-4 flex items-center justify-between z-50 transition-all duration-500`}>
+            <div className={`absolute top-0 left-0 right-0 px-6 pt-safe-offset-4 pb-4 flex items-center justify-between z-50 transition-all duration-500`}>
                 <button 
                     onClick={handleClose} 
                     className="w-10 h-10 rounded-full flex items-center justify-center text-zinc-600 hover:text-zinc-900 transition-colors active:scale-95 bg-white/40 backdrop-blur-md border border-white/50 shadow-sm"
