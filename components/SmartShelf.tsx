@@ -276,31 +276,43 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
   }, [displayedProducts, activeTab, activeIndex]);
 
   const getCardStyle = (index: number) => {
-      // Distance is relative to the scroll center (which is 0 when item is centered)
-      // Positive = Item is to the left (scrolled past)
-      // Negative = Item is to the right (upcoming)
+      // GLOBE / CYLINDER ANIMATION (CONVEX)
+      // This creates a "Product on Globe" effect where items rotate 
+      // around a vertical axis behind the screen as they scroll.
+      
       const distance = (scrollX - (index * ITEM_FULL_WIDTH)) / ITEM_FULL_WIDTH;
       const absDistance = Math.abs(distance);
       
-      let rotateY = 0;
-      // Added Deadzone: If close to center, snap to flat to avoid "weird angles"
-      if (absDistance > 0.02) { 
-          // Inverse direction: moving left (pos distance) should rotate showing right face
-          rotateY = distance * -20; 
-          rotateY = Math.max(-45, Math.min(45, rotateY));
-      }
+      // 1. Rotation: Proportional to distance. 
+      // Positive distance (item to left) -> Positive rotation (face left).
+      // Negative distance (item to right) -> Negative rotation (face right).
+      // This creates a convex "bulge" towards the viewer.
+      const rotateY = distance * 40; 
 
-      const scale = Math.max(0.85, 1 - (absDistance * 0.15));
-      const translateZ = Math.min(0, -absDistance * 150);
+      // 2. Depth (Z-Axis): Push items back as they move away from center.
+      // Using a power function creates a rounder, more pronounced curve.
+      const translateZ = -Math.pow(absDistance, 1.2) * 350; 
+
+      // 3. Lateral Compression (X-Axis): 
+      // As items move back in Z, they appear smaller. We pull them slightly inward
+      // (towards center) to maintain a cohesive surface feel, reducing the visual gap.
+      const translateX = distance * 50; 
+
+      // 4. Visual Effects
+      const scale = Math.max(0.85, 1 - (absDistance * 0.1));
       const opacity = Math.max(0.4, 1 - (absDistance * 0.5));
-      const blur = absDistance > 0.5 ? Math.min(8, (absDistance - 0.5) * 8) : 0;
+      const blur = absDistance > 0.5 ? (absDistance - 0.5) * 4 : 0;
 
       return {
-          transform: `perspective(800px) translateZ(${translateZ}px) rotateY(${rotateY}deg) scale(${scale})`,
-          zIndex: 100 - Math.round(absDistance * 10),
+          transform: `perspective(1000px) translateX(${translateX}px) translateZ(${translateZ}px) rotateY(${rotateY}deg) scale(${scale})`,
+          zIndex: 1000 - Math.round(absDistance * 100), // Ensure centered item is always on top
           opacity,
           filter: `blur(${blur}px)`,
-          transition: 'transform 0.1s linear, opacity 0.1s linear', 
+          // Instant transform during scroll for 1:1 touch response, smooth snap after
+          transition: isScrolling ? 'none' : 'transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.4s ease-out',
+          willChange: 'transform, opacity, filter',
+          transformStyle: 'preserve-3d' as 'preserve-3d',
+          backfaceVisibility: 'hidden' as 'hidden'
       };
   };
 
@@ -445,12 +457,11 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                 onTouchStart={(e) => e.stopPropagation()}
                 onTouchMove={(e) => e.stopPropagation()}
                 onTouchEnd={(e) => e.stopPropagation()}
-                className="flex overflow-x-auto snap-x snap-mandatory pb-8 pt-12 no-scrollbar items-center relative z-10"
+                className="flex overflow-x-auto snap-x snap-mandatory pb-12 pt-12 no-scrollbar items-center relative z-10"
                 style={{ 
                     // Dynamic padding to center the items based on viewport width
                     paddingLeft: `calc(50vw - ${CARD_WIDTH / 2}px)`,
                     paddingRight: `calc(50vw - ${CARD_WIDTH / 2}px)`,
-                    perspective: '1000px',
                     transformStyle: 'preserve-3d'
                 }} 
            >
