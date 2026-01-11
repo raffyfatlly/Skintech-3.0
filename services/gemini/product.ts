@@ -47,14 +47,14 @@ export const analyzeProductFromSearch = async (
         4. Output strict JSON.
 
         STYLE RULES FOR "expertReview":
-        - Do NOT use phrases like "As a chemist", "I recommend", "I think", "In my opinion".
-        - Do NOT use first-person pronouns ("I", "we", "me").
+        - **ABSOLUTELY NO** phrases like "As a chemist", "I recommend", "I think", "In my opinion".
+        - **ABSOLUTELY NO** first-person pronouns ("I", "we", "me").
         - Write in an objective, third-person tone.
-        - **USE SIMPLE, PLAIN LANGUAGE.** Avoid complex chemical jargon or difficult medical terms. Explain things simply so anyone can understand (8th-grade reading level).
+        - **USE SIMPLE, PLAIN LANGUAGE.** Explain specifically why an ingredient is good or bad for *this* user's specific metrics using words an 8th grader understands. Avoid complex jargon without explanation.
 
         RISK ANALYSIS RULES:
         - **TARGETED ONLY:** Only list risks that specifically affect THIS USER based on their provided bio-metrics and safety flags.
-        - If the user's scores are high (healthy), do not flag minor generic risks.
+        - If the user's scores are high (healthy), do NOT flag minor generic risks.
         - If the user has specific issues (e.g. Acne Score < 50), aggressively flag ingredients that worsen that specific issue.
 
         OUTPUT JSON SCHEMA:

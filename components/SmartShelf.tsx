@@ -525,6 +525,16 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                    </div>
                )}
            </div>
+
+           {/* PAGINATION DOTS */}
+           <div className="flex justify-center gap-1.5 z-20 pb-4">
+               {Array.from({ length: displayedProducts.length + 1 }).map((_, i) => (
+                   <div 
+                       key={i}
+                       className={`rounded-full transition-all duration-300 ${i === activeIndex ? 'w-4 h-1.5 bg-teal-500' : 'w-1.5 h-1.5 bg-zinc-300/50'}`}
+                   />
+               ))}
+           </div>
        </div>
 
        {/* GRADING MODAL */}

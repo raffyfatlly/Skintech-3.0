@@ -431,24 +431,46 @@ export const BuyingAssistant: React.FC<BuyingAssistantProps> = ({ product, user,
 
                         <div className="bg-white p-6 rounded-[1.5rem] border border-zinc-100 shadow-sm">
                             <h3 className="text-xs font-bold text-zinc-900 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                <AlertOctagon size={14} className="text-rose-500" /> Risk Analysis
+                                {audit.warnings.length > 0 ? (
+                                    <AlertOctagon size={14} className="text-rose-500" /> 
+                                ) : (
+                                    <ShieldCheck size={14} className="text-emerald-500" />
+                                )}
+                                Risk Analysis
                             </h3>
+                            
                             <div className="space-y-3">
-                                {(audit.warnings.length > 0 ? audit.warnings : [{ severity: 'CAUTION', reason: "Contains potential irritants." }]).map((w, i) => (
-                                    <div key={i} className={`flex gap-3 p-3 rounded-xl border ${w.severity === 'CRITICAL' ? 'bg-rose-50 border-rose-100' : 'bg-amber-50 border-amber-100'}`}>
+                                {audit.warnings.length > 0 ? (
+                                    audit.warnings.map((w, i) => (
+                                        <div key={i} className={`flex gap-3 p-3 rounded-xl border ${w.severity === 'CRITICAL' ? 'bg-rose-50 border-rose-100' : 'bg-amber-50 border-amber-100'}`}>
+                                            <div className="mt-0.5">
+                                                {w.severity === 'CRITICAL' ? <AlertOctagon size={16} className="text-rose-500" /> : <AlertTriangle size={16} className="text-amber-500" />}
+                                            </div>
+                                            <div>
+                                                <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded mb-1 inline-block ${w.severity === 'CRITICAL' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
+                                                    {w.severity}
+                                                </span>
+                                                <p className={`text-xs font-medium leading-snug ${w.severity === 'CRITICAL' ? 'text-rose-900' : 'text-amber-900'}`}>
+                                                    {w.reason}
+                                                </p>
+                                            </div>
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="p-3 rounded-xl border bg-emerald-50 border-emerald-100 flex gap-3">
                                         <div className="mt-0.5">
-                                            {w.severity === 'CRITICAL' ? <AlertOctagon size={16} className="text-rose-500" /> : <AlertTriangle size={16} className="text-amber-500" />}
+                                            <ShieldCheck size={16} className="text-emerald-500" />
                                         </div>
                                         <div>
-                                            <span className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded mb-1 inline-block ${w.severity === 'CRITICAL' ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
-                                                {w.severity}
+                                            <span className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded mb-1 inline-block bg-emerald-100 text-emerald-700">
+                                                Safe Match
                                             </span>
-                                            <p className={`text-xs font-medium leading-snug ${w.severity === 'CRITICAL' ? 'text-rose-900' : 'text-amber-900'}`}>
-                                                {w.reason}
+                                            <p className="text-xs font-medium leading-snug text-emerald-900">
+                                                No specific risks found for your skin profile.
                                             </p>
                                         </div>
                                     </div>
-                                ))}
+                                )}
                             </div>
                         </div>
 
