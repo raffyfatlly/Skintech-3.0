@@ -116,9 +116,6 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
   const [isScrolling, setIsScrolling] = useState(false);
   const [containerWidth, setContainerWidth] = useState(window.innerWidth);
   
-  // Insight Interaction State
-  const [isInsightExpanded, setIsInsightExpanded] = useState(false);
-
   // Price Editing State
   const [isEditingPrice, setIsEditingPrice] = useState(false);
   const [tempPrice, setTempPrice] = useState<string>('');
@@ -156,81 +153,6 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
       }
   };
 
-  // --- DYNAMIC INSIGHT LOGIC ---
-  const activeInsight = useMemo(() => {
-      // 1. If looking at the "Ghost Card" (Add New / Routine Builder)
-      if (activeIndex === displayedProducts.length) {
-          if (activeTab === 'ROUTINE') {
-              return {
-                  title: 'Expand Routine',
-                  text: 'Scan a new product to check for conflicts.',
-                  color: 'text-zinc-600',
-                  bg: 'from-zinc-100/50',
-                  icon: <ScanBarcode size={16} strokeWidth={2.5} />
-              };
-          } else {
-              return {
-                  title: 'Find Matches',
-                  text: 'Use AI to find products that perfectly match your skin profile.',
-                  color: 'text-indigo-600',
-                  bg: 'from-indigo-50/50',
-                  icon: <Sparkles size={16} strokeWidth={2.5} />
-              };
-          }
-      }
-
-      // 2. If looking at a real product
-      const product = displayedProducts[activeIndex];
-      if (!product) return null;
-
-      const audit = auditProduct(product, userProfile);
-      
-      // Critical Warning
-      const critical = audit.warnings.find(w => w.severity === 'CRITICAL');
-      if (critical) {
-          return {
-              title: 'Caution',
-              text: critical.reason,
-              color: 'text-rose-600',
-              bg: 'from-rose-50/60',
-              icon: <Trash2 size={16} strokeWidth={2.5} />
-          };
-      }
-
-      // Minor Warning
-      const caution = audit.warnings.find(w => w.severity === 'CAUTION');
-      if (caution) {
-          return {
-              title: 'Note',
-              text: caution.reason,
-              color: 'text-amber-600',
-              bg: 'from-amber-50/60',
-              icon: <Lightbulb size={16} strokeWidth={2.5} />
-          };
-      }
-
-      // Good Match
-      if (audit.adjustedScore > 80) {
-          return {
-              title: 'Great Match',
-              text: `This ${product.type.toLowerCase()} aligns well with your skin profile.`,
-              color: 'text-emerald-600',
-              bg: 'from-emerald-50/60',
-              icon: <Sparkles size={16} strokeWidth={2.5} />
-          };
-      }
-
-      // Neutral
-      return {
-          title: 'Product Info',
-          text: getSmartUsageGuide(product),
-          color: 'text-zinc-500',
-          bg: 'from-zinc-50/60',
-          icon: <Lightbulb size={16} strokeWidth={2.5} />
-      };
-
-  }, [activeIndex, displayedProducts, activeTab, userProfile]);
-
   // --- 3D SCROLL LOGIC ---
   useEffect(() => {
       const handleResize = () => setContainerWidth(window.innerWidth);
@@ -262,7 +184,6 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
               
               if (safeIndex !== activeIndex) {
                   setActiveIndex(safeIndex);
-                  setIsInsightExpanded(false); 
               }
           });
       };
@@ -481,6 +402,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                                 width: CARD_WIDTH,
                                 marginRight: CARD_GAP,
                                 scrollSnapAlign: 'center',
+                                scrollSnapStop: 'always',
                                 ...dynamicStyle 
                             }}
                        >
@@ -563,6 +485,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                             width: CARD_WIDTH,
                             marginRight: CARD_GAP,
                             scrollSnapAlign: 'center',
+                            scrollSnapStop: 'always',
                             ...getCardStyle(displayedProducts.length)
                         }}
                    >
@@ -586,6 +509,7 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                             width: CARD_WIDTH,
                             marginRight: CARD_GAP,
                             scrollSnapAlign: 'center',
+                            scrollSnapStop: 'always',
                             ...getCardStyle(displayedProducts.length)
                         }}
                    >
@@ -601,60 +525,6 @@ const SmartShelf: React.FC<SmartShelfProps> = ({ products, onRemoveProduct, onSc
                    </div>
                )}
            </div>
-       </div>
-
-       {/* ACTIVE INSIGHT (HUD) */}
-       <div 
-           className={`w-full flex justify-center mb-4 z-20 relative px-6 transition-all duration-700 ease-out ${
-               isScrolling ? 'opacity-0 translate-y-4 pointer-events-none scale-95' : 'opacity-100 translate-y-0 scale-100'
-           }`}
-       >
-           {activeInsight ? (
-               <button 
-                   onClick={() => setIsInsightExpanded(!isInsightExpanded)}
-                   style={{ width: CARD_WIDTH }}
-                   className={`
-                        bg-gradient-to-br from-white/40 via-white/20 to-transparent backdrop-blur-2xl border border-white/40 shadow-xl
-                        rounded-[1.5rem] 
-                        relative overflow-hidden transition-all duration-500 cubic-bezier(0.19, 1, 0.22, 1) text-left group
-                        ${isInsightExpanded ? 'p-6' : 'p-3 hover:bg-white/30 active:scale-[0.98]'}
-                   `}
-               >
-                   <div className="flex items-center gap-4 relative z-10">
-                       <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-white/80 shadow-sm border border-white/50 ${activeInsight.color}`}>
-                           {activeInsight.icon}
-                       </div>
-                       
-                       <div className="flex-1 min-w-0">
-                           <h3 className={`text-[10px] font-bold uppercase tracking-widest ${activeInsight.color} truncate flex items-center gap-2`}>
-                               {activeInsight.title}
-                           </h3>
-                           {!isInsightExpanded && (
-                               <p className="text-xs font-medium text-zinc-700 truncate mt-0.5">
-                                   Tap to view analysis
-                               </p>
-                           )}
-                       </div>
-
-                       <div className={`w-6 h-6 rounded-full bg-white/30 flex items-center justify-center text-zinc-600 transition-transform duration-500 ${isInsightExpanded ? 'rotate-180 bg-white/50' : 'rotate-0'}`}>
-                           <ChevronDown size={14} strokeWidth={2} />
-                       </div>
-                   </div>
-
-                   <div 
-                        className={`transition-all duration-500 ease-in-out overflow-hidden relative z-10 ${isInsightExpanded ? 'max-h-40 opacity-100 mt-4' : 'max-h-0 opacity-0 mt-0'}`}
-                   >
-                        <p className="text-sm font-medium text-zinc-800 leading-relaxed border-l-2 border-white/50 pl-3">
-                            {activeInsight.text}
-                        </p>
-                        <div className="mt-4 flex items-center gap-2 text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-                            <Sparkles size={10} className="text-teal-600" /> AI Verdict
-                        </div>
-                   </div>
-               </button>
-           ) : (
-               <div style={{ width: CARD_WIDTH, height: '64px' }} /> 
-           )}
        </div>
 
        {/* GRADING MODAL */}
