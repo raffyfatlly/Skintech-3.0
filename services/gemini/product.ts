@@ -46,6 +46,12 @@ export const analyzeProductFromSearch = async (
            - Check for "Flashback" ingredients (Silica/Zinc Oxide) if relevant.
         4. Output strict JSON.
 
+        STYLE RULES FOR "expertReview":
+        - Do NOT use phrases like "As a chemist", "I recommend", "I think", "In my opinion".
+        - Do NOT use first-person pronouns ("I", "we", "me").
+        - Write in an objective, clinical, third-person tone.
+        - Focus purely on the formulation analysis and how it interacts with the specific user metrics provided.
+
         OUTPUT JSON SCHEMA:
         \`\`\`json
         {
@@ -58,7 +64,7 @@ export const analyzeProductFromSearch = async (
           "risks": [{ "ingredient": "string", "riskLevel": "LOW"|"MEDIUM"|"HIGH", "reason": "string" }],
           "benefits": [{ "ingredient": "string", "target": "acneActive"|"hydration" etc, "description": "string", "relevance": "HIGH"|"MAINTENANCE" }],
           "usageTips": "string (Smart Usage guide. For makeup: Mention finish, skin prep needed (e.g. 'Use hydrating primer first'), and removal method (e.g. 'Double cleanse required').)",
-          "expertReview": "string"
+          "expertReview": "string (Objective analysis of formulation vs skin profile. No 'I' or 'As a chemist'.)"
         }
         \`\`\`
         `;
