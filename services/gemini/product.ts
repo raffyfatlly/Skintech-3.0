@@ -49,8 +49,13 @@ export const analyzeProductFromSearch = async (
         STYLE RULES FOR "expertReview":
         - Do NOT use phrases like "As a chemist", "I recommend", "I think", "In my opinion".
         - Do NOT use first-person pronouns ("I", "we", "me").
-        - Write in an objective, clinical, third-person tone.
-        - Focus purely on the formulation analysis and how it interacts with the specific user metrics provided.
+        - Write in an objective, third-person tone.
+        - **USE SIMPLE, PLAIN LANGUAGE.** Avoid complex chemical jargon or difficult medical terms. Explain things simply so anyone can understand (8th-grade reading level).
+
+        RISK ANALYSIS RULES:
+        - **TARGETED ONLY:** Only list risks that specifically affect THIS USER based on their provided bio-metrics and safety flags.
+        - If the user's scores are high (healthy), do not flag minor generic risks.
+        - If the user has specific issues (e.g. Acne Score < 50), aggressively flag ingredients that worsen that specific issue.
 
         OUTPUT JSON SCHEMA:
         \`\`\`json
@@ -64,7 +69,7 @@ export const analyzeProductFromSearch = async (
           "risks": [{ "ingredient": "string", "riskLevel": "LOW"|"MEDIUM"|"HIGH", "reason": "string" }],
           "benefits": [{ "ingredient": "string", "target": "acneActive"|"hydration" etc, "description": "string", "relevance": "HIGH"|"MAINTENANCE" }],
           "usageTips": "string (Smart Usage guide. For makeup: Mention finish, skin prep needed (e.g. 'Use hydrating primer first'), and removal method (e.g. 'Double cleanse required').)",
-          "expertReview": "string (Objective analysis of formulation vs skin profile. No 'I' or 'As a chemist'.)"
+          "expertReview": "string (Objective analysis of formulation vs skin profile. No 'I' or 'As a chemist'. Simple plain English.)"
         }
         \`\`\`
         `;
